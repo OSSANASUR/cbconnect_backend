@@ -1,0 +1,40 @@
+package com.ossanasur.cbconnect.module.auth.controller;
+
+import com.ossanasur.cbconnect.module.auth.service.UtilisateurService;
+import com.ossanasur.cbconnect.security.dto.request.LoginRequest;
+import com.ossanasur.cbconnect.security.dto.response.LoginResponse;
+import com.ossanasur.cbconnect.utils.DataResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/v1/auth")
+@RequiredArgsConstructor
+@Tag(name = "Authentification", description = "Login, logout, refresh token")
+public class AuthController {
+
+    private final UtilisateurService utilisateurService;
+
+    @PostMapping("/login")
+    @Operation(summary = "Connexion a CBConnect")
+    public ResponseEntity<DataResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request) {
+        return ResponseEntity.ok(utilisateurService.login(request));
+    }
+
+    @PostMapping("/logout")
+    @Operation(summary = "Deconnexion")
+    public ResponseEntity<DataResponse<Void>> logout(@RequestHeader("Authorization") String authHeader) {
+        String token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
+        return ResponseEntity.ok(utilisateurService.logout(token));
+    }
+
+    @GetMapping("/activate/{code}")
+    @Operation(summary = "Activer un compte via code email")
+    public ResponseEntity<DataResponse<Void>> activateAccount(@PathVariable String code) {
+        return ResponseEntity.ok(utilisateurService.activerCompte(code));
+    }
+}

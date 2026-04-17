@@ -1,0 +1,34 @@
+package com.ossanasur.cbconnect.historique;
+import com.ossanasur.cbconnect.module.auth.dto.request.OrganismeRequest;
+import com.ossanasur.cbconnect.module.auth.entity.Organisme;
+import com.ossanasur.cbconnect.module.auth.repository.OrganismeRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Service;
+import java.util.UUID;
+
+@Service @RequiredArgsConstructor
+public class OrganismeVersioningService extends AbstractVersioningService<Organisme, OrganismeRequest> {
+    private final OrganismeRepository repository;
+    @Override protected JpaRepository<Organisme, Integer> getRepository() { return repository; }
+    @Override protected Organisme findActiveByTrackingId(UUID id) {
+        return repository.findActiveByTrackingId(id).orElse(null); }
+    @Override protected UUID getTrackingId(Organisme e) { return e.getOrganismeTrackingId(); }
+    @Override protected Organisme mapToEntity(OrganismeRequest r, Organisme existing) {
+        Organisme u = cloneEntity(existing);
+        if (r.typeOrganisme() != null) u.setTypeOrganisme(r.typeOrganisme());
+        if (r.raisonSociale() != null) u.setRaisonSociale(r.raisonSociale());
+        if (r.code() != null) u.setCode(r.code());
+        if (r.email() != null) u.setEmail(r.email());
+        if (r.responsable() != null) u.setResponsable(r.responsable());
+        if (r.contacts() != null) u.setContacts(r.contacts());
+        if (r.codePays() != null) u.setCodePays(r.codePays());
+        if (r.codePaysBCB() != null) u.setCodePaysBCB(r.codePaysBCB());
+        if (r.paysId() != null) u.setPaysId(r.paysId());
+        if (r.dateCreation() != null) u.setDateCreation(r.dateCreation());
+        if (r.numeroAgrement() != null) u.setNumeroAgrement(r.numeroAgrement());
+        if (r.apiEndpointUrl() != null) u.setApiEndpointUrl(r.apiEndpointUrl());
+        u.setActive(r.active());
+        return u;
+    }
+}

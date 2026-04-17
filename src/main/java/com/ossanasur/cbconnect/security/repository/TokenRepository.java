@@ -14,6 +14,8 @@ import java.util.UUID;
 public interface TokenRepository extends JpaRepository<Token, Integer> {
     Optional<Token> findByAccessTokenOrRefreshToken(String accessToken, String refreshToken);
     boolean existsTokenByAccessTokenOrRefreshToken(String at, String rt);
+    @Query("SELECT COUNT(t) > 0 FROM Token t WHERE (t.accessToken = :token OR t.refreshToken = :token) AND t.isValid = true")
+    boolean existsActiveToken(@Param("token") String token);
     @Modifying @Transactional
     @Query("UPDATE Token t SET t.isValid = false WHERE t.user.utilisateurTrackingId = :uid AND t.historiqueId <> :currentId")
     void invalidateOtherTokens(@Param("uid") UUID userId, @Param("currentId") Integer currentId);

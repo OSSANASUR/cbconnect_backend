@@ -102,7 +102,7 @@ public class JwtServiceImpl implements JwtService {
     @Override public String extractUserEmail(String token) { return extractClaims(token, Claims::getSubject); }
     @Override public boolean isTokenExpired(String token) { return extractClaims(token, Claims::getExpiration).before(new Date()); }
     @Override public boolean isTokenRevoked(String token) {
-        return tokenRepository.existsTokenByAccessTokenOrRefreshToken(token, token); }
+        return !tokenRepository.existsActiveToken(token); }
     @Override public void revokeToken(String token) {
         tokenRepository.findByAccessTokenOrRefreshToken(token, token).ifPresent(t -> {
             t.setValid(false); t.setExpireAt(LocalDateTime.now()); tokenRepository.save(t); }); }

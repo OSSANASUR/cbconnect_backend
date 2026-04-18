@@ -1,15 +1,23 @@
 package com.ossanasur.cbconnect.module.sinistre.service;
+
 import com.ossanasur.cbconnect.module.sinistre.dto.request.SinistreRequest;
 import com.ossanasur.cbconnect.module.sinistre.dto.response.SinistreResponse;
 import com.ossanasur.cbconnect.utils.DataResponse;
 import com.ossanasur.cbconnect.utils.PaginatedResponse;
 import java.util.UUID;
+
 public interface SinistreService {
     DataResponse<SinistreResponse> create(SinistreRequest r, String loginAuteur);
+
     DataResponse<SinistreResponse> update(UUID id, SinistreRequest r, String loginAuteur);
+
     DataResponse<SinistreResponse> getByTrackingId(UUID id);
+
     PaginatedResponse<SinistreResponse> getAll(int page, int size);
+
     DataResponse<Void> changerStatut(UUID id, String nouveauStatut, String loginAuteur);
+
     DataResponse<Void> assignerRedacteur(UUID sinistreId, UUID redacteurId, String loginAuteur);
+
     DataResponse<Void> delete(UUID id, String loginAuteur);
 }

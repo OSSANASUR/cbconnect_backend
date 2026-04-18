@@ -37,6 +37,6 @@ public interface OrganismeRepository extends JpaRepository<Organisme, Integer> {
 
     // Recherche floue par raison sociale — fallback utilisé par la reprise
     // historique lorsque le code assureur (ex: "SUNU BJ") ne matche aucun code
-    // exact, on tente alors le libellé.
-    Optional<Organisme> findByRaisonSocialeContainingIgnoreCase(String raisonSociale);
+    // exact. `findFirst` car plusieurs organismes peuvent matcher (LIMIT 1).
+    Optional<Organisme> findFirstByRaisonSocialeContainingIgnoreCase(String raisonSociale);
 }

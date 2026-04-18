@@ -42,7 +42,7 @@ public interface SinistreRepository extends JpaRepository<Sinistre, Integer> {
 
     // existsByNumeroSinistreManuel
     @Query("SELECT CASE WHEN COUNT(s) > 0 THEN true ELSE false END FROM Sinistre s WHERE s.numeroSinistreManuel=:num AND s.activeData=true AND s.deletedData=false")
-    boolean existsByNumeroSinistreManuel(String numeroSinistreManuel);
+    boolean existsByNumeroSinistreManuel(@Param("num") String numeroSinistreManuel);
 
     // countByRepriseHistorique
     @Query("SELECT COUNT(s) FROM Sinistre s WHERE s.repriseHistorique=:reprise AND s.activeData=true AND s.deletedData=false")

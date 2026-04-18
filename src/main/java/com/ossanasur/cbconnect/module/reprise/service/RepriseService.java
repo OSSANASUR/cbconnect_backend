@@ -20,7 +20,10 @@ import com.ossanasur.cbconnect.module.sinistre.repository.AssureRepository;
 import com.ossanasur.cbconnect.module.sinistre.repository.SinistreRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -50,6 +53,14 @@ public class RepriseService {
     // sinistre.
     private final AssureRepository assureRepository;
 
+    // Self-injection via proxy Spring : nécessaire pour que les @Transactional
+    // REQUIRES_NEW des méthodes par-élément soient réellement interceptées
+    // (un appel direct `this.importerUnSinistre(...)` contourne le proxy AOP).
+    // @Lazy évite le cycle de dépendance à la construction du bean.
+    @Lazy
+    @Autowired
+    private RepriseService self;
+
     // Cache en mémoire pour la session d'import (évite N requêtes SQL par sinistre)
     private final Map<String, Pays> cacheP = new HashMap<>();
     private final Map<String, Organisme> cacheO = new HashMap<>();
@@ -59,93 +70,26 @@ public class RepriseService {
 
     // ─── Import sinistres ────────────────────────────────────────────────────
 
-    @Transactional
+    /**
+     * Méthode d'orchestration : itère sur la liste et délègue chaque import à
+     * `self.importerUnSinistre` qui tourne dans sa propre transaction
+     * (REQUIRES_NEW). Résultat : une ligne fautive roll-back seule sans tuer
+     * la batch. Pas de @Transactional ici — on ne veut PAS de tx englobante.
+     */
     public RapportReprise importerSinistres(RepriseSinistresRequest req, String loginAuteur) {
         int importes = 0, doublons = 0, erreurs = 0;
         List<DetailReprise> details = new ArrayList<>();
 
         for (SinistreRepriseDto dto : req.sinistres()) {
             try {
-                // ── Doublon ──
-                if (sinistreRepository.existsByNumeroSinistreManuel(dto.numeroSinistreManuel())) {
+                ResultatImport res = self.importerUnSinistre(dto, loginAuteur);
+                if (res == ResultatImport.IMPORTE) {
+                    importes++;
+                } else { // DOUBLON
                     doublons++;
                     details.add(new DetailReprise("DOUBLON", dto.numeroSinistreManuel(),
                             "Déjà présent en base"));
-                    continue;
                 }
-
-                // ── Résolution pays émetteur ──
-                Pays paysEmetteur = resoudrePays(dto.paysEmetteurCode());
-                if (paysEmetteur == null) {
-                    erreurs++;
-                    details.add(new DetailReprise("ERROR", dto.numeroSinistreManuel(),
-                            "Pays émetteur introuvable : " + dto.paysEmetteurCode()));
-                    continue;
-                }
-
-                // ── Résolution pays gestionnaire (Togo = TG par défaut) ──
-                Pays paysGestionnaire = resoudrePays(
-                        dto.paysGestionnaireCode() != null ? dto.paysGestionnaireCode() : "TG");
-
-                // ── Résolution organisme membre (assureur déclarant) ──
-                Organisme organismeMembre = resoudreOrganisme(dto.assureurDeclarant());
-
-                // ── Résolution bureau homologue (BCB du pays émetteur) ──
-                // Pour ET : homologue = BCB du pays étranger émetteur (ex: BCB-BJ pour
-                // sinistres béninois)
-                // Pour TE : homologue = BCB du pays de destination (même logique via
-                // paysEmetteurCode)
-                Organisme organismeHomologue = resoudreOrganismeHomologue(dto.paysEmetteurCode());
-
-                // ── Création de l'Assure (obligatoire : relation @ManyToOne nullable=false) ──
-                // Le fichier Excel ne fournit qu'un nom complet brut : on remplit
-                // nomAssure et nomComplet avec la même valeur (les deux sont NOT NULL).
-                Assure assure = creerAssure(dto, organismeMembre, loginAuteur);
-                assureRepository.save(assure);
-
-                // Fallback : si numeroSinistreLocal est absent du DTO, on réutilise
-                // le numéro manuel pour respecter la contrainte NOT NULL/UNIQUE.
-                String numLocal = dto.numeroSinistreLocal() != null && !dto.numeroSinistreLocal().isBlank()
-                        ? dto.numeroSinistreLocal()
-                        : dto.numeroSinistreManuel();
-
-                // ── Construction entité Sinistre ──
-                Sinistre sinistre = Sinistre.builder()
-                        .sinistreTrackingId(UUID.randomUUID())
-                        // Numéros
-                        .numeroSinistreManuel(dto.numeroSinistreManuel())
-                        .numeroSinistreLocal(numLocal)
-                        .numeroSinistreEcarteBrune(clean(dto.numeroSinistreEcarteBrune()))
-                        .numeroSinistreHomologue(clean(dto.numeroSinistreHomologue()))
-                        // Types
-                        .typeSinistre(TypeSinistre.valueOf(dto.typeSinistre()))
-                        .typeDommage(parseTypeDommage(dto.typeDommage()))
-                        // Dates : en reprise, on aligne date déclaration sur date accident
-                        // car le fichier BNCB ne distingue pas les deux.
-                        .dateAccident(parseDate(dto.dateAccident()))
-                        .dateDeclaration(parseDate(dto.dateAccident()))
-                        // Assuré persisté juste au-dessus
-                        .assure(assure)
-                        // Assureur (champs bruts conservés pour audit / traçabilité)
-                        .assureurDeclarant(clean(dto.assureurDeclarant()))
-                        .numeroPoliceAssureur(clean(dto.numeroPoliceAssureur()))
-                        // Relations
-                        .paysEmetteur(paysEmetteur)
-                        .paysGestionnaire(paysGestionnaire)
-                        .organismeMembre(organismeMembre)
-                        .organismeHomologue(organismeHomologue)
-                        // Statut initial (enum, pas String)
-                        .statut(StatutSinistre.NOUVEAU)
-                        .repriseHistorique(true)
-                        // Audit
-                        .createdBy(loginAuteur)
-                        .activeData(true)
-                        .deletedData(false)
-                        .build();
-
-                sinistreRepository.save(sinistre);
-                importes++;
-
             } catch (Exception e) {
                 erreurs++;
                 log.warn("[REPRISE] Erreur import sinistre {} : {}", dto.numeroSinistreManuel(), e.getMessage());
@@ -157,9 +101,100 @@ public class RepriseService {
                 details.isEmpty() ? List.of() : details);
     }
 
+    /**
+     * Import d'UN sinistre dans sa propre transaction (REQUIRES_NEW).
+     * Doit impérativement être appelée via `self` pour que le proxy Spring
+     * applique la propagation. Erreurs remontées en RuntimeException :
+     * l'appelant (importerSinistres) les catch et les comptabilise.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public ResultatImport importerUnSinistre(SinistreRepriseDto dto, String loginAuteur) {
+        // ── Doublon ──
+        if (sinistreRepository.existsByNumeroSinistreManuel(dto.numeroSinistreManuel())) {
+            return ResultatImport.DOUBLON;
+        }
+
+        // ── Validation date accident (NOT NULL en base) ──
+        LocalDate dateAccident = parseDate(dto.dateAccident());
+        if (dateAccident == null) {
+            throw new IllegalArgumentException("Date accident absente ou illisible : " + dto.dateAccident());
+        }
+
+        // ── Résolution pays émetteur ──
+        Pays paysEmetteur = resoudrePays(dto.paysEmetteurCode());
+        if (paysEmetteur == null) {
+            throw new IllegalArgumentException("Pays émetteur introuvable : " + dto.paysEmetteurCode());
+        }
+
+        // ── Résolution pays gestionnaire ──
+        // Le champ sinistre.pays_gestionnaire_id est NOT NULL : on tente le code
+        // fourni, puis on retombe sur TG si absent ou non résolu.
+        Pays paysGestionnaire = resoudrePays(dto.paysGestionnaireCode());
+        if (paysGestionnaire == null) {
+            paysGestionnaire = resoudrePays("TG");
+        }
+        if (paysGestionnaire == null) {
+            throw new IllegalStateException("Pays gestionnaire introuvable (TG absent en base ?)");
+        }
+
+        // ── Résolution organisme membre (assureur déclarant) ──
+        Organisme organismeMembre = resoudreOrganisme(dto.assureurDeclarant());
+
+        // ── Résolution bureau homologue (BCB du pays émetteur) ──
+        // Pour ET : homologue = BCB du pays étranger émetteur (ex: BCB-BJ).
+        // Pour TE : homologue = BCB du pays de destination (même logique).
+        Organisme organismeHomologue = resoudreOrganismeHomologue(dto.paysEmetteurCode());
+
+        // ── Création de l'Assure (obligatoire : relation @ManyToOne nullable=false) ──
+        // Le fichier Excel ne fournit qu'un nom complet brut : on remplit
+        // nomAssure et nomComplet avec la même valeur (les deux sont NOT NULL).
+        Assure assure = creerAssure(dto, organismeMembre, loginAuteur);
+        assureRepository.save(assure);
+
+        // Fallback : si numeroSinistreLocal est absent du DTO, on réutilise
+        // le numéro manuel pour respecter la contrainte NOT NULL/UNIQUE.
+        String numLocal = dto.numeroSinistreLocal() != null && !dto.numeroSinistreLocal().isBlank()
+                ? dto.numeroSinistreLocal()
+                : dto.numeroSinistreManuel();
+
+        // ── Construction entité Sinistre ──
+        Sinistre sinistre = Sinistre.builder()
+                .sinistreTrackingId(UUID.randomUUID())
+                .numeroSinistreManuel(dto.numeroSinistreManuel())
+                .numeroSinistreLocal(numLocal)
+                .numeroSinistreEcarteBrune(clean(dto.numeroSinistreEcarteBrune()))
+                .numeroSinistreHomologue(clean(dto.numeroSinistreHomologue()))
+                .typeSinistre(TypeSinistre.valueOf(dto.typeSinistre()))
+                .typeDommage(parseTypeDommage(dto.typeDommage()))
+                // En reprise, date déclaration = date accident (le fichier BNCB
+                // ne distingue pas les deux).
+                .dateAccident(dateAccident)
+                .dateDeclaration(dateAccident)
+                .assure(assure)
+                .assureurDeclarant(clean(dto.assureurDeclarant()))
+                .numeroPoliceAssureur(clean(dto.numeroPoliceAssureur()))
+                .paysEmetteur(paysEmetteur)
+                .paysGestionnaire(paysGestionnaire)
+                .organismeMembre(organismeMembre)
+                .organismeHomologue(organismeHomologue)
+                .statut(StatutSinistre.NOUVEAU)
+                .repriseHistorique(true)
+                .createdBy(loginAuteur)
+                .activeData(true)
+                .deletedData(false)
+                .build();
+
+        sinistreRepository.save(sinistre);
+        return ResultatImport.IMPORTE;
+    }
+
     // ─── Import organismes ───────────────────────────────────────────────────
 
-    @Transactional
+    /**
+     * Orchestration : propagation per-item via REQUIRES_NEW (voir importerSinistres).
+     * Le "currentPays" (contexte hérité de la ligne d'en-tête Excel précédente)
+     * est géré ici, hors transaction, puis passé en paramètre à chaque appel.
+     */
     public RapportReprise importerOrganismes(RepriseOrganismesRequest req, String loginAuteur) {
         int importes = 0, doublons = 0, erreurs = 0;
         List<DetailReprise> details = new ArrayList<>();
@@ -168,63 +203,16 @@ public class RepriseService {
         String currentPays = null;
 
         for (OrganismeRepriseDto dto : req.organismes()) {
+            if (dto.pays() != null) {
+                currentPays = dto.pays();
+            }
             try {
-                // Doublon sur code
-                if (organismeRepository.existsByCode(dto.code())) {
+                ResultatImport res = self.importerUnOrganisme(dto, currentPays, loginAuteur);
+                if (res == ResultatImport.IMPORTE) {
+                    importes++;
+                } else { // DOUBLON
                     doublons++;
-                    continue;
                 }
-
-                // Résolution pays si renseigné
-                Pays pays = null;
-                String paysDtoNom = dto.pays();
-                if (paysDtoNom != null)
-                    currentPays = paysDtoNom;
-
-                // Chercher par libellé
-                if (currentPays != null) {
-                    pays = paysRepository.findByLibelleContainingIgnoreCase(currentPays).orElse(null);
-                }
-                // Fallback : extraire code du code compagnie ("SUNU BJ" → "BJ")
-                if (pays == null && dto.code() != null) {
-                    String[] parts = dto.code().trim().split(" ");
-                    if (parts.length >= 2) {
-                        String codePays = parts[parts.length - 1].toUpperCase();
-                        pays = resoudrePays(codePays);
-                    }
-                }
-
-                // Organisme.email est UNIQUE + NOT NULL, mais la reprise Excel ne
-                // fournit pas d'email → on génère un email synthétique basé sur le
-                // code (pourra être complété manuellement après import).
-                String emailSynthetique = "reprise-" +
-                        dto.code().trim().toLowerCase().replace(" ", "-") +
-                        "@cbconnect.local";
-
-                Organisme org = Organisme.builder()
-                        .organismeTrackingId(UUID.randomUUID())
-                        .raisonSociale(dto.raisonSociale())
-                        .code(dto.code())
-                        // Enum, pas String
-                        .typeOrganisme(TypeOrganisme.COMPAGNIE_MEMBRE)
-                        // Organisme n'a pas de relation @ManyToOne vers Pays :
-                        // on alimente les trois champs de référence disponibles.
-                        .paysId(pays != null ? pays.getHistoriqueId() : null)
-                        .codePaysBCB(pays != null ? pays.getCodeCarteBrune() : null)
-                        .codePays(pays != null ? pays.getCodeIso() : null)
-                        .email(emailSynthetique)
-                        // Le champ s'appelle `active` (pas `actif`)
-                        .active(true)
-                        .repriseHistorique(true)
-                        .createdBy(loginAuteur)
-                        .activeData(true)
-                        .deletedData(false)
-                        .build();
-
-                organismeRepository.save(org);
-                importes++;
-                cacheO.put(dto.code().toUpperCase(), org);
-
             } catch (Exception e) {
                 erreurs++;
                 log.warn("[REPRISE] Erreur import organisme {} : {}", dto.code(), e.getMessage());
@@ -235,6 +223,64 @@ public class RepriseService {
         return new RapportReprise(req.organismes().size(), importes, doublons, erreurs,
                 details.isEmpty() ? List.of() : details);
     }
+
+    /**
+     * Import d'UN organisme dans sa propre transaction. Même logique de proxy
+     * que importerUnSinistre.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public ResultatImport importerUnOrganisme(OrganismeRepriseDto dto, String currentPays, String loginAuteur) {
+        // Doublon sur code
+        if (organismeRepository.existsByCode(dto.code())) {
+            return ResultatImport.DOUBLON;
+        }
+
+        // Résolution pays par libellé (ligne d'en-tête Excel)
+        Pays pays = null;
+        if (currentPays != null) {
+            pays = paysRepository.findByLibelleContainingIgnoreCase(currentPays).orElse(null);
+        }
+        // Fallback : extraire code du code compagnie ("SUNU BJ" → "BJ")
+        if (pays == null && dto.code() != null) {
+            String[] parts = dto.code().trim().split(" ");
+            if (parts.length >= 2) {
+                String codePays = parts[parts.length - 1].toUpperCase();
+                pays = resoudrePays(codePays);
+            }
+        }
+
+        // Organisme.email est UNIQUE + NOT NULL mais la reprise Excel ne fournit
+        // pas d'email → on génère un email synthétique basé sur le code (sera
+        // complété manuellement après import).
+        String emailSynthetique = "reprise-" +
+                dto.code().trim().toLowerCase().replace(" ", "-") +
+                "@cbconnect.local";
+
+        Organisme org = Organisme.builder()
+                .organismeTrackingId(UUID.randomUUID())
+                .raisonSociale(dto.raisonSociale())
+                .code(dto.code())
+                .typeOrganisme(TypeOrganisme.COMPAGNIE_MEMBRE)
+                // Organisme n'a pas de relation @ManyToOne vers Pays :
+                // on alimente les trois champs de référence disponibles.
+                .paysId(pays != null ? pays.getHistoriqueId() : null)
+                .codePaysBCB(pays != null ? pays.getCodeCarteBrune() : null)
+                .codePays(pays != null ? pays.getCodeIso() : null)
+                .email(emailSynthetique)
+                .active(true)
+                .repriseHistorique(true)
+                .createdBy(loginAuteur)
+                .activeData(true)
+                .deletedData(false)
+                .build();
+
+        organismeRepository.save(org);
+        cacheO.put(dto.code().toUpperCase(), org);
+        return ResultatImport.IMPORTE;
+    }
+
+    /** Résultat d'un import unitaire : soit importé, soit doublon ignoré. */
+    private enum ResultatImport { IMPORTE, DOUBLON }
 
     // ─── Statut ──────────────────────────────────────────────────────────────
 
@@ -267,16 +313,26 @@ public class RepriseService {
         if (nomComplet == null || nomComplet.isBlank()) {
             nomComplet = "INCONNU";
         }
+        // Troncature défensive : les colonnes DB de assure ont des longueurs
+        // strictes qui peuvent être dépassées par des valeurs Excel bruitées
+        // (nom_assure VARCHAR(100), nom_complet VARCHAR(200), immatriculation VARCHAR(30)).
         return Assure.builder()
                 .assureTrackingId(UUID.randomUUID())
-                .nomAssure(nomComplet)
-                .nomComplet(nomComplet)
-                .immatriculation(clean(dto.assureImmatriculation()))
+                .nomAssure(tronquer(nomComplet, 100))
+                .nomComplet(tronquer(nomComplet, 200))
+                .immatriculation(tronquer(clean(dto.assureImmatriculation()), 30))
                 .organisme(organisme)
                 .createdBy(loginAuteur)
                 .activeData(true)
                 .deletedData(false)
                 .build();
+    }
+
+    /** Tronque une chaîne à la longueur max (null-safe). */
+    private String tronquer(String s, int max) {
+        if (s == null)
+            return null;
+        return s.length() <= max ? s : s.substring(0, max);
     }
 
     /**
@@ -330,7 +386,7 @@ public class RepriseService {
         if (cacheO.containsKey(key))
             return cacheO.get(key);
         Organisme o = organismeRepository.findByCodeIgnoreCase(assureurDeclarant.trim())
-                .or(() -> organismeRepository.findByRaisonSocialeContainingIgnoreCase(assureurDeclarant.trim()))
+                .or(() -> organismeRepository.findFirstByRaisonSocialeContainingIgnoreCase(assureurDeclarant.trim()))
                 .orElse(null);
         if (o != null)
             cacheO.put(key, o);

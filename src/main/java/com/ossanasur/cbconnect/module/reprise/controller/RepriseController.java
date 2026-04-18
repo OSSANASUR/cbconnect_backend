@@ -1,6 +1,7 @@
 package com.ossanasur.cbconnect.module.reprise.controller;
 
 import com.ossanasur.cbconnect.module.reprise.dto.RapportReprise;
+import com.ossanasur.cbconnect.module.reprise.dto.RepriseEncaissementsRequest;
 import com.ossanasur.cbconnect.module.reprise.dto.RepriseOrganismesRequest;
 import com.ossanasur.cbconnect.module.reprise.dto.RepriseSinistresRequest;
 import com.ossanasur.cbconnect.module.reprise.service.RepriseService;
@@ -18,10 +19,10 @@ import org.springframework.web.bind.annotation.*;
  * Endpoints de reprise des données historiques CBConnect.
  *
  * Flux d'utilisation :
- *  1. Le frontend parse le fichier Excel directement (client-side, SheetJS)
- *  2. Envoie les données en JSON par batch de 50 → POST /v1/reprise/sinistres
- *  3. Reçoit le rapport d'import (importés / doublons / erreurs)
- *  4. POST /v1/reprise/organismes pour les compagnies CEDEAO
+ * 1. Le frontend parse le fichier Excel directement (client-side, SheetJS)
+ * 2. Envoie les données en JSON par batch de 50 → POST /v1/reprise/sinistres
+ * 3. Reçoit le rapport d'import (importés / doublons / erreurs)
+ * 4. POST /v1/reprise/organismes pour les compagnies CEDEAO
  */
 @Slf4j
 @RestController
@@ -38,9 +39,9 @@ public class RepriseController {
      * Idempotent : les doublons (même numeroSinistreManuel) sont ignorés.
      */
     @PostMapping("/sinistres")
-    @Operation(summary = "Import batch sinistres historiques",
-               description = "Crée les sinistres ET et TE depuis le fichier Excel 2025. " +
-                             "Idempotent — les doublons sont détectés par numeroSinistreManuel.")
+    @Operation(summary = "Import batch sinistres historiques", description = "Crée les sinistres ET et TE depuis le fichier Excel 2025. "
+            +
+            "Idempotent — les doublons sont détectés par numeroSinistreManuel.")
     public ResponseEntity<DataResponse<RapportReprise>> importerSinistres(
             @Valid @RequestBody RepriseSinistresRequest request,
             Authentication auth) {
@@ -63,9 +64,9 @@ public class RepriseController {
      * Crée les organismes manquants, ignore les doublons (même code).
      */
     @PostMapping("/organismes")
-    @Operation(summary = "Import compagnies CEDEAO",
-               description = "Crée tous les organismes membres CEDEAO (source : CODE_COMPAGNIES_ASSURANCE_CEDEAO). " +
-                             "Idempotent — doublons détectés par code.")
+    @Operation(summary = "Import compagnies CEDEAO", description = "Crée tous les organismes membres CEDEAO (source : CODE_COMPAGNIES_ASSURANCE_CEDEAO). "
+            +
+            "Idempotent — doublons détectés par code.")
     public ResponseEntity<DataResponse<RapportReprise>> importerOrganismes(
             @Valid @RequestBody RepriseOrganismesRequest request,
             Authentication auth) {
@@ -86,4 +87,33 @@ public class RepriseController {
     public ResponseEntity<DataResponse<java.util.Map<String, Object>>> statutReprise() {
         return ResponseEntity.ok(DataResponse.success("Statut reprise", repriseService.getStatut()));
     }
+
+    /**
+     * Import batch d'encaissements historiques.
+     * Crée les sinistres minimaux manquants au besoin.
+     *
+     * POST /v1/reprise/encaissements
+     */
+    @PostMapping("/encaissements")
+    @Operation(summary = "Import batch encaissements historiques", description = "Importe les encaissements depuis le fichier Excel BNCB. "
+            +
+            "Doublon détecté sur numeroCheque + organismeEmetteur. " +
+            "Sinistre absent → création minimale automatique.")
+    public ResponseEntity<DataResponse<RapportReprise>> importerEncaissements(
+            @Valid @RequestBody RepriseEncaissementsRequest request,
+            Authentication auth) {
+
+        log.info("[REPRISE] Import batch {} encaissements par {}",
+                request.encaissements().size(),
+                auth != null ? auth.getName() : "system");
+
+        String loginAuteur = auth != null ? auth.getName() : "reprise";
+        RapportReprise rapport = repriseService.importerEncaissements(request, loginAuteur);
+
+        log.info("[REPRISE] Encaissements — {} importés, {} doublons, {} erreurs",
+                rapport.importes(), rapport.doublons(), rapport.erreurs());
+
+        return ResponseEntity.ok(DataResponse.success("Encaissements importés", rapport));
+    }
+
 }

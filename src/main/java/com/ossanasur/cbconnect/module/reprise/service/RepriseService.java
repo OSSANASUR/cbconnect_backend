@@ -1,17 +1,22 @@
 package com.ossanasur.cbconnect.module.reprise.service;
 
+import com.ossanasur.cbconnect.common.enums.StatutCheque;
 import com.ossanasur.cbconnect.common.enums.StatutSinistre;
 import com.ossanasur.cbconnect.common.enums.TypeDommage;
 import com.ossanasur.cbconnect.common.enums.TypeOrganisme;
 import com.ossanasur.cbconnect.common.enums.TypeSinistre;
 import com.ossanasur.cbconnect.module.auth.entity.Organisme;
 import com.ossanasur.cbconnect.module.auth.repository.OrganismeRepository;
+import com.ossanasur.cbconnect.module.finance.entity.Encaissement;
+import com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository;
 import com.ossanasur.cbconnect.module.pays.entity.Pays;
 import com.ossanasur.cbconnect.module.pays.repository.PaysRepository;
 import com.ossanasur.cbconnect.module.reprise.dto.RapportReprise;
 import com.ossanasur.cbconnect.module.reprise.dto.RepriseOrganismesRequest;
 import com.ossanasur.cbconnect.module.reprise.dto.RepriseSinistresRequest;
 import com.ossanasur.cbconnect.module.reprise.dto.RapportReprise.DetailReprise;
+import com.ossanasur.cbconnect.module.reprise.dto.RepriseEncaissementsRequest;
+import com.ossanasur.cbconnect.module.reprise.dto.RepriseEncaissementsRequest.EncaissementRepriseDto;
 import com.ossanasur.cbconnect.module.reprise.dto.RepriseOrganismesRequest.OrganismeRepriseDto;
 import com.ossanasur.cbconnect.module.reprise.dto.RepriseSinistresRequest.SinistreRepriseDto;
 import com.ossanasur.cbconnect.module.sinistre.entity.Assure;
@@ -26,6 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -49,6 +55,7 @@ public class RepriseService {
     private final SinistreRepository sinistreRepository;
     private final OrganismeRepository organismeRepository;
     private final PaysRepository paysRepository;
+    private final EncaissementRepository encaissementRepository;
     // Sinistre.assure est nullable=false → on doit persister un Assure avant le
     // sinistre.
     private final AssureRepository assureRepository;
@@ -188,10 +195,109 @@ public class RepriseService {
         return ResultatImport.IMPORTE;
     }
 
+    // ─── Import encaissements ────────────────────────────────────────────────
+
+    /**
+     * Orchestration : per-item REQUIRES_NEW (même pattern que sinistres/organismes).
+     * Pas de @Transactional ici — une tx englobante empêcherait la reprise après
+     * erreur (rollback-only cascade → "null identifier" à la ligne suivante).
+     */
+    public RapportReprise importerEncaissements(RepriseEncaissementsRequest req, String loginAuteur) {
+        int importes = 0, doublons = 0, erreurs = 0;
+        List<DetailReprise> details = new ArrayList<>();
+
+        for (EncaissementRepriseDto dto : req.encaissements()) {
+            try {
+                ResultatImport res = self.importerUnEncaissement(dto, loginAuteur, details);
+                if (res == ResultatImport.IMPORTE) {
+                    importes++;
+                } else {
+                    doublons++;
+                }
+            } catch (Exception e) {
+                erreurs++;
+                log.warn("[REPRISE] Erreur import encaissement {} : {}", dto.numeroCheque(), e.getMessage());
+                details.add(new DetailReprise("ERROR", dto.numeroCheque(), e.getMessage()));
+            }
+        }
+
+        return new RapportReprise(req.encaissements().size(), importes, doublons, erreurs,
+                details.isEmpty() ? List.of() : details);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public ResultatImport importerUnEncaissement(EncaissementRepriseDto dto,
+            String loginAuteur,
+            List<DetailReprise> details) {
+        // ── 1. Doublon : même numeroCheque + même organismeEmetteur ──
+        Organisme organismeEmetteur = resoudreOrganisme(dto.organismeEmetteurCode());
+        if (organismeEmetteur == null) {
+            throw new IllegalArgumentException(
+                    "Organisme émetteur introuvable : " + dto.organismeEmetteurCode());
+        }
+        if (encaissementRepository.existsByNumeroChequeAndOrganismeEmetteur(
+                dto.numeroCheque(), organismeEmetteur)) {
+            details.add(new DetailReprise("DOUBLON", dto.numeroCheque(),
+                    "Chèque déjà enregistré pour cet organisme"));
+            return ResultatImport.DOUBLON;
+        }
+
+        // ── 2. Résolution du sinistre ──
+        Sinistre sinistre = sinistreRepository
+                .findByNumeroSinistreManuel(dto.numeroSinistreManuel())
+                .orElse(null);
+
+        if (sinistre == null) {
+            sinistre = creerSinistreMinimal(dto, organismeEmetteur, loginAuteur);
+            sinistreRepository.save(sinistre);
+            details.add(new DetailReprise("SINISTRE_CREE", dto.numeroCheque(),
+                    "Sinistre minimal créé : " + dto.numeroSinistreManuel()));
+        }
+
+        // ── 3. Calcul des montants ──
+        BigDecimal montantTheorique = coalesce(dto.montantTheorique());
+        BigDecimal pgEncaisse = coalesce(dto.pgEncaisse());
+        BigDecimal produitFraisGestion = coalesce(dto.produitFraisGestion());
+        BigDecimal montantCheque = montantTheorique.add(pgEncaisse);
+
+        // dateEmission est NOT NULL en base. En reprise l'Excel ne fournit
+        // qu'une date de réception → on l'utilise aussi comme émission.
+        LocalDate dateReception = parseDate(dto.dateReception());
+        if (dateReception == null) {
+            throw new IllegalArgumentException(
+                    "Date de réception absente ou illisible : " + dto.dateReception());
+        }
+
+        // ── 4. Construction encaissement ──
+        Encaissement enc = Encaissement.builder()
+                .encaissementTrackingId(UUID.randomUUID())
+                .numeroCheque(clean(dto.numeroCheque()))
+                .montantCheque(montantCheque)
+                .montantTheorique(montantTheorique)
+                .produitFraisGestion(produitFraisGestion)
+                .dateEmission(dateReception)
+                .dateReception(dateReception)
+                .dateEncaissement(dateReception)
+                .banqueEmettrice(clean(dto.banqueEmettrice()))
+                .modePaiement(clean(dto.modePaiement()))
+                .statutCheque(StatutCheque.RECU)
+                .organismeEmetteur(organismeEmetteur)
+                .sinistre(sinistre)
+                .repriseHistorique(true)
+                .createdBy(loginAuteur)
+                .activeData(true)
+                .deletedData(false)
+                .build();
+
+        encaissementRepository.save(enc);
+        return ResultatImport.IMPORTE;
+    }
+
     // ─── Import organismes ───────────────────────────────────────────────────
 
     /**
-     * Orchestration : propagation per-item via REQUIRES_NEW (voir importerSinistres).
+     * Orchestration : propagation per-item via REQUIRES_NEW (voir
+     * importerSinistres).
      * Le "currentPays" (contexte hérité de la ligne d'en-tête Excel précédente)
      * est géré ici, hors transaction, puis passé en paramètre à chaque appel.
      */
@@ -280,7 +386,9 @@ public class RepriseService {
     }
 
     /** Résultat d'un import unitaire : soit importé, soit doublon ignoré. */
-    private enum ResultatImport { IMPORTE, DOUBLON }
+    private enum ResultatImport {
+        IMPORTE, DOUBLON
+    }
 
     // ─── Statut ──────────────────────────────────────────────────────────────
 
@@ -315,7 +423,8 @@ public class RepriseService {
         }
         // Troncature défensive : les colonnes DB de assure ont des longueurs
         // strictes qui peuvent être dépassées par des valeurs Excel bruitées
-        // (nom_assure VARCHAR(100), nom_complet VARCHAR(200), immatriculation VARCHAR(30)).
+        // (nom_assure VARCHAR(100), nom_complet VARCHAR(200), immatriculation
+        // VARCHAR(30)).
         return Assure.builder()
                 .assureTrackingId(UUID.randomUUID())
                 .nomAssure(tronquer(nomComplet, 100))
@@ -326,6 +435,93 @@ public class RepriseService {
                 .activeData(true)
                 .deletedData(false)
                 .build();
+    }
+
+    /**
+     * Crée un sinistre minimal à partir des données de l'encaissement.
+     * Tous les champs non renseignables sont laissés à null ou à leur valeur
+     * par défaut — l'opérateur pourra compléter manuellement.
+     *
+     * typeSinistre déduit de Col K :
+     * "T" → SURVENU_TOGO (étranger en Togo — ET)
+     * "E" → SURVENU_ETRANGER (Togolais à l'étranger — TE)
+     */
+    private Sinistre creerSinistreMinimal(EncaissementRepriseDto dto,
+            Organisme organisme,
+            String loginAuteur) {
+        // TypeSinistre depuis le lieu de survenance
+        TypeSinistre type = "T".equalsIgnoreCase(dto.lieuSurvenance())
+                ? TypeSinistre.SURVENU_TOGO
+                : TypeSinistre.SURVENU_ETRANGER;
+
+        // Pays gestionnaire = Togo (toujours pour le BNCB-TG)
+        Pays paysGestionnaire = resoudrePays("TG");
+
+        // Pays émetteur : extraire depuis le code organismeEmetteur
+        // ex: "BNCB BF" → "BF", "FIDELIA TG" → "TG"
+        Pays paysEmetteur = extrairePaysDepuisOrganisme(dto.organismeEmetteurCode());
+
+        // Assure minimal
+        Assure assure = creerAssureMinimal(dto.assureNomComplet(), organisme, loginAuteur);
+        assureRepository.save(assure);
+
+        // Numero local = manuel (on n'a pas le format 4 digits)
+        String numLocal = dto.numeroSinistreManuel();
+
+        return Sinistre.builder()
+                .sinistreTrackingId(UUID.randomUUID())
+                .numeroSinistreManuel(dto.numeroSinistreManuel())
+                .numeroSinistreLocal(numLocal)
+                .numeroSinistreHomologue(clean(dto.numeroSinistreHomologue()))
+                .typeSinistre(type)
+                .typeDommage(TypeDommage.MATERIEL) // défaut — à compléter
+                .dateAccident(parseDate(dto.dateSinistre()))
+                .dateDeclaration(parseDate(dto.dateSinistre()))
+                .assure(assure)
+                .paysGestionnaire(paysGestionnaire)
+                .paysEmetteur(paysEmetteur)
+                .organismeMembre(organisme)
+                .assureurDeclarant(clean(dto.organismeEmetteurCode()))
+                .statut(StatutSinistre.NOUVEAU)
+                .repriseHistorique(true)
+                .createdBy(loginAuteur)
+                .activeData(true)
+                .deletedData(false)
+                .build();
+    }
+
+    private Assure creerAssureMinimal(String nom, Organisme organisme, String loginAuteur) {
+        String nomComplet = (nom != null && !nom.isBlank()) ? nom.trim() : "INCONNU";
+        return Assure.builder()
+                .assureTrackingId(UUID.randomUUID())
+                .nomAssure(nomComplet)
+                .nomComplet(nomComplet)
+                .organisme(organisme)
+                .createdBy(loginAuteur)
+                .activeData(true)
+                .deletedData(false)
+                .build();
+    }
+
+    /**
+     * Extrait le pays depuis le code organisme payeur.
+     * Ex: "BNCB BF" → cherche "BF" | "FIDELIA TG" → "TG" | "SANLAM TG" → "TG"
+     */
+    private Pays extrairePaysDepuisOrganisme(String codeOrganisme) {
+        if (codeOrganisme == null || codeOrganisme.isBlank())
+            return resoudrePays("TG");
+        String[] parts = codeOrganisme.trim().split("\\s+");
+        if (parts.length >= 2) {
+            String codePays = parts[parts.length - 1].toUpperCase();
+            Pays p = resoudrePays(codePays);
+            if (p != null)
+                return p;
+        }
+        return resoudrePays("TG");
+    }
+
+    private static BigDecimal coalesce(BigDecimal v) {
+        return v == null ? BigDecimal.ZERO : v;
     }
 
     /** Tronque une chaîne à la longueur max (null-safe). */
@@ -378,19 +574,43 @@ public class RepriseService {
 
     /**
      * Ex : "SUNU BJ" → cherche code="SUNU BJ" ou raisonSociale contenant "SUNU BJ".
+     *
+     * Fallback reprise : l'Excel encaissements utilise "BNCB XX" pour désigner
+     * les bureaux homologues, alors que la base les enregistre en "BCB-XX"
+     * (cf V11). Si la recherche directe échoue et que l'entrée matche
+     * "BNCB XX", on retente avec "BCB-XX".
      */
     private Organisme resoudreOrganisme(String assureurDeclarant) {
         if (assureurDeclarant == null || assureurDeclarant.isBlank())
             return null;
-        String key = assureurDeclarant.trim().toUpperCase();
+        String raw = assureurDeclarant.trim();
+        String key = raw.toUpperCase();
         if (cacheO.containsKey(key))
             return cacheO.get(key);
-        Organisme o = organismeRepository.findByCodeIgnoreCase(assureurDeclarant.trim())
-                .or(() -> organismeRepository.findFirstByRaisonSocialeContainingIgnoreCase(assureurDeclarant.trim()))
+        Organisme o = organismeRepository.findByCodeIgnoreCase(raw)
+                .or(() -> organismeRepository.findFirstByRaisonSocialeContainingIgnoreCase(raw))
                 .orElse(null);
+        if (o == null) {
+            String alt = normaliserCodeBureauHomologue(raw);
+            if (alt != null) {
+                o = organismeRepository.findByCodeIgnoreCase(alt).orElse(null);
+            }
+        }
         if (o != null)
             cacheO.put(key, o);
         return o;
+    }
+
+    /**
+     * "BNCB BF" / "BNCB-BF" / "BNCB  BF" → "BCB-BF". Renvoie null si le pattern
+     * ne matche pas (l'appelant tombe alors dans le flux d'erreur normal).
+     */
+    private String normaliserCodeBureauHomologue(String raw) {
+        String[] parts = raw.split("[\\s-]+");
+        if (parts.length == 2 && "BNCB".equalsIgnoreCase(parts[0])) {
+            return "BCB-" + parts[1].toUpperCase();
+        }
+        return null;
     }
 
     private TypeDommage parseTypeDommage(String val) {

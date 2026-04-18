@@ -239,6 +239,7 @@
 /Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/reclamation/service/impl/ReclamationServiceImpl.java
 /Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/reprise/controller/RepriseController.java
 /Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/reprise/dto/RapportReprise.java
+/Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/reprise/dto/RepriseEncaissementsRequest.java
 /Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/reprise/dto/RepriseOrganismesRequest.java
 /Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/reprise/dto/RepriseSinistresRequest.java
 /Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/reprise/service/RepriseService.java
@@ -263,6 +264,10 @@
 /Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/sinistre/service/VictimeService.java
 /Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/sinistre/service/impl/SinistreServiceImpl.java
 /Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/sinistre/service/impl/VictimeServiceImpl.java
+/Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/statistiques/controller/StatistiquesController.java
+/Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/statistiques/dto/EtatFinancierDto.java
+/Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/statistiques/dto/EtatSinistreDto.java
+/Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/statistiques/service/StatistiquesService.java
 /Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/security/dto/request/ChangePasswordRequest.java
 /Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/security/dto/request/LoginRequest.java
 /Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/security/dto/request/RegisterRequest.java

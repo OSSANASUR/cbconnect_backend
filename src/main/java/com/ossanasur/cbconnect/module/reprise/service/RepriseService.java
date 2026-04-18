@@ -34,7 +34,7 @@ import java.util.*;
  * • Lookup pays par codeIso ou codeCarteBrune (BJ → Bénin)
  * • Lookup organisme membre par code assureur (ex: "SUNU BJ")
  * • Création d'un Assure (relation obligatoire sur Sinistre) à partir du nom
- *   complet et de l'immatriculation issus du fichier Excel
+ * complet et de l'immatriculation issus du fichier Excel
  * • Statut initial = NOUVEAU
  * • Flag repriseHistorique = true (pour distinguer des saisies normales)
  */
@@ -46,12 +46,16 @@ public class RepriseService {
     private final SinistreRepository sinistreRepository;
     private final OrganismeRepository organismeRepository;
     private final PaysRepository paysRepository;
-    // Sinistre.assure est nullable=false → on doit persister un Assure avant le sinistre.
+    // Sinistre.assure est nullable=false → on doit persister un Assure avant le
+    // sinistre.
     private final AssureRepository assureRepository;
 
     // Cache en mémoire pour la session d'import (évite N requêtes SQL par sinistre)
     private final Map<String, Pays> cacheP = new HashMap<>();
     private final Map<String, Organisme> cacheO = new HashMap<>();
+    // Cache bureaux homologues : codePays → Organisme BUREAU_HOMOLOGUE
+    // Chargé une seule fois au premier appel (lazy init).
+    private final Map<String, Organisme> cacheH = new HashMap<>();
 
     // ─── Import sinistres ────────────────────────────────────────────────────
 
@@ -85,6 +89,13 @@ public class RepriseService {
 
                 // ── Résolution organisme membre (assureur déclarant) ──
                 Organisme organismeMembre = resoudreOrganisme(dto.assureurDeclarant());
+
+                // ── Résolution bureau homologue (BCB du pays émetteur) ──
+                // Pour ET : homologue = BCB du pays étranger émetteur (ex: BCB-BJ pour
+                // sinistres béninois)
+                // Pour TE : homologue = BCB du pays de destination (même logique via
+                // paysEmetteurCode)
+                Organisme organismeHomologue = resoudreOrganismeHomologue(dto.paysEmetteurCode());
 
                 // ── Création de l'Assure (obligatoire : relation @ManyToOne nullable=false) ──
                 // Le fichier Excel ne fournit qu'un nom complet brut : on remplit
@@ -122,6 +133,7 @@ public class RepriseService {
                         .paysEmetteur(paysEmetteur)
                         .paysGestionnaire(paysGestionnaire)
                         .organismeMembre(organismeMembre)
+                        .organismeHomologue(organismeHomologue)
                         // Statut initial (enum, pas String)
                         .statut(StatutSinistre.NOUVEAU)
                         .repriseHistorique(true)
@@ -286,7 +298,29 @@ public class RepriseService {
     }
 
     /**
-     * Résout un organisme par son code assureur.
+     * Résout le bureau homologue (BUREAU_HOMOLOGUE) à partir du code pays émetteur.
+     * Ex : "BJ" → BCB-BJ (Bureau National Carte Brune du Bénin).
+     *
+     * Charge tous les BUREAU_HOMOLOGUE en mémoire au premier appel (14 entrées max)
+     * pour éviter une requête SQL par sinistre lors des 1350 imports.
+     */
+    private Organisme resoudreOrganismeHomologue(String codePays) {
+        if (codePays == null || codePays.isBlank())
+            return null;
+        // Initialisation lazy du cache au premier appel
+        if (cacheH.isEmpty()) {
+            organismeRepository.findAllActiveByType(TypeOrganisme.BUREAU_HOMOLOGUE)
+                    .forEach(o -> {
+                        if (o.getCodePaysBCB() != null)
+                            cacheH.put(o.getCodePaysBCB().toUpperCase(), o);
+                        if (o.getCodePays() != null)
+                            cacheH.put(o.getCodePays().toUpperCase(), o);
+                    });
+        }
+        return cacheH.get(codePays.trim().toUpperCase());
+    }
+
+    /**
      * Ex : "SUNU BJ" → cherche code="SUNU BJ" ou raisonSociale contenant "SUNU BJ".
      */
     private Organisme resoudreOrganisme(String assureurDeclarant) {

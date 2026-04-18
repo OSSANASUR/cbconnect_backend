@@ -34,4 +34,13 @@ public class Assure extends InternalHistorique {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organisme_id")
     private Organisme organisme;
+    /**
+     * Distingue une personne morale (société, entreprise, association)
+     * d'une personne physique.
+     * false (défaut) = personne physique
+     * true = personne morale
+     */
+    @Column(name = "est_personne_morale")
+    @Builder.Default
+    private boolean estPersonneMorale = false;
 }

@@ -276,6 +276,7 @@ com/ossanasur/cbconnect/module/auth/dto/request/ProfilRequest.class
 com/ossanasur/cbconnect/module/auth/dto/response/ParametreResponse.class
 com/ossanasur/cbconnect/module/expertise/entity/ExpertiseMedicale$ExpertiseMedicaleBuilderImpl.class
 com/ossanasur/cbconnect/historique/AbstractVersioningService.class
+com/ossanasur/cbconnect/module/reclamation/service/impl/PiecesAdministrativesServiceImpl$1.class
 com/ossanasur/cbconnect/common/enums/SensCirculationPv.class
 com/ossanasur/cbconnect/module/sinistre/repository/SinistreRepository.class
 com/ossanasur/cbconnect/module/courrier/controller/CourrierController.class

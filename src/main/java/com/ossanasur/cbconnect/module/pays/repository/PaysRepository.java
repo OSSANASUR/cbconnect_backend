@@ -17,4 +17,10 @@ public interface PaysRepository extends JpaRepository<Pays, Integer> {
     Optional<Pays> findByCodeCarteBrune(@Param("code") String code);
     @Query("SELECT p FROM Pays p WHERE p.activeData=true AND p.deletedData=false AND p.actif=true ORDER BY p.libelle")
     List<Pays> findAllActifs();
+
+    // Recherche floue par libellé — utilisée par la reprise historique
+    // quand le fichier Excel ne fournit que le nom du pays (ex: "Bénin").
+    @Query("SELECT p FROM Pays p WHERE LOWER(p.libelle) LIKE LOWER(CONCAT('%', :libelle, '%')) " +
+            "AND p.activeData=true AND p.deletedData=false")
+    Optional<Pays> findByLibelleContainingIgnoreCase(@Param("libelle") String libelle);
 }

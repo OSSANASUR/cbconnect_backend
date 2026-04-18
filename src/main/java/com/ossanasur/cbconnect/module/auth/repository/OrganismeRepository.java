@@ -1,4 +1,5 @@
 package com.ossanasur.cbconnect.module.auth.repository;
+
 import com.ossanasur.cbconnect.module.auth.entity.Organisme;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -14,12 +15,28 @@ import java.util.UUID;
 public interface OrganismeRepository extends JpaRepository<Organisme, Integer> {
     @Query("SELECT o FROM Organisme o WHERE o.organismeTrackingId = :id AND o.activeData = true AND o.deletedData = false")
     Optional<Organisme> findActiveByTrackingId(@Param("id") UUID id);
+
     @Query("SELECT o FROM Organisme o WHERE o.activeData = true AND o.deletedData = false ORDER BY o.createdAt DESC")
     List<Organisme> findAllActive();
+
     @Query("SELECT o FROM Organisme o WHERE o.activeData = true AND o.deletedData = false AND o.typeOrganisme = :type ORDER BY o.createdAt DESC")
     List<Organisme> findAllActiveByType(@Param("type") com.ossanasur.cbconnect.common.enums.TypeOrganisme type);
+
     @Query("SELECT o FROM Organisme o WHERE o.organismeTrackingId = :id ORDER BY o.createdAt DESC")
     Page<Organisme> findHistoryByTrackingId(@Param("id") UUID id, Pageable pageable);
+
     boolean existsByCodeAndActiveDataTrueAndDeletedDataFalse(String code);
+
     boolean existsByEmailAndActiveDataTrueAndDeletedDataFalse(String email);
+
+    boolean existsByCode(String code);
+
+    long countByRepriseHistorique(boolean reprise);
+
+    Optional<Organisme> findByCodeIgnoreCase(String code);
+
+    // Recherche floue par raison sociale — fallback utilisé par la reprise
+    // historique lorsque le code assureur (ex: "SUNU BJ") ne matche aucun code
+    // exact, on tente alors le libellé.
+    Optional<Organisme> findByRaisonSocialeContainingIgnoreCase(String raisonSociale);
 }

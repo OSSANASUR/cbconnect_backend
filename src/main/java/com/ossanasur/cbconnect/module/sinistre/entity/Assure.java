@@ -5,7 +5,6 @@ import com.ossanasur.cbconnect.module.auth.entity.Organisme;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
-import java.io.Serializable;
 import java.util.UUID;
 
 @RequiredArgsConstructor
@@ -15,7 +14,7 @@ import java.util.UUID;
 @SuperBuilder
 @Entity
 @DiscriminatorValue("ASSURE")
-public class Assure extends InternalHistorique implements Serializable {
+public class Assure extends InternalHistorique {
     @Column(name = "assure_tracking_id", unique = true)
     private UUID assureTrackingId;
     @Column(nullable = false)

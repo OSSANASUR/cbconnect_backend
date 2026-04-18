@@ -4,20 +4,27 @@ import com.ossanasur.cbconnect.common.entity.InternalHistorique;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
-import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Getter @Setter @AllArgsConstructor @NoArgsConstructor @SuperBuilder
-@Entity @DiscriminatorValue("UTILISATEUR")
-public class Utilisateur extends InternalHistorique implements Serializable {
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
+@SuperBuilder
+@Entity
+@DiscriminatorValue("UTILISATEUR")
+public class Utilisateur extends InternalHistorique {
 
     @Column(name = "utilisateur_tracking_id", unique = true)
     private UUID utilisateurTrackingId;
 
-    @Column(nullable = false) private String nom;
-    @Column(nullable = false) private String prenoms;
-    @Column(unique = true, nullable = false) private String email;
+    @Column(nullable = false)
+    private String nom;
+    @Column(nullable = false)
+    private String prenoms;
+    @Column(unique = true, nullable = false)
+    private String email;
     private String username;
     private String telephone;
 

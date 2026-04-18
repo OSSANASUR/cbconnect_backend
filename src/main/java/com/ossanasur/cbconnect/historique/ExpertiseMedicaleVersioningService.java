@@ -1,5 +1,4 @@
 package com.ossanasur.cbconnect.historique;
-import com.ossanasur.cbconnect.common.enums.QualificationPretium;
 import com.ossanasur.cbconnect.module.expertise.dto.request.ExpertiseMedicaleRequest;
 import com.ossanasur.cbconnect.module.expertise.entity.ExpertiseMedicale;
 import com.ossanasur.cbconnect.module.expertise.repository.ExpertRepository;

@@ -52,15 +52,22 @@ public class JwtServiceImpl implements JwtService {
         claims.put("trackingId", user.getUtilisateurTrackingId());
         claims.put("nom", user.getNom()); claims.put("prenoms", user.getPrenoms());
         claims.put("profil", user.getProfil() != null ? user.getProfil().getProfilNom() : null);
+        // [FIX #2] Marque explicite du type. Lu par JwtAuthFilter pour rejeter les refresh tokens.
+        claims.put("type", "access");
         claims.put("vagad", "miolnir");
 
-        String accessToken = generateToken(user.getUsername() != null ? user.getUsername() : user.getEmail(), claims, accessDuration);
+        // [FIX #1] Subject = email (et non username) pour rester coherent avec
+        // CustomUserDetailsService qui construit toujours UserDetails.username = email.
+        // Avant ce fix, quand user.username != user.email, isTokenValid echouait sur l'access_token.
+        String accessToken = generateToken(user.getEmail(), claims, accessDuration);
         String encryptedAccess = encryptionToken.encrypt(accessToken);
 
         String encryptedRefresh = null;
         if (!isMobile) {
             Map<String, Object> refreshClaims = new HashMap<>();
             refreshClaims.put("trackingId", user.getUtilisateurTrackingId());
+            // [FIX #2] Marque explicite du type. Ce token sera rejete par JwtAuthFilter.
+            refreshClaims.put("type", "refresh");
             refreshClaims.put("vagad", "thor");
             String refresh = generateToken(user.getEmail(), refreshClaims, refreshDuration);
             encryptedRefresh = encryptionToken.encrypt(refresh);
@@ -85,6 +92,11 @@ public class JwtServiceImpl implements JwtService {
 
     @Override
     public DataResponse<Map<String, String>> refreshToken(String refreshToken) {
+        // [FIX #3] On refuse qu'un access_token soit envoye sur /refresh-token.
+        // Seul un token portant le claim type="refresh" doit pouvoir renouveler l'acces.
+        if (!"refresh".equals(extractTokenType(refreshToken))) {
+            throw new RuntimeException("Le jeton fourni n'est pas un refresh token");
+        }
         Token rToken = tokenRepository.findByAccessTokenOrRefreshToken(refreshToken, refreshToken)
                 .orElseThrow(() -> new RessourceNotFoundException("Jeton inexistant"));
         String decrypted = encryptionToken.decrypt(rToken.getRefreshToken());
@@ -93,13 +105,22 @@ public class JwtServiceImpl implements JwtService {
         Utilisateur user = utilisateurRepository.findByEmailAndActiveDataTrueAndDeletedDataFalse(email)
                 .orElseThrow(() -> new RessourceNotFoundException("Utilisateur introuvable"));
         Map<String, Object> claims = new HashMap<>();
-        claims.put("trackingId", user.getUtilisateurTrackingId()); claims.put("vagad", "miolnir");
+        claims.put("trackingId", user.getUtilisateurTrackingId());
+        // [FIX #2] On remet le claim type="access" sur le nouveau token, sinon JwtAuthFilter le rejettera.
+        claims.put("type", "access");
+        claims.put("vagad", "miolnir");
         String newAccess = generateToken(email, claims, accessDuration);
-        tokenRepository.updateAccessToken(rToken.getHistoriqueId(), encryptionToken.encrypt(newAccess));
-        return DataResponse.success("Jeton renouvele", Map.of("access_token", newAccess, "refresh_token", refreshToken));
+        // On chiffre avant stockage ET avant retour au client : coherent avec generateTokens()
+        // et avec existsActiveToken() qui compare sur la forme chiffree en base.
+        String encryptedNewAccess = encryptionToken.encrypt(newAccess);
+        tokenRepository.updateAccessToken(rToken.getHistoriqueId(), encryptedNewAccess);
+        return DataResponse.success("Jeton renouvele", Map.of("access_token", encryptedNewAccess, "refresh_token", refreshToken));
     }
 
     @Override public String extractUserEmail(String token) { return extractClaims(token, Claims::getSubject); }
+    // [FIX #2] Lit le claim "type" ajoute dans generateTokens() / refreshToken().
+    // Renvoie null si le token n'a pas ce claim (ex: anciens tokens emis avant ce fix).
+    @Override public String extractTokenType(String token) { return extractClaims(token, c -> (String) c.get("type")); }
     @Override public boolean isTokenExpired(String token) { return extractClaims(token, Claims::getExpiration).before(new Date()); }
     @Override public boolean isTokenRevoked(String token) {
         return !tokenRepository.existsActiveToken(token); }

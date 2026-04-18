@@ -34,6 +34,19 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             chain.doFilter(request, response); return;
         }
         final String jwt = authHeader.substring(7);
+        // [FIX #2] Seul un access_token peut donner acces aux ressources protegees.
+        // Un refresh_token doit UNIQUEMENT servir a obtenir un nouvel access_token sur /refresh-token.
+        // Avant ce fix, les deux etaient indistinguables pour le filtre (faille de securite).
+        String tokenType;
+        try {
+            tokenType = jwtService.extractTokenType(jwt);
+        } catch (Exception e) {
+            // Token illisible / signature invalide / dechiffrement impossible
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); return;
+        }
+        if (!"access".equals(tokenType)) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); return;
+        }
         if (jwtService.isTokenRevoked(jwt)) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); return;
         }

@@ -8,7 +8,6 @@ import com.ossanasur.cbconnect.module.expertise.repository.ExpertiseMedicaleRepo
 import com.ossanasur.cbconnect.module.indemnisation.entity.OffreIndemnisation;
 import com.ossanasur.cbconnect.module.indemnisation.repository.OffreIndemnisationRepository;
 import com.ossanasur.cbconnect.module.indemnisation.service.CalculCimaService;
-import com.ossanasur.cbconnect.module.pays.entity.Pays;
 import com.ossanasur.cbconnect.module.reclamation.repository.DossierReclamationRepository;
 import com.ossanasur.cbconnect.module.sinistre.entity.Sinistre;
 import com.ossanasur.cbconnect.module.sinistre.entity.Victime;
@@ -48,11 +47,14 @@ public class CalculCimaServiceImpl implements CalculCimaService {
     public OffreIndemnisation calculerOffreBlesse(Victime victime, String loginAuteur) {
         Sinistre sinistre = victime.getSinistre();
 
-        // Determination du SMIG retenu : MAX(SMIG pays gestionnaire, SMIG pays résidence)
+        // Determination du SMIG retenu : MAX(SMIG pays gestionnaire, SMIG pays
+        // résidence)
         BigDecimal smigGestionnaire = sinistre.getPaysGestionnaire() != null
-                ? sinistre.getPaysGestionnaire().getSmigMensuel() : BigDecimal.ZERO;
+                ? sinistre.getPaysGestionnaire().getSmigMensuel()
+                : BigDecimal.ZERO;
         BigDecimal smigResidence = victime.getPaysResidence() != null
-                ? victime.getPaysResidence().getSmigMensuel() : BigDecimal.ZERO;
+                ? victime.getPaysResidence().getSmigMensuel()
+                : BigDecimal.ZERO;
         BigDecimal smigRetenu = smigGestionnaire.max(smigResidence);
         BigDecimal smigAnnuel = smigRetenu.multiply(new BigDecimal("12"));
 
@@ -77,14 +79,17 @@ public class CalculCimaServiceImpl implements CalculCimaService {
             tauxIpp = exp.getTauxIpp() != null ? exp.getTauxIpp() : BigDecimal.ZERO;
             dureeIttJours = exp.getDureeIttJours() != null ? exp.getDureeIttJours() : 0;
             pctPretiumDoloris = exp.getPretiumDoloris() != null
-                    ? new BigDecimal(exp.getPretiumDoloris().getPointsPct()).divide(new BigDecimal("100")) : BigDecimal.ZERO;
+                    ? new BigDecimal(exp.getPretiumDoloris().getPointsPct()).divide(new BigDecimal("100"))
+                    : BigDecimal.ZERO;
             pctPrejEsthetique = exp.getPrejudiceEsthetique() != null
-                    ? new BigDecimal(exp.getPrejudiceEsthetique().getPointsPct()).divide(new BigDecimal("100")) : BigDecimal.ZERO;
+                    ? new BigDecimal(exp.getPrejudiceEsthetique().getPointsPct()).divide(new BigDecimal("100"))
+                    : BigDecimal.ZERO;
             tiercePersonne = exp.isNecessiteTiercePersonne();
         }
 
         BigDecimal revenuMensuel = victime.getRevenuMensuel().compareTo(BigDecimal.ZERO) > 0
-                ? victime.getRevenuMensuel() : smigRetenu;
+                ? victime.getRevenuMensuel()
+                : smigRetenu;
         BigDecimal revenuAnnuel = revenuMensuel.multiply(new BigDecimal("12"));
 
         // Art. 258 – Frais médicaux
@@ -115,9 +120,11 @@ public class CalculCimaServiceImpl implements CalculCimaService {
         // Art. 260-b – Préjudice économique (IPP >= 50%)
         BigDecimal prejEco = BigDecimal.ZERO;
         if (tauxIpp.compareTo(new BigDecimal("50")) >= 0) {
-            BigDecimal perteMensuelle = revenuMensuel.subtract(revenuMensuel.multiply(tauxIpp.divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP)));
+            BigDecimal perteMensuelle = revenuMensuel
+                    .subtract(revenuMensuel.multiply(tauxIpp.divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP)));
             String tableCapitali = "M" + (ageConsolidation <= 24 ? "25" : "100");
-            if ("F".equalsIgnoreCase(victime.getSexe())) tableCapitali = "F" + (ageConsolidation <= 24 ? "25" : "100");
+            if ("F".equalsIgnoreCase(victime.getSexe()))
+                tableCapitali = "F" + (ageConsolidation <= 24 ? "25" : "100");
             var bareme = baremeCapitalisationRepository.findByTypeAndAgeClose(tableCapitali, ageConsolidation);
             BigDecimal prixRente = bareme.map(b -> b.getPrixFrancRente()).orElse(BigDecimal.ONE);
             BigDecimal plafondPE = smigAnnuel.multiply(new BigDecimal("10"));
@@ -213,7 +220,8 @@ public class CalculCimaServiceImpl implements CalculCimaService {
                 .equals(offre.getVictime().getTypeVictime());
         long delaiMax = estDeces ? DELAI_MAX_OFFRE_DECES_MOIS : DELAI_MAX_OFFRE_BLESSE_MOIS;
         long moisRetard = Math.max(0, moisEcoules - delaiMax);
-        if (moisRetard == 0) return BigDecimal.ZERO;
+        if (moisRetard == 0)
+            return BigDecimal.ZERO;
         return offre.getMontantTotalOffre()
                 .multiply(PCT_PENALITE_RETARD)
                 .multiply(BigDecimal.valueOf(moisRetard))

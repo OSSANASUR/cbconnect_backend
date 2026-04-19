@@ -5,30 +5,40 @@ import com.ossanasur.cbconnect.common.enums.TypeOrganisme;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
-import java.io.Serializable;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
 /**
- * Represente un Bureau National, un Bureau Homologue CEDEAO ou une Compagnie Membre.
- * Remplace l'ancienne entite COMPAGNIE_ASSURANCE — discrimination via typeOrganisme.
+ * Represente un Bureau National, un Bureau Homologue CEDEAO ou une Compagnie
+ * Membre.
+ * Remplace l'ancienne entite COMPAGNIE_ASSURANCE — discrimination via
+ * typeOrganisme.
  */
-@RequiredArgsConstructor @AllArgsConstructor @Getter @Setter @SuperBuilder
-@Entity @DiscriminatorValue("ORGANISME")
-public class Organisme extends InternalHistorique implements Serializable {
+@RequiredArgsConstructor
+@AllArgsConstructor
+@Getter
+@Setter
+@SuperBuilder
+@Entity
+@DiscriminatorValue("ORGANISME")
+public class Organisme extends InternalHistorique {
 
     @Column(name = "organisme_tracking_id", unique = true)
     private UUID organismeTrackingId;
 
     /** BUREAU_NATIONAL | BUREAU_HOMOLOGUE | COMPAGNIE_MEMBRE */
-    @Enumerated(EnumType.STRING) @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private TypeOrganisme typeOrganisme;
 
     @Column(nullable = false)
     private String raisonSociale;
 
-    /** Code court utilise dans la numerotation des sinistres. Ex: BNCB-TG, BF, SN, NSIA-TG */
+    /**
+     * Code court utilise dans la numerotation des sinistres. Ex: BNCB-TG, BF, SN,
+     * NSIA-TG
+     */
     @Column(unique = true, nullable = false, length = 20)
     private String code;
 
@@ -59,4 +69,10 @@ public class Organisme extends InternalHistorique implements Serializable {
     private String logo;
     @Builder.Default
     private boolean active = true;
+
+    // Flag pour distinguer les organismes importés via reprise historique BNCB.
+    // Utile pour filtrer les rapports et compter les imports (voir RepriseService.getStatut).
+    @Column(name = "reprise_historique")
+    @Builder.Default
+    private boolean repriseHistorique = false;
 }

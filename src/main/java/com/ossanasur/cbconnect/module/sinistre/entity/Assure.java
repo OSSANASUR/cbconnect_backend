@@ -5,7 +5,6 @@ import com.ossanasur.cbconnect.module.auth.entity.Organisme;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
-import java.io.Serializable;
 import java.util.UUID;
 
 @RequiredArgsConstructor
@@ -15,7 +14,7 @@ import java.util.UUID;
 @SuperBuilder
 @Entity
 @DiscriminatorValue("ASSURE")
-public class Assure extends InternalHistorique implements Serializable {
+public class Assure extends InternalHistorique {
     @Column(name = "assure_tracking_id", unique = true)
     private UUID assureTrackingId;
     @Column(nullable = false)
@@ -35,4 +34,13 @@ public class Assure extends InternalHistorique implements Serializable {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organisme_id")
     private Organisme organisme;
+    /**
+     * Distingue une personne morale (société, entreprise, association)
+     * d'une personne physique.
+     * false (défaut) = personne physique
+     * true = personne morale
+     */
+    @Column(name = "est_personne_morale")
+    @Builder.Default
+    private boolean estPersonneMorale = false;
 }

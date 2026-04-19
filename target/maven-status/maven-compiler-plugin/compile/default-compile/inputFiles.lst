@@ -256,6 +256,7 @@
 /Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/reprise/dto/RapportReprise.java
 /Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/reprise/dto/RepriseEncaissementsRequest.java
 /Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/reprise/dto/RepriseOrganismesRequest.java
+/Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/reprise/dto/ReprisePaiementsRequest.java
 /Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/reprise/dto/RepriseSinistresRequest.java
 /Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/reprise/service/RepriseService.java
 /Users/samuelatake/Documents/2026/Projects/CBConnect/v2/cbconnect/src/main/java/com/ossanasur/cbconnect/module/sinistre/controller/SinistreController.java

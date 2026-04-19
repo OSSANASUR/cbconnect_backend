@@ -1,6 +1,8 @@
 package com.ossanasur.cbconnect.module.reprise.service;
 
+import com.ossanasur.cbconnect.common.enums.StatutActivite;
 import com.ossanasur.cbconnect.common.enums.StatutCheque;
+import com.ossanasur.cbconnect.common.enums.StatutPaiement;
 import com.ossanasur.cbconnect.common.enums.StatutSinistre;
 import com.ossanasur.cbconnect.common.enums.TypeDommage;
 import com.ossanasur.cbconnect.common.enums.TypeOrganisme;
@@ -8,7 +10,9 @@ import com.ossanasur.cbconnect.common.enums.TypeSinistre;
 import com.ossanasur.cbconnect.module.auth.entity.Organisme;
 import com.ossanasur.cbconnect.module.auth.repository.OrganismeRepository;
 import com.ossanasur.cbconnect.module.finance.entity.Encaissement;
+import com.ossanasur.cbconnect.module.finance.entity.Paiement;
 import com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository;
+import com.ossanasur.cbconnect.module.finance.repository.PaiementRepository;
 import com.ossanasur.cbconnect.module.pays.entity.Pays;
 import com.ossanasur.cbconnect.module.pays.repository.PaysRepository;
 import com.ossanasur.cbconnect.module.reprise.dto.RapportReprise;
@@ -18,11 +22,16 @@ import com.ossanasur.cbconnect.module.reprise.dto.RapportReprise.DetailReprise;
 import com.ossanasur.cbconnect.module.reprise.dto.RepriseEncaissementsRequest;
 import com.ossanasur.cbconnect.module.reprise.dto.RepriseEncaissementsRequest.EncaissementRepriseDto;
 import com.ossanasur.cbconnect.module.reprise.dto.RepriseOrganismesRequest.OrganismeRepriseDto;
+import com.ossanasur.cbconnect.module.reprise.dto.ReprisePaiementsRequest;
+import com.ossanasur.cbconnect.module.reprise.dto.ReprisePaiementsRequest.PaiementRepriseDto;
 import com.ossanasur.cbconnect.module.reprise.dto.RepriseSinistresRequest.SinistreRepriseDto;
 import com.ossanasur.cbconnect.module.sinistre.entity.Assure;
 import com.ossanasur.cbconnect.module.sinistre.entity.Sinistre;
+import com.ossanasur.cbconnect.module.sinistre.entity.Victime;
 import com.ossanasur.cbconnect.module.sinistre.repository.AssureRepository;
 import com.ossanasur.cbconnect.module.sinistre.repository.SinistreRepository;
+import com.ossanasur.cbconnect.module.sinistre.repository.VictimeRepository;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,6 +65,8 @@ public class RepriseService {
     private final OrganismeRepository organismeRepository;
     private final PaysRepository paysRepository;
     private final EncaissementRepository encaissementRepository;
+    private final PaiementRepository paiementRepository;
+    private final VictimeRepository victimeRepository;
     // Sinistre.assure est nullable=false → on doit persister un Assure avant le
     // sinistre.
     private final AssureRepository assureRepository;
@@ -198,7 +209,8 @@ public class RepriseService {
     // ─── Import encaissements ────────────────────────────────────────────────
 
     /**
-     * Orchestration : per-item REQUIRES_NEW (même pattern que sinistres/organismes).
+     * Orchestration : per-item REQUIRES_NEW (même pattern que
+     * sinistres/organismes).
      * Pas de @Transactional ici — une tx englobante empêcherait la reprise après
      * erreur (rollback-only cascade → "null identifier" à la ligne suivante).
      */
@@ -602,7 +614,209 @@ public class RepriseService {
     }
 
     /**
-     * "BNCB BF" / "BNCB-BF" / "BNCB  BF" → "BCB-BF". Renvoie null si le pattern
+     * Orchestration : per-item REQUIRES_NEW (même pattern que
+     * sinistres/encaissements/organismes). Une tx englobante provoquerait
+     * "Transaction silently rolled back" dès la première ligne fautive.
+     */
+    public RapportReprise importerPaiements(ReprisePaiementsRequest req, String loginAuteur) {
+        int importes = 0, doublons = 0, erreurs = 0;
+        List<DetailReprise> details = new ArrayList<>();
+
+        for (PaiementRepriseDto dto : req.paiements()) {
+            try {
+                ResultatImport res = self.importerUnPaiement(dto, loginAuteur, details);
+                if (res == ResultatImport.IMPORTE) {
+                    importes++;
+                } else {
+                    doublons++;
+                }
+            } catch (Exception e) {
+                erreurs++;
+                log.warn("[REPRISE] Erreur import paiement {} : {}", dto.numeroChequeEmis(), e.getMessage());
+                details.add(new DetailReprise("ERROR", dto.numeroChequeEmis(), e.getMessage()));
+            }
+        }
+
+        return new RapportReprise(req.paiements().size(), importes, doublons, erreurs,
+                details.isEmpty() ? List.of() : details);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public ResultatImport importerUnPaiement(PaiementRepriseDto dto,
+            String loginAuteur,
+            List<DetailReprise> details) {
+        // ── 1. Doublon : même numeroChequeEmis ──────────────
+        if (paiementRepository.existsByNumeroChequeEmisAndActiveDataTrueAndDeletedDataFalse(
+                clean(dto.numeroChequeEmis()))) {
+            details.add(new DetailReprise("DOUBLON", dto.numeroChequeEmis(),
+                    "Chèque paiement déjà enregistré"));
+            return ResultatImport.DOUBLON;
+        }
+
+        // ── 2. Résolution du sinistre ────────────────────────
+        Sinistre sinistre = sinistreRepository
+                .findByNumeroSinistreManuel(clean(dto.numeroSinistreManuel()))
+                .orElse(null);
+
+        if (sinistre == null) {
+            Organisme org = resoudreOrganisme(dto.organismePayeurCode());
+            sinistre = creerSinistreMinimal(dto, org, loginAuteur);
+            sinistreRepository.save(sinistre);
+            details.add(new DetailReprise("SINISTRE_CREE", dto.numeroChequeEmis(),
+                    "Sinistre minimal créé : " + dto.numeroSinistreManuel()));
+        }
+
+        // ── 3. Résolution / création victime bénéficiaire ────
+        Victime beneficiaireVictime = victimeRepository
+                .findAllBySinistre(sinistre.getSinistreTrackingId())
+                .stream()
+                .filter(v -> nomCorrespond(v, dto.beneficiaire()))
+                .findFirst()
+                .orElse(null);
+
+        if (beneficiaireVictime == null) {
+            beneficiaireVictime = creerVictimeMinimale(dto.beneficiaire(), sinistre, loginAuteur);
+            victimeRepository.save(beneficiaireVictime);
+            details.add(new DetailReprise("VICTIME_CREEE", dto.numeroChequeEmis(),
+                    "Victime minimale créée : " + dto.beneficiaire()));
+        }
+
+        // ── 4. Résolution encaissement lié ───────────────────
+        Organisme organismePayeur = resoudreOrganisme(dto.organismePayeurCode());
+        List<Encaissement> encaissementsLies = new ArrayList<>();
+        if (dto.numeroChequeEncaissement() != null && !dto.numeroChequeEncaissement().isBlank()) {
+            encaissementRepository
+                    .findByNumeroChequeAndOrganismeEmetteur(
+                            clean(dto.numeroChequeEncaissement()), organismePayeur)
+                    .ifPresent(encaissementsLies::add);
+        }
+
+        // ── 5. Calcul montant ────────────────────────────────
+        BigDecimal principal = coalesce(dto.principalPaye());
+        BigDecimal fg = coalesce(dto.fgPaye());
+        BigDecimal montant = principal.add(fg);
+
+        // ── 6. Construction paiement ─────────────────────────
+        Paiement paiement = Paiement.builder()
+                .paiementTrackingId(UUID.randomUUID())
+                .beneficiaire(clean(dto.beneficiaire()))
+                .beneficiaireVictime(beneficiaireVictime)
+                .numeroChequeEmis(clean(dto.numeroChequeEmis()))
+                .montant(montant)
+                .banqueCheque("N/A")
+                .dateEmission(parseDate(dto.datePaiement()))
+                .datePaiement(parseDate(dto.datePaiement()))
+                .modePaiement(clean(dto.modePaiement()))
+                .statut(StatutPaiement.PAYE)
+                .encaissements(encaissementsLies)
+                .sinistre(sinistre)
+                .repriseHistorique(true)
+                .createdBy(loginAuteur)
+                .activeData(true)
+                .deletedData(false)
+                .build();
+
+        paiementRepository.save(paiement);
+        return ResultatImport.IMPORTE;
+    }
+
+    // ─── Victime minimale pour reprise paiements ────────────────────
+
+    /**
+     * Crée une Victime minimale à partir du nom brut du bénéficiaire.
+     * Les champs NOT NULL sont renseignés avec des valeurs par défaut :
+     * - prenoms → "." (placeholder visible)
+     * - dateNaissance → 1900-01-01 (à corriger manuellement)
+     * - sexe → "M" (défaut)
+     * - statutActivite → SANS_EMPLOI (défaut neutre)
+     */
+    private Victime creerVictimeMinimale(String nomComplet, Sinistre sinistre, String loginAuteur) {
+        // Enregistrer le nom tel quel dans le champ nom.
+        // prenoms = "." comme placeholder visible — à compléter manuellement.
+        String nom = (nomComplet != null && !nomComplet.isBlank()) ? nomComplet.trim() : "INCONNU";
+
+        return Victime.builder()
+                .victimeTrackingId(UUID.randomUUID())
+                .nom(nom)
+                .prenoms(".") // placeholder — à compléter manuellement
+                .dateNaissance(java.time.LocalDate.of(1900, 1, 1)) // placeholder
+                .sexe("M")
+                .typeVictime(com.ossanasur.cbconnect.common.enums.TypeVictime.NEUTRE)
+                .statutVictime(com.ossanasur.cbconnect.common.enums.StatutVictime.NEUTRE)
+                .statutActivite(StatutActivite.SANS_EMPLOI)
+                .revenuMensuel(BigDecimal.ZERO)
+                .sinistre(sinistre)
+                .createdBy(loginAuteur)
+                .activeData(true)
+                .deletedData(false)
+                .build();
+    }
+
+    /**
+     * Vérifie si le nom complet d'une Victime correspond au nom du bénéficiaire.
+     * Comparaison insensible à la casse sur les tokens principaux.
+     */
+    private boolean nomCorrespond(Victime v, String nomBeneficiaire) {
+        if (nomBeneficiaire == null || v.getNom() == null)
+            return false;
+        String complet = (v.getNom() + " " + (v.getPrenoms() != null ? v.getPrenoms() : ""))
+                .trim().toLowerCase();
+        return complet.equals(nomBeneficiaire.trim().toLowerCase())
+                || complet.contains(nomBeneficiaire.trim().toLowerCase())
+                || nomBeneficiaire.trim().toLowerCase().contains(v.getNom().toLowerCase());
+    }
+
+    // ─── Helper pour encaissement ────────────────────────────────────
+    // Méthode à ajouter dans EncaissementRepository :
+    //
+    // Optional<Encaissement> findByNumeroChequeAndOrganismeEmetteur(
+    // String numeroCheque, Organisme organismeEmetteur);
+
+    // ─── Adapter creerSinistreMinimal pour accepter PaiementRepriseDto ──
+    // (surcharge — même logique que celle pour encaissements)
+    private Sinistre creerSinistreMinimal(PaiementRepriseDto dto,
+            Organisme organisme,
+            String loginAuteur) {
+        // numeroSinistreManuel sert de clé pour les deux colonnes NOT NULL
+        // (numero_sinistre_manuel + numero_sinistre_local). Sans valeur, la
+        // ligne Excel est inexploitable : on remonte une erreur claire plutôt
+        // que de laisser passer un null qui ferait échouer l'INSERT.
+        String numSinistre = clean(dto.numeroSinistreManuel());
+        if (numSinistre == null || numSinistre.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Numéro sinistre manuel absent — paiement ignoré");
+        }
+
+        Pays paysGestionnaire = resoudrePays("TG");
+        Pays paysEmetteur = extrairePaysDepuisOrganisme(dto.organismePayeurCode());
+
+        Assure assure = creerAssureMinimal(dto.assureNomComplet(), organisme, loginAuteur);
+        assureRepository.save(assure);
+
+        return Sinistre.builder()
+                .sinistreTrackingId(UUID.randomUUID())
+                .numeroSinistreManuel(numSinistre)
+                .numeroSinistreLocal(numSinistre)
+                .numeroSinistreHomologue(clean(dto.numeroSinistreHomologue()))
+                .typeSinistre(TypeSinistre.SURVENU_TOGO) // défaut — à corriger si besoin
+                .typeDommage(TypeDommage.MIXTE) // défaut neutre
+                .dateAccident(parseDate(dto.dateSinistre()))
+                .dateDeclaration(parseDate(dto.dateSinistre()))
+                .assure(assure)
+                .paysGestionnaire(paysGestionnaire)
+                .paysEmetteur(paysEmetteur)
+                .organismeMembre(organisme)
+                .assureurDeclarant(clean(dto.organismePayeurCode()))
+                .statut(StatutSinistre.NOUVEAU)
+                .repriseHistorique(true)
+                .createdBy(loginAuteur)
+                .activeData(true)
+                .deletedData(false)
+                .build();
+    }
+
+    /**
+     * "BNCB BF" / "BNCB-BF" / "BNCB BF" → "BCB-BF". Renvoie null si le pattern
      * ne matche pas (l'appelant tombe alors dans le flux d'erreur normal).
      */
     private String normaliserCodeBureauHomologue(String raw) {

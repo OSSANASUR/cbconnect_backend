@@ -36,7 +36,8 @@ public class FactureAttestation extends InternalHistorique {
     private String montantEnLettres;
     private String instructionCheque;
     private LocalDate dateEcheance;
-    private Integer paperlessDocumentId;
+    @Column(name = "ossan_ged_document_id")
+    private Long ossanGedDocumentId;
     @Builder.Default
     private boolean annulee = false;
     private String motifAnnulation;

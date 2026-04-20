@@ -26,7 +26,8 @@ public class ExpertiseMaterielle extends InternalHistorique {
     private BigDecimal montantDitExpert;
     @Builder.Default
     private BigDecimal honoraires = BigDecimal.ZERO;
-    private Integer paperlessDocumentId;
+    @Column(name = "ossan_ged_document_id")
+    private Long ossanGedDocumentId;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sinistre_id", nullable = false)
     private Sinistre sinistre;

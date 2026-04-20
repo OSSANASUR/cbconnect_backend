@@ -48,7 +48,8 @@ public class Victime extends InternalHistorique {
     private LocalDate dateDeces;
     @Builder.Default
     private boolean lienDecesAccident = false;
-    private Integer paperlessCorrespondentId;
+    @Column(name = "ossan_ged_correspondent_id")
+    private Long ossanGedCorrespondentId;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sinistre_id", nullable = false)
     private Sinistre sinistre;

@@ -57,7 +57,8 @@ public class Sinistre extends InternalHistorique {
 
     private LocalDate dateProchaineAudience;
 
-    private Long paperlessDossierId;
+    @Column(name = "ossan_ged_dossier_id")
+    private Long ossanGedDossierId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "pays_gestionnaire_id", nullable = false)

@@ -25,4 +25,7 @@ public interface UtilisateurRepository extends JpaRepository<Utilisateur, Intege
     List<Utilisateur> findHistoryByTrackingId(@Param("id") UUID id);
 
     boolean existsByEmailAndActiveDataTrueAndDeletedDataFalse(String email);
+
+    // findByUsername
+    Optional<Utilisateur> findByUsernameAndActiveDataTrueAndDeletedDataFalse(String username);
 }

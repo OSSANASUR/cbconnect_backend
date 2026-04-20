@@ -39,11 +39,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
-
-import jakarta.mail.BodyPart;
-import jakarta.mail.Part;
 import java.io.ByteArrayOutputStream;
-import java.util.Base64;
 
 @Slf4j
 @Service
@@ -353,6 +349,93 @@ public class MessagerieClientService {
         msg.saveChanges();
         Transport.send(msg);
         return msg.getMessageID();
+    }
+
+    /**
+     * Lit un message IMAP complet par son UID.
+     * Le messageIdImap retourné par getInbox() est l'UID IMAP (ex: "7105").
+     * On utilise UIDFolder.getMessageByUID() pour le retrouver directement.
+     *
+     * GET /v1/messagerie/imap/{uid}
+     */
+    public DataResponse<MessageComplet> getMessageImap(String uid, String loginAuteur) {
+        ConfigurationMail config = getConfigOuException(loginAuteur);
+        if (!config.isEstConfiguree())
+            throw new IllegalStateException("Messagerie non configurée");
+
+        try {
+            Store store = connectImap(config);
+            Folder folder = store.getFolder("INBOX");
+            folder.open(Folder.READ_WRITE); // READ_WRITE pour marquer SEEN
+
+            if (!(folder instanceof UIDFolder)) {
+                folder.close(false);
+                store.close();
+                throw new RuntimeException("Le serveur IMAP ne supporte pas les UID");
+            }
+
+            UIDFolder uidFolder = (UIDFolder) folder;
+            long uidLong;
+            try {
+                uidLong = Long.parseLong(uid);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("UID IMAP invalide : " + uid);
+            }
+
+            Message m = uidFolder.getMessageByUID(uidLong);
+            if (m == null) {
+                folder.close(false);
+                store.close();
+                throw new RessourceNotFoundException("Message IMAP introuvable (UID=" + uid + ")");
+            }
+
+            // ── Marquer comme lu ──────────────────────────────────────────
+            m.setFlag(Flags.Flag.SEEN, true);
+
+            // ── Extraire les infos de base ────────────────────────────────
+            String de = m.getFrom() != null && m.getFrom().length > 0
+                    ? m.getFrom()[0].toString()
+                    : "";
+            List<String> a = m.getRecipients(Message.RecipientType.TO) != null
+                    ? Arrays.stream(m.getRecipients(Message.RecipientType.TO))
+                            .map(Object::toString).toList()
+                    : List.of();
+            List<String> cc = m.getRecipients(Message.RecipientType.CC) != null
+                    ? Arrays.stream(m.getRecipients(Message.RecipientType.CC))
+                            .map(Object::toString).toList()
+                    : List.of();
+            String sujet = m.getSubject() != null
+                    ? jakarta.mail.internet.MimeUtility.decodeText(m.getSubject())
+                    : "(sans sujet)";
+            LocalDateTime date = m.getSentDate() != null
+                    ? m.getSentDate().toInstant()
+                            .atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
+                    : LocalDateTime.now();
+
+            // ── Extraire corps + pièces jointes ──────────────────────────
+            CorpsEtPj corpsEtPj = extraireCorpsEtPj(m);
+
+            folder.close(false);
+            store.close();
+
+            return DataResponse.success("Message IMAP",
+                    new MessageComplet(
+                            null, // pas de courrierTrackingId (non en base)
+                            uid, // messageIdImap = l'UID
+                            de, a, cc, sujet,
+                            corpsEtPj.corpsHtml(),
+                            corpsEtPj.corpsTexte(),
+                            date,
+                            true, // on vient de le marquer lu
+                            false, null, null, null,
+                            corpsEtPj.piecesJointes()));
+
+        } catch (RessourceNotFoundException | IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("[MESSAGERIE] Erreur lecture message IMAP UID={} : {}", uid, e.getMessage());
+            throw new RuntimeException("Erreur lecture message : " + simplifierErreur(e.getMessage()));
+        }
     }
 
     public DataResponse<PieceJointe> telechargerPieceJointe(

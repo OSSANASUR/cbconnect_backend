@@ -117,4 +117,18 @@ public class MessagerieClientController {
                 .body(bytes);
     }
 
+    /**
+     * Lit un message IMAP complet par son UID.
+     * Appelé depuis le frontend quand courrierTrackingId est null.
+     *
+     * GET /v1/messagerie/imap/{uid}
+     */
+    @GetMapping("/imap/{uid}")
+    @Operation(summary = "Lire un message IMAP par UID")
+    public ResponseEntity<DataResponse<MessageComplet>> getMessageImap(
+            @PathVariable String uid,
+            Authentication auth) {
+        return ResponseEntity.ok(clientService.getMessageImap(uid, auth.getName()));
+    }
+
 }

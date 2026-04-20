@@ -9,6 +9,7 @@ import com.ossanasur.cbconnect.module.auth.entity.Profil;
 import com.ossanasur.cbconnect.module.auth.mapper.ProfilMapper;
 import com.ossanasur.cbconnect.module.auth.repository.OrganismeRepository;
 import com.ossanasur.cbconnect.module.auth.repository.ProfilRepository;
+import com.ossanasur.cbconnect.module.auth.repository.UtilisateurRepository;
 import com.ossanasur.cbconnect.module.auth.service.ProfilService;
 import com.ossanasur.cbconnect.security.entity.Habilitation;
 import com.ossanasur.cbconnect.security.repository.HabilitationRepository;
@@ -34,15 +35,21 @@ public class ProfilServiceImpl implements ProfilService {
     private final HabilitationRepository habilitationRepository;
     private final ProfilMapper profilMapper;
     private final ProfilVersioningService versioningService;
+    private final UtilisateurRepository utilisateurRepository;
 
     @Override
     @Transactional
     public DataResponse<ProfilResponse> create(ProfilRequest r, String loginAuteur) {
-        Organisme organisme = null;
+        Organisme organisme;
         if (r.organismeTrackingId() != null) {
             organisme = organismeRepository.findActiveByTrackingId(r.organismeTrackingId())
                     .orElseThrow(() -> new RessourceNotFoundException("Organisme introuvable"));
+        } else {
+            organisme = utilisateurRepository.findByEmailOrUsername(loginAuteur, loginAuteur)
+                    .map(u -> u.getProfil() != null ? u.getProfil().getOrganisme() : null)
+                    .orElse(null);
         }
+
         List<Habilitation> habilitations = r.habilitationTrackingIds() == null ? Collections.emptyList() :
                 r.habilitationTrackingIds().stream()
                         .map(hid -> habilitationRepository.findActiveByTrackingId(hid)

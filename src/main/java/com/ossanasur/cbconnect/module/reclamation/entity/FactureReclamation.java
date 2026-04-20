@@ -40,7 +40,8 @@ public class FactureReclamation extends InternalHistorique {
     @Builder.Default
     private boolean lienAvecAccidentVerifie = false;
     private LocalDate dateTraitement;
-    private Integer paperlessDocumentId;
+    @Column(name = "ossan_ged_document_id")
+    private Long ossanGedDocumentId;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dossier_reclamation_id", nullable = false)
     private DossierReclamation dossierReclamation;

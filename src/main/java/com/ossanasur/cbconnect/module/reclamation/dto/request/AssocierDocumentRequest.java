@@ -5,13 +5,13 @@ import jakarta.validation.constraints.NotNull;
 import java.util.UUID;
 
 /**
- * Associe un document GED (déjà scanné et indexé dans Paperless)
+ * Associe un document GED (déjà scanné et indexé dans OssanGed)
  * à une pièce attendue d'un dossier de réclamation.
  */
 public record AssocierDocumentRequest(
 
-        /** TrackingId du PaperlessDocument en base CBConnect */
-        @NotNull(message = "Le document GED est obligatoire") UUID paperlessDocumentTrackingId,
+                /** TrackingId du OssanGedDocument en base CBConnect */
+                @NotNull(message = "Le document GED est obligatoire") UUID ossanGedDocumentTrackingId,
 
-        String notes) {
+                String notes) {
 }

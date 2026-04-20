@@ -36,7 +36,7 @@ public class PiecesAdministrativesServiceImpl implements PiecesAdministrativesSe
         private final TypePieceAdministrativeRepository typePieceRepo;
         private final PieceDossierReclamationRepository pieceDossierRepo;
         private final DossierReclamationRepository dossierRepo;
-        private final OssanGedDocumentRepository paperlessDocRepo;
+        private final OssanGedDocumentRepository ossanGedDocRepo;
 
         // ── Paramétrage ───────────────────────────────────────────────
 
@@ -143,8 +143,8 @@ public class PiecesAdministrativesServiceImpl implements PiecesAdministrativesSe
                 PieceDossierReclamation piece = pieceDossierRepo.findByTrackingId(pieceDossierTrackingId)
                                 .orElseThrow(() -> new RessourceNotFoundException("Pièce dossier introuvable"));
 
-                OssanGedDocument doc = paperlessDocRepo
-                                .findByOssanGedDocumentTrackingId(req.paperlessDocumentTrackingId())
+                OssanGedDocument doc = ossanGedDocRepo
+                                .findByOssanGedDocumentTrackingId(req.ossanGedDocumentTrackingId())
                                 .orElseThrow(() -> new RessourceNotFoundException("Document GED introuvable"));
 
                 piece.setOssanGedDocument(doc);

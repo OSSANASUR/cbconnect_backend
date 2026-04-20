@@ -38,7 +38,7 @@ import java.util.*;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class PaperlessClientServiceImpl implements PaperlessClientService {
+public class OssanGedClientServiceImpl implements PaperlessClientService {
 
     private final OssanGedConfig paperlessConfig;
     private final OkHttpClient httpClient;
@@ -199,9 +199,9 @@ public class PaperlessClientServiceImpl implements PaperlessClientService {
     }
 
     @Override
-    public DataResponse<byte[]> telechargerDocument(Integer paperlessDocumentId) {
+    public DataResponse<byte[]> telechargerDocument(Integer ossanGedDocumentId) {
         try {
-            byte[] data = downloadFromPaperless(paperlessDocumentId);
+            byte[] data = downloadFromPaperless(ossanGedDocumentId);
             return DataResponse.success(data);
         } catch (Exception e) {
             throw new RuntimeException("Impossible de télécharger le document Paperless : " + e.getMessage());

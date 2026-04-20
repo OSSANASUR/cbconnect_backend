@@ -26,14 +26,13 @@ public class Paiement extends InternalHistorique {
     @Column(nullable = false)
     private String beneficiaire;
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "beneficiaire_victime_id", nullable = false)
+    @JoinColumn(name = "beneficiaire_victime_id")
     private Victime beneficiaireVictime;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "beneficiaire_organisme_id")
     private Organisme beneficiaireOrganisme;
     @Column(nullable = false)
     private String numeroChequeEmis;
-    @Column(nullable = false)
     private String banqueCheque;
     @Column(nullable = false)
     private BigDecimal montant;
@@ -48,10 +47,17 @@ public class Paiement extends InternalHistorique {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sinistre_id", nullable = false)
     private Sinistre sinistre;
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "encaissement_id")
-    private Encaissement encaissement;
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "paiement_encaissement", joinColumns = @JoinColumn(name = "paiement_id"), inverseJoinColumns = @JoinColumn(name = "encaissement_id"))
+    @Builder.Default
+    private java.util.List<Encaissement> encaissements = new java.util.ArrayList<>();
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "annule_par_id")
     private Utilisateur annulePar;
+    @Column(name = "mode_paiement", length = 20)
+    private String modePaiement;
+    /** TRUE si importé via reprise historique */
+    @Column(name = "reprise_historique")
+    @Builder.Default
+    private boolean repriseHistorique = false;
 }

@@ -1,5 +1,7 @@
 package com.ossanasur.cbconnect.module.auth.repository;
 import com.ossanasur.cbconnect.module.auth.entity.Profil;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,4 +18,6 @@ public interface ProfilRepository extends JpaRepository<Profil, Integer> {
     List<Profil> findAllActive();
     @Query("SELECT p FROM Profil p WHERE p.organisme.organismeTrackingId = :orgId AND p.activeData = true AND p.deletedData = false")
     List<Profil> findAllActiveByOrganisme(@Param("orgId") UUID orgId);
+    @Query("SELECT p FROM Profil p WHERE p.profilTrackingId = :id ORDER BY p.createdAt DESC")
+    Page<Profil> findHistoryByTrackingId(@Param("id") UUID id, Pageable pageable);
 }

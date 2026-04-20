@@ -200,14 +200,29 @@ public class MessagerieClientService {
         String messageId = null;
         StatutMailEnvoye statut = StatutMailEnvoye.EN_ATTENTE;
         try {
+            System.out.println("Destinataire: " + req.destinataire());
             messageId = envoyerSmtp(config, req.destinataire(), req.cc(), req.sujet(),
                     corpsAvecSignature, fichiers); // fichiers = param ajouté à envoyer()
             statut = StatutMailEnvoye.ENVOYE;
             log.info("[MESSAGERIE] Mail envoyé à {} — sujet: {}", req.destinataire(), req.sujet());
         } catch (Exception e) {
             statut = StatutMailEnvoye.ECHEC;
-            log.error("[MESSAGERIE] Échec envoi : {}", e.getMessage());
-            throw new RuntimeException("Échec envoi mail : " + simplifierErreur(e.getMessage()));
+            String detail = e.getMessage();
+            if (e instanceof jakarta.mail.SendFailedException sfe) {
+                StringBuilder sb = new StringBuilder(detail == null ? "" : detail);
+                if (sfe.getInvalidAddresses() != null && sfe.getInvalidAddresses().length > 0)
+                    sb.append(" | invalides=").append(Arrays.toString(sfe.getInvalidAddresses()));
+                if (sfe.getValidUnsentAddresses() != null && sfe.getValidUnsentAddresses().length > 0)
+                    sb.append(" | non-envoyés=").append(Arrays.toString(sfe.getValidUnsentAddresses()));
+                Exception next = sfe.getNextException();
+                while (next != null) {
+                    sb.append(" → ").append(next.getMessage());
+                    next = (next instanceof jakarta.mail.MessagingException me) ? me.getNextException() : null;
+                }
+                detail = sb.toString();
+            }
+            log.error("[MESSAGERIE] Échec envoi : {}", detail, e);
+            throw new RuntimeException("Échec envoi mail : " + simplifierErreur(detail));
         }
 
         // 4. Enregistrement en base comme Courrier (traçabilité)

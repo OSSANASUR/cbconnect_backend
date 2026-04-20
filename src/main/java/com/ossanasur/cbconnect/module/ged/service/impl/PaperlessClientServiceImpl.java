@@ -2,19 +2,19 @@ package com.ossanasur.cbconnect.module.ged.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ossanasur.cbconnect.common.enums.TypeDossierPaperless;
+import com.ossanasur.cbconnect.common.enums.TypeDossierOssanGed;
 import com.ossanasur.cbconnect.common.enums.TypeTable;
-import com.ossanasur.cbconnect.config.PaperlessConfig;
+import com.ossanasur.cbconnect.config.OssanGedConfig;
 import com.ossanasur.cbconnect.exception.BadRequestException;
 import com.ossanasur.cbconnect.exception.RessourceNotFoundException;
 import com.ossanasur.cbconnect.module.auth.repository.UtilisateurRepository;
 import com.ossanasur.cbconnect.module.ged.dto.request.UploadDocumentRequest;
 import com.ossanasur.cbconnect.module.ged.dto.response.DocumentGedResponse;
 import com.ossanasur.cbconnect.module.ged.dto.response.DossierGedResponse;
-import com.ossanasur.cbconnect.module.ged.entity.PaperlessDocument;
-import com.ossanasur.cbconnect.module.ged.entity.PaperlessDossier;
+import com.ossanasur.cbconnect.module.ged.entity.OssanGedDocument;
+import com.ossanasur.cbconnect.module.ged.entity.OssanGedDossier;
 import com.ossanasur.cbconnect.module.ged.mapper.GedMapper;
-import com.ossanasur.cbconnect.module.ged.repository.PaperlessDossierRepository;
+import com.ossanasur.cbconnect.module.ged.repository.OssanGedDossierRepository;
 import com.ossanasur.cbconnect.module.ged.service.PaperlessClientService;
 import com.ossanasur.cbconnect.module.sinistre.repository.SinistreRepository;
 import com.ossanasur.cbconnect.module.sinistre.repository.VictimeRepository;
@@ -40,10 +40,10 @@ import java.util.*;
 @RequiredArgsConstructor
 public class PaperlessClientServiceImpl implements PaperlessClientService {
 
-    private final PaperlessConfig paperlessConfig;
+    private final OssanGedConfig paperlessConfig;
     private final OkHttpClient httpClient;
     private final ObjectMapper objectMapper;
-    private final PaperlessDossierRepository dossierRepository;
+    private final OssanGedDossierRepository dossierRepository;
     private final SinistreRepository sinistreRepository;
     private final VictimeRepository victimeRepository;
     private final UtilisateurRepository utilisateurRepository;
@@ -86,7 +86,7 @@ public class PaperlessClientServiceImpl implements PaperlessClientService {
                 .orElseThrow(() -> new RessourceNotFoundException("Sinistre introuvable"));
 
         // Vérifier si dossier existe déjà
-        Optional<PaperlessDossier> existing = dossierRepository.findRootBySinistre(sinistreId);
+        Optional<OssanGedDossier> existing = dossierRepository.findRootBySinistre(sinistreId);
         if (existing.isPresent())
             return DataResponse.success("Dossier GED existant", gedMapper.toDossierResponse(existing.get()));
 
@@ -98,13 +98,13 @@ public class PaperlessClientServiceImpl implements PaperlessClientService {
             log.warn("Paperless indisponible, creation dossier local seulement : {}", e.getMessage());
         }
 
-        PaperlessDossier dossier = PaperlessDossier.builder()
-                .paperlessDossierTrackingId(UUID.randomUUID())
-                .paperlessStoragePathId(storagePathId)
+        OssanGedDossier dossier = OssanGedDossier.builder()
+                .ossanGedDossierTrackingId(UUID.randomUUID())
+                .ossanGedStoragePathId(storagePathId)
                 .cheminStockage(chemin).titre(sinistre.getNumeroSinistreLocal())
-                .typeDossier(TypeDossierPaperless.SINISTRE).sinistre(sinistre)
+                .typeDossier(TypeDossierOssanGed.SINISTRE).sinistre(sinistre)
                 .createdBy(loginAuteur).activeData(true).deletedData(false)
-                .fromTable(TypeTable.PAPERLESS_DOSSIER).build();
+                .fromTable(TypeTable.OSSAN_GED_DOSSIER).build();
         return DataResponse.created("Dossier GED cree", gedMapper.toDossierResponse(dossierRepository.save(dossier)));
     }
 
@@ -114,12 +114,12 @@ public class PaperlessClientServiceImpl implements PaperlessClientService {
         var victime = victimeRepository.findActiveByTrackingId(victimeId)
                 .orElseThrow(() -> new RessourceNotFoundException("Victime introuvable"));
 
-        Optional<PaperlessDossier> existing = dossierRepository.findByVictime(victimeId);
+        Optional<OssanGedDossier> existing = dossierRepository.findByVictime(victimeId);
         if (existing.isPresent())
             return DataResponse.success("Dossier GED existant", gedMapper.toDossierResponse(existing.get()));
 
         // Trouver le dossier parent sinistre
-        PaperlessDossier parentDossier = null;
+        OssanGedDossier parentDossier = null;
         if (victime.getSinistre() != null) {
             parentDossier = dossierRepository.findRootBySinistre(victime.getSinistre().getSinistreTrackingId())
                     .orElse(null);
@@ -136,15 +136,15 @@ public class PaperlessClientServiceImpl implements PaperlessClientService {
             log.warn("Impossible de créer le correspondent Paperless : {}", e.getMessage());
         }
 
-        PaperlessDossier dossier = PaperlessDossier.builder()
-                .paperlessDossierTrackingId(UUID.randomUUID())
-                .paperlessCorrespondentId(correspondentId)
+        OssanGedDossier dossier = OssanGedDossier.builder()
+                .ossanGedDossierTrackingId(UUID.randomUUID())
+                .ossanGedCorrespondentId(correspondentId)
                 .cheminStockage(chemin).titre(nomVictime)
-                .typeDossier(TypeDossierPaperless.VICTIME)
+                .typeDossier(TypeDossierOssanGed.VICTIME)
                 .sinistre(victime.getSinistre()).victime(victime)
                 .parentDossier(parentDossier)
                 .createdBy(loginAuteur).activeData(true).deletedData(false)
-                .fromTable(TypeTable.PAPERLESS_DOSSIER).build();
+                .fromTable(TypeTable.OSSAN_GED_DOSSIER).build();
 
         // Mettre à jour l'ID paperless sur la victime
         victime.setPaperlessCorrespondentId(correspondentId);
@@ -159,7 +159,7 @@ public class PaperlessClientServiceImpl implements PaperlessClientService {
             String loginAuteur) {
         if (file.isEmpty())
             throw new BadRequestException("Fichier vide");
-        PaperlessDossier dossier = null;
+        OssanGedDossier dossier = null;
         if (r.victimeTrackingId() != null) {
             dossier = dossierRepository.findByVictime(r.victimeTrackingId()).orElse(null);
         }
@@ -172,12 +172,12 @@ public class PaperlessClientServiceImpl implements PaperlessClientService {
         Integer paperlessId = null;
         // String checksum = null;
         try {
-            paperlessId = uploadToPaperless(file, r.titre(), dossier.getPaperlessStoragePathId(), r.tagIds());
+            paperlessId = uploadToPaperless(file, r.titre(), dossier.getOssanGedStoragePathId(), r.tagIds());
         } catch (Exception e) {
             log.warn("Upload Paperless echoue, metadata locale uniquement : {}", e.getMessage());
         }
 
-        final PaperlessDossier finalDossier = dossier;
+        final OssanGedDossier finalDossier = dossier;
         var sinistre = r.sinistreTrackingId() != null
                 ? sinistreRepository.findActiveByTrackingId(r.sinistreTrackingId()).orElse(null)
                 : null;
@@ -186,14 +186,14 @@ public class PaperlessClientServiceImpl implements PaperlessClientService {
                 : null;
         var uploader = utilisateurRepository.findByEmailAndActiveDataTrueAndDeletedDataFalse(loginAuteur).orElse(null);
 
-        PaperlessDocument doc = PaperlessDocument.builder()
-                .paperlessDocumentTrackingId(UUID.randomUUID())
-                .paperlessDocumentId(paperlessId != null ? paperlessId : (int) (System.currentTimeMillis() % 100000))
+        OssanGedDocument doc = OssanGedDocument.builder()
+                .ossanGedDocumentTrackingId(UUID.randomUUID())
+                .ossanGedDocumentId(paperlessId != null ? paperlessId : (int) (System.currentTimeMillis() % 100000))
                 .titre(r.titre()).typeDocument(r.typeDocument()).dateDocument(r.dateDocument())
                 .mimeType(file.getContentType()).dossier(finalDossier)
                 .sinistre(sinistre).victime(victime).uploadePar(uploader)
                 .createdBy(loginAuteur).activeData(true).deletedData(false)
-                .fromTable(TypeTable.PAPERLESS_DOCUMENT).build();
+                .fromTable(TypeTable.OSSAN_GED_DOCUMENT).build();
         // Note: PaperlessDocumentRepository injection needed here
         return DataResponse.created("Document uploade", gedMapper.toDocumentResponse(doc));
     }

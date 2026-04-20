@@ -20,5 +20,7 @@ public record MessageComplet(
         boolean traite,
         String sinistreNumeroLocal,
         UUID sinistreTrackingId,
-        TypeTemplateMailEnum typeTemplate) {
+        TypeTemplateMailEnum typeTemplate,
+        /** Pièces jointes — liste sans contenu Base64 (téléchargement séparé) */
+        List<PieceJointe> piecesJointes) {
 }

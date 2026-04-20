@@ -4,20 +4,25 @@ import com.ossanasur.cbconnect.module.messagerie.dto.request.EnvoyerMailRequest;
 import com.ossanasur.cbconnect.module.messagerie.dto.request.PreviewTemplateRequest;
 import com.ossanasur.cbconnect.module.messagerie.dto.response.MessageApercu;
 import com.ossanasur.cbconnect.module.messagerie.dto.response.MessageComplet;
+import com.ossanasur.cbconnect.module.messagerie.dto.response.PieceJointe;
 import com.ossanasur.cbconnect.module.messagerie.dto.response.PreviewTemplateResponse;
 import com.ossanasur.cbconnect.module.messagerie.dto.response.TemplateMailResponse;
 import com.ossanasur.cbconnect.module.messagerie.service.MessagerieClientService;
 import com.ossanasur.cbconnect.utils.DataResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
+
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.util.Base64;
 
 @RestController
 @RequestMapping("/v1/messagerie")
@@ -28,9 +33,18 @@ public class MessagerieClientController {
     private final MessagerieClientService clientService;
 
     @GetMapping("/inbox")
-    @Operation(summary = "Boîte de réception (IMAP)")
-    public ResponseEntity<DataResponse<List<MessageApercu>>> inbox(Authentication auth) {
-        return ResponseEntity.ok(clientService.getInbox(auth.getName()));
+    @Operation(summary = "Boîte de réception (IMAP) — paginée")
+    public ResponseEntity<DataResponse<MessagerieClientService.InboxPageResponse>> inbox(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false) String recherche,
+            Authentication auth) {
+        return ResponseEntity.ok(clientService.getInbox(auth.getName(), page, recherche));
+    }
+
+    @GetMapping("/inbox/non-lus")
+    @Operation(summary = "Nombre de messages non lus")
+    public ResponseEntity<DataResponse<Integer>> nonLus(Authentication auth) {
+        return ResponseEntity.ok(clientService.getNonLus(auth.getName()));
     }
 
     @GetMapping("/sent")
@@ -46,11 +60,16 @@ public class MessagerieClientController {
         return ResponseEntity.ok(clientService.getMessage(courrierTrackingId, auth.getName()));
     }
 
-    @PostMapping("/envoyer")
-    @Operation(summary = "Envoyer un mail (avec ou sans template)")
+    @PostMapping(value = "/envoyer", consumes = {
+            MediaType.MULTIPART_FORM_DATA_VALUE,
+            MediaType.APPLICATION_JSON_VALUE // fallback sans PJ
+    })
+    @Operation(summary = "Envoyer un mail (avec pièces jointes optionnelles)")
     public ResponseEntity<DataResponse<UUID>> envoyer(
-            @Valid @RequestBody EnvoyerMailRequest req, Authentication auth) {
-        return ResponseEntity.ok(clientService.envoyer(req, auth.getName()));
+            @RequestPart("data") EnvoyerMailRequest req,
+            @RequestPart(value = "fichiers", required = false) List<MultipartFile> fichiers,
+            Authentication auth) {
+        return ResponseEntity.ok(clientService.envoyer(req, fichiers, auth.getName()));
     }
 
     @GetMapping("/templates")
@@ -65,4 +84,37 @@ public class MessagerieClientController {
             @RequestBody PreviewTemplateRequest req) {
         return ResponseEntity.ok(clientService.previewTemplate(req));
     }
+
+    /**
+     * Télécharge une pièce jointe d'un mail IMAP.
+     * GET /v1/messagerie/messages/{messageIdImap}/pj/{index}
+     *
+     * Retourne le fichier en téléchargement direct (Content-Disposition:
+     * attachment).
+     */
+    @GetMapping("/messages/{messageIdImap}/pj/{index}")
+    @Operation(summary = "Télécharger une pièce jointe")
+    public ResponseEntity<byte[]> telechargerPj(
+            @PathVariable String messageIdImap,
+            @PathVariable int index,
+            Authentication auth) {
+
+        PieceJointe pj = clientService
+                .telechargerPieceJointe(messageIdImap, index, auth.getName()).getData();
+
+        byte[] bytes = Base64.getDecoder().decode(pj.contenuBase64());
+
+        // Déduire le type MIME
+        String mime = pj.contentType() != null
+                ? pj.contentType().split(";")[0].trim()
+                : "application/octet-stream";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + pj.nom() + "\"")
+                .header(HttpHeaders.CONTENT_TYPE, mime)
+                .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(bytes.length))
+                .body(bytes);
+    }
+
 }

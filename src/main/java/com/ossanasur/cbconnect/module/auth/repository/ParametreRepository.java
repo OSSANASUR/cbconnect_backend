@@ -17,4 +17,25 @@ public interface ParametreRepository extends JpaRepository<Parametre, Integer> {
     List<Parametre> findAllActive();
 
     boolean existsByCleAndActiveDataTrueAndDeletedDataFalse(String cle);
+
+    /**
+     * Récupère tous les paramètres d'une catégorie LISTE.
+     * Ex: findByCategorie("PROFESSION") retourne toutes les professions.
+     *
+     * Convention : cle = "{CATEGORIE}.{CODE}"
+     */
+    @Query("SELECT p FROM Parametre p " +
+            "WHERE p.cle LIKE CONCAT(:categorie, '.%') " +
+            "AND p.activeData = true AND p.deletedData = false " +
+            "ORDER BY p.valeur")
+    List<Parametre> findByCategorie(@Param("categorie") String categorie);
+
+    /**
+     * Récupère tous les paramètres de type LISTE, groupés par catégorie.
+     */
+    @Query("SELECT p FROM Parametre p " +
+            "WHERE p.typeParametre = com.ossanasur.cbconnect.common.enums.TypeParametre.LISTE " +
+            "AND p.activeData = true AND p.deletedData = false " +
+            "ORDER BY p.cle")
+    List<Parametre> findAllListe();
 }

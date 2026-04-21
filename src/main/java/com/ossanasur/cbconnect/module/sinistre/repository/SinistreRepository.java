@@ -211,4 +211,53 @@ public interface SinistreRepository extends JpaRepository<Sinistre, Integer> {
       @Param("anneeN1") int anneeN1,
       @Param("mois") int mois);
 
+  /**
+   * Cadence — sinistres déclarés par (pays_emetteur, année de survenance).
+   * Sert à calculer le Taux Payé = paiements / déclarés.
+   *
+   * Colonnes : [0]=pays_libelle, [1]=code_pays, [2]=annee_surv, [3]=nb_declares
+   */
+  @Query(value = """
+      SELECT
+          p.libelle                                                                   AS pays_libelle,
+          p.code_carte_brune                                                         AS code_pays,
+          CASE WHEN EXTRACT(YEAR FROM s.date_accident)::int >= :anneeMin
+               THEN EXTRACT(YEAR FROM s.date_accident)::int
+               ELSE -1 END                                                           AS annee_surv,
+          COUNT(s.historique_id)                                                     AS nb_declares
+      FROM sinistre s
+      JOIN pays p ON p.historique_id = s.pays_emetteur_id
+      WHERE s.deleted_data = FALSE AND s.active_data = TRUE
+      GROUP BY p.libelle, p.code_carte_brune, annee_surv
+      ORDER BY p.libelle, annee_surv DESC
+      """, nativeQuery = true)
+  List<Object[]> sinistresDeclaresParPays(@Param("anneeMin") int anneeMin);
+
+  /**
+   * Cadence — sinistres déclarés par (compagnie membre TG, année de survenance).
+   *
+   * Colonnes : [0]=compagnie, [1]=null, [2]=annee_surv, [3]=nb_declares
+   */
+  @Query(value = """
+      SELECT
+          COALESCE(o.raison_sociale, 'AUTRES')                                       AS compagnie,
+          NULL                                                                        AS code_compagnie,
+          CASE WHEN EXTRACT(YEAR FROM s.date_accident)::int >= :anneeMin
+               THEN EXTRACT(YEAR FROM s.date_accident)::int
+               ELSE -1 END                                                           AS annee_surv,
+          COUNT(s.historique_id)                                                     AS nb_declares
+      FROM sinistre s
+      JOIN pays pg ON pg.historique_id = s.pays_gestionnaire_id
+          AND pg.code_carte_brune = 'TG'
+      LEFT JOIN organisme o ON o.historique_id = s.organisme_membre_id
+          AND o.active_data    = TRUE
+          AND o.deleted_data   = FALSE
+          AND o.type_organisme = 'COMPAGNIE_MEMBRE'
+          AND o.code_pays_bcb  = 'TG'
+      WHERE s.deleted_data = FALSE AND s.active_data = TRUE
+      GROUP BY COALESCE(o.raison_sociale, 'AUTRES'), annee_surv
+      ORDER BY COALESCE(o.raison_sociale, 'AUTRES'), annee_surv DESC
+      """, nativeQuery = true)
+  List<Object[]> sinistresDeclaresParCompagnie(@Param("anneeMin") int anneeMin);
+
 }

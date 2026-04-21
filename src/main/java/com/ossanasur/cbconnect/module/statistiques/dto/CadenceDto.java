@@ -2,80 +2,71 @@ package com.ossanasur.cbconnect.module.statistiques.dto;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 /**
- * État de cadence de survenance par rapport au paiement — R4.
+ * Triangle de cadence de règlement — SINISTRES PAR EXERCICE DE SURVENANCE.
  *
- * Structure identique au fichier Excel R4_Cadence.xlsx :
- * - Tableau TOTAL : vue consolidée tous pays
- * - Tableau TOGO : sinistres gérés par le Togo (par pays émetteur)
- * - Tableau par compagnie togolaise (FIDELIA, GTA, NSIA, POOL, SANLAM, SUNU…)
+ * Axe X (colonnes) = année où le paiement a été effectué (date_paiement).
+ * Axe Y (lignes) = année où l'accident est survenu (date_accident).
  *
- * Pour chaque bloc :
- * Lignes = exercice de survenance (année de l'accident)
- * Colonnes = exercice de paiement (année du paiement)
- * Cellule = nb sinistres payés ET montant total payé
+ * Les années antérieures à anneeMin sont regroupées sous la clé -1 ("ant").
  *
- * Le "taux payé" = montant payé / montant total des sinistres déclarés.
+ * Rendu : TOTAL, par pays (pays_emetteur), par compagnie membre togolaise.
  */
 public record CadenceDto(
 
-        int anneeRef, // année du reporting (ex: 2026)
-        String libelleMois, // "JANVIER", "MARS", etc.
-        int mois,
+                /** Année de référence (colonne la plus récente). */
+                int anneeRef,
 
-        // ── Colonnes d'exercices de paiement disponibles ─────────────────
-        // Exemple : [2020, 2021, 2022, 2023, 2024, 2025, 2026]
-        List<Integer> exercicesPaiement,
+                /**
+                 * Années utilisées comme colonnes "payés en", du plus récent au plus ancien.
+                 * Ex : [2024, 2023, 2022, 2021, -1] (-1 = "2020 et ant.")
+                 */
+                List<Integer> anneesColonnes,
 
-        // ── Blocs ─────────────────────────────────────────────────────────
-        BlocCadence total,
-        List<BlocCadence> parPays,
-        List<BlocCadence> parCompagnieTogo
+                /**
+                 * Années utilisées comme lignes "survenus en", du plus récent au plus ancien.
+                 * Identique à anneesColonnes dans ce rapport.
+                 */
+                List<Integer> anneesSurvenance,
 
-) {
+                BlocCadence total,
+                List<BlocCadence> parPays,
+                List<BlocCadence> parCompagnie) {
 
-    /**
-     * Bloc cadence pour un pays ou une compagnie.
-     *
-     * lignes : une ligne par exercice de survenance
-     * totalLignes: ligne de synthèse (toutes survenances confondues)
-     */
-    public record BlocCadence(
-            String libelle, // "TOTAL", "TOGO", "FIDELIA", etc.
-            String codePays, // code carte brune, null pour compagnies
+        // ── Bloc = un pays ou une compagnie ────────────────────────────────
+        public record BlocCadence(
+                        String label, // "BENIN", "FIDELIA TG", "TOTAL"
+                        String code, // code pays ou null
+                        List<LigneCadence> lignes // une ligne par année de survenance
+        ) {
+        }
 
-            List<LigneCadence> lignes,
-            LigneCadence totalLignes) {
-    }
+        // ── Ligne = une année de survenance ───────────────────────────────
+        public record LigneCadence(
+                        /** Année de survenance ; -1 = regroupement "ant" */
+                        int anneeSurvenance,
 
-    /**
-     * Ligne : exercice de survenance donné.
-     *
-     * cellules : liste ordonnée de cellules, une par exercice de paiement.
-     * La position i correspond à exercicesPaiement.get(i).
-     */
-    public record LigneCadence(
-            String exerciceSurvenance, // "2020+ant", "2021", "2022", etc.
-            int anneeAccident, // -1 pour la ligne "2020+ant"
+                        /**
+                         * Paiements par année de paiement.
+                         * Clé = année (-1 pour "ant"), valeur = {nb, montant}.
+                         */
+                        Map<Integer, CelluleCadence> cellules,
 
-            List<CelluleCadence> cellules,
+                        long nbTotal,
+                        BigDecimal montantTotal,
 
-            // Totaux de la ligne (toutes années de paiement)
-            long totalNb,
-            BigDecimal totalMontant,
+                        /** Sinistres déclarés pour cette année de survenance (toutes issues). */
+                        long sinistresDeClares,
 
-            // Sinistres déclarés pour cet exercice (pour calcul taux payé)
-            long nbDeclares,
-            BigDecimal montantDeclares) {
-    }
+                        /** tauxPaye = nbTotal / sinistresDeClares (0 si sinistresDeClares = 0). */
+                        double tauxPaye) {
+        }
 
-    /**
-     * Cellule : intersection (survenance X, paiement Y).
-     */
-    public record CelluleCadence(
-            int exercicePaiement,
-            long nb,
-            BigDecimal montant) {
-    }
+        // ── Cellule = intersection (survenance, paiement) ─────────────────
+        public record CelluleCadence(
+                        long nb,
+                        BigDecimal montant) {
+        }
 }

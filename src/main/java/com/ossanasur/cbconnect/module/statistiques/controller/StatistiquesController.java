@@ -116,21 +116,18 @@ public class StatistiquesController {
     }
 
     /**
-     * R4 — Cadence de survenance par rapport au paiement.
-     * Tableau TOTAL + par pays + par compagnie togolaise.
+     * Triangle de cadence — Sinistres par exercice de survenance.
      *
-     * GET /v1/stats/cadence?annee=2026&mois=1
+     * GET /v1/stats/cadence?annee=2024
      */
     @GetMapping("/cadence")
-    @Operation(summary = "Cadence de survenance par rapport au paiement (R4)")
-    public ResponseEntity<DataResponse<CadenceDto>> cadenceSurvenance(
-            @RequestParam(defaultValue = "0") int annee,
-            @RequestParam(defaultValue = "0") int mois) {
+    @Operation(summary = "Triangle de cadence de règlement (survenus en × payés en)")
+    public ResponseEntity<DataResponse<CadenceDto>> cadence(
+            @RequestParam(defaultValue = "0") int annee) {
         if (annee == 0)
             annee = LocalDate.now().getYear();
-        if (mois == 0)
-            mois = LocalDate.now().getMonthValue();
-        return ResponseEntity.ok(DataResponse.success("Cadence survenance",
-                statsService.cadenceSurvenance(annee, mois)));
+        return ResponseEntity.ok(DataResponse.success("Cadence",
+                statsService.cadence(annee)));
     }
+
 }

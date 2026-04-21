@@ -229,33 +229,6 @@ public interface PaiementRepository extends JpaRepository<Paiement, Integer> {
   List<Object[]> cadenceTotal(@Param("anneeMax") int anneeMax);
 
   /**
-   * Cadence par PAYS ÉMETTEUR du sinistre.
-   *
-   * Colonnes : [0]=pays [1]=code_pays [2]=annee_survenance [3]=annee_paiement
-   * [4]=nb [5]=montant
-   */
-  @Query(value = """
-      SELECT
-          p.libelle                                                             AS pays,
-          p.code_carte_brune                                                    AS code_pays,
-          EXTRACT(YEAR FROM s.date_accident)::INT                              AS annee_survenance,
-          EXTRACT(YEAR FROM COALESCE(pm.date_paiement, pm.date_emission))::INT AS annee_paiement,
-          COUNT(pm.historique_id)                                               AS nb,
-          COALESCE(SUM(pm.montant), 0)                                          AS montant
-      FROM paiement pm
-      JOIN sinistre s ON s.historique_id = pm.sinistre_id
-                     AND s.active_data   = TRUE AND s.deleted_data = FALSE
-      JOIN pays p     ON p.historique_id = s.pays_emetteur_id
-      WHERE pm.deleted_data = FALSE
-        AND pm.active_data  = TRUE
-        AND pm.statut       <> 'ANNULE'
-        AND EXTRACT(YEAR FROM COALESCE(pm.date_paiement, pm.date_emission)) <= :anneeMax
-      GROUP BY p.libelle, p.code_carte_brune, annee_survenance, annee_paiement
-      ORDER BY p.libelle, annee_survenance, annee_paiement
-      """, nativeQuery = true)
-  List<Object[]> cadenceParPays(@Param("anneeMax") int anneeMax);
-
-  /**
    * Cadence par COMPAGNIE MEMBRE TOGOLAISE (organisme_membre).
    *
    * Filtre : pays_gestionnaire = TG.
@@ -288,5 +261,83 @@ public interface PaiementRepository extends JpaRepository<Paiement, Integer> {
       ORDER BY COALESCE(o.raison_sociale, 'AUTRES'), annee_survenance, annee_paiement
       """, nativeQuery = true)
   List<Object[]> cadenceParCompagnieTogo(@Param("anneeMax") int anneeMax);
+
+  /**
+   * Cadence — paiements croisés (survenus en × payés en), par pays.
+   *
+   * Le "pays" est le pays_emetteur du sinistre (pays de l'organisme homologue
+   * qui a déclaré le sinistre).
+   *
+   * Colonnes renvoyées :
+   * [0] pays_libelle [1] code_pays
+   * [2] annee_surv (-1 = regroupement "ant" pour toute année < anneeMin)
+   * [3] annee_pay (-1 idem)
+   * [4] nb COUNT(paiements)
+   * [5] montant SUM(paiement.montant)
+   */
+  @Query(value = """
+      SELECT
+          p.libelle                                                                   AS pays_libelle,
+          p.code_carte_brune                                                         AS code_pays,
+          CASE WHEN EXTRACT(YEAR FROM s.date_accident)::int >= :anneeMin
+               THEN EXTRACT(YEAR FROM s.date_accident)::int
+               ELSE -1 END                                                           AS annee_surv,
+          CASE WHEN EXTRACT(YEAR FROM COALESCE(pm.date_paiement, pm.date_emission))::int >= :anneeMin
+               THEN EXTRACT(YEAR FROM COALESCE(pm.date_paiement, pm.date_emission))::int
+               ELSE -1 END                                                           AS annee_pay,
+          COUNT(pm.historique_id)                                                    AS nb,
+          COALESCE(SUM(pm.montant), 0)                                               AS montant
+      FROM paiement pm
+      JOIN sinistre s ON s.historique_id = pm.sinistre_id
+          AND s.active_data = TRUE AND s.deleted_data = FALSE
+      JOIN pays p ON p.historique_id = s.pays_emetteur_id
+      WHERE pm.deleted_data = FALSE
+        AND pm.active_data  = TRUE
+        AND pm.statut      <> 'ANNULE'
+      GROUP BY p.libelle, p.code_carte_brune, annee_surv, annee_pay
+      ORDER BY p.libelle, annee_surv DESC, annee_pay DESC
+      """, nativeQuery = true)
+  List<Object[]> cadenceParPays(@Param("anneeMin") int anneeMin);
+
+  /**
+   * Cadence — paiements croisés (survenus en × payés en), par compagnie membre
+   * TG.
+   *
+   * La compagnie est l'organisme_membre du sinistre
+   * (compagnie togolaise ayant déclaré le sinistre).
+   * Filtre : uniquement les sinistres gérés par le Togo (pays_gestionnaire = TG).
+   * Les sinistres sans compagnie membre → libellé "AUTRES".
+   *
+   * Colonnes : mêmes indices que cadenceParPays, [0]=compagnie, [1]=null.
+   */
+  @Query(value = """
+      SELECT
+          COALESCE(o.raison_sociale, 'AUTRES')                                       AS compagnie,
+          NULL                                                                        AS code_compagnie,
+          CASE WHEN EXTRACT(YEAR FROM s.date_accident)::int >= :anneeMin
+               THEN EXTRACT(YEAR FROM s.date_accident)::int
+               ELSE -1 END                                                           AS annee_surv,
+          CASE WHEN EXTRACT(YEAR FROM COALESCE(pm.date_paiement, pm.date_emission))::int >= :anneeMin
+               THEN EXTRACT(YEAR FROM COALESCE(pm.date_paiement, pm.date_emission))::int
+               ELSE -1 END                                                           AS annee_pay,
+          COUNT(pm.historique_id)                                                    AS nb,
+          COALESCE(SUM(pm.montant), 0)                                               AS montant
+      FROM paiement pm
+      JOIN sinistre s ON s.historique_id = pm.sinistre_id
+          AND s.active_data = TRUE AND s.deleted_data = FALSE
+      JOIN pays pg ON pg.historique_id = s.pays_gestionnaire_id
+          AND pg.code_carte_brune = 'TG'
+      LEFT JOIN organisme o ON o.historique_id = s.organisme_membre_id
+          AND o.active_data    = TRUE
+          AND o.deleted_data   = FALSE
+          AND o.type_organisme = 'COMPAGNIE_MEMBRE'
+          AND o.code_pays_bcb  = 'TG'
+      WHERE pm.deleted_data = FALSE
+        AND pm.active_data  = TRUE
+        AND pm.statut      <> 'ANNULE'
+      GROUP BY COALESCE(o.raison_sociale, 'AUTRES'), annee_surv, annee_pay
+      ORDER BY COALESCE(o.raison_sociale, 'AUTRES'), annee_surv DESC, annee_pay DESC
+      """, nativeQuery = true)
+  List<Object[]> cadenceParCompagnie(@Param("anneeMin") int anneeMin);
 
 }

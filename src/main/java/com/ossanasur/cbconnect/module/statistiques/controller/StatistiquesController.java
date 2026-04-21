@@ -2,6 +2,7 @@ package com.ossanasur.cbconnect.module.statistiques.controller;
 
 import com.ossanasur.cbconnect.module.statistiques.dto.CadenceDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto;
+import com.ossanasur.cbconnect.module.statistiques.dto.EtatReclamationDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatSinistreDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.ReportingEncaissementDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.ReportingMensuelDto;
@@ -164,4 +165,17 @@ public class StatistiquesController {
         return ResponseEntity.ok(DataResponse.success("Cadence encaissements",
                 statsService.cadenceEncaissements(annee)));
     }
+
+    /**
+     * État de réclamation global — double vue nb + montant.
+     *
+     * GET /v1/stats/reclamations
+     */
+    @GetMapping("/reclamations")
+    @Operation(summary = "État de réclamation global — Togo ↔ Homologues")
+    public ResponseEntity<DataResponse<EtatReclamationDto>> etatReclamation() {
+        return ResponseEntity.ok(DataResponse.success("État réclamations",
+                statsService.etatReclamation()));
+    }
+
 }

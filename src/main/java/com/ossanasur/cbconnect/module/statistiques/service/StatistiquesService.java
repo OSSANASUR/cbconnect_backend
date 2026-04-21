@@ -3,6 +3,10 @@ package com.ossanasur.cbconnect.module.statistiques.service;
 import com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository;
 import com.ossanasur.cbconnect.module.finance.repository.PaiementRepository;
 import com.ossanasur.cbconnect.module.sinistre.repository.SinistreRepository;
+import com.ossanasur.cbconnect.module.statistiques.dto.CadenceDto;
+import com.ossanasur.cbconnect.module.statistiques.dto.CadenceDto.BlocCadence;
+import com.ossanasur.cbconnect.module.statistiques.dto.CadenceDto.CelluleCadence;
+import com.ossanasur.cbconnect.module.statistiques.dto.CadenceDto.LigneCadence;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatSinistreDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto.LigneCompagnie;
@@ -262,6 +266,198 @@ public class StatistiquesService {
                 annee, mois,
                 mois >= 1 && mois <= 12 ? MOIS_FR[mois] : "?",
                 n1, parPays, totalPays, parComp, totalComp);
+    }
+
+    // ─── R4 : Cadence de survenance par rapport au paiement ──────────────
+
+    public CadenceDto cadenceSurvenance(int annee, int mois) {
+
+        String libelleMois = (mois >= 1 && mois <= 12) ? MOIS_FR[mois] : "?";
+        int anneeMin = annee - 5; // on remonte sur 5 exercices + "2020+ant"
+
+        // ── Bloc TOTAL ───────────────────────────────────────────────────
+        List<Object[]> totalRows = paiementRepository.cadenceTotal(annee);
+        List<Integer> exercicesPaiement = buildExercicesPaiement(totalRows, anneeMin, annee, 2);
+
+        BlocCadence blocTotal = buildBloc("TOTAL", null, totalRows, exercicesPaiement, anneeMin, annee);
+
+        // ── Par pays ─────────────────────────────────────────────────────
+        List<Object[]> paysRows = paiementRepository.cadenceParPays(annee);
+        List<BlocCadence> parPays = groupByEntity(paysRows, exercicesPaiement, anneeMin, annee,
+                r -> (String) r[0], r -> (String) r[1],
+                r -> ((Number) r[2]).intValue(), r -> ((Number) r[3]).intValue(),
+                r -> toLong(r[4]), r -> toBd(r[5]));
+
+        // ── Par compagnie togolaise ───────────────────────────────────────
+        List<Object[]> compRows = paiementRepository.cadenceParCompagnieTogo(annee);
+        List<BlocCadence> parCompagnieTogo = groupByEntity(compRows, exercicesPaiement, anneeMin, annee,
+                r -> (String) r[0], r -> null,
+                r -> ((Number) r[1]).intValue(), r -> ((Number) r[2]).intValue(),
+                r -> toLong(r[3]), r -> toBd(r[4]));
+
+        return new CadenceDto(annee, libelleMois, mois, exercicesPaiement,
+                blocTotal, parPays, parCompagnieTogo);
+    }
+
+    /**
+     * Déduit la liste des exercices de paiement à partir des données brutes.
+     * On prend toutes les années trouvées dans les données + l'année courante,
+     * filtrées entre anneeMin et anneeMax.
+     */
+    private List<Integer> buildExercicesPaiement(List<Object[]> rows, int anneeMin, int anneeMax, int paiColIdx) {
+        java.util.TreeSet<Integer> annees = new java.util.TreeSet<>();
+        for (Object[] r : rows) {
+            int ap = ((Number) r[paiColIdx]).intValue();
+            if (ap >= anneeMin && ap <= anneeMax)
+                annees.add(ap);
+        }
+        // Garantir que l'année courante est présente
+        annees.add(anneeMax);
+        return new java.util.ArrayList<>(annees);
+    }
+
+    /**
+     * Construit un BlocCadence TOTAL à partir de rows brutes de cadenceTotal().
+     * rows : [0]=annee_survenance [1]=annee_paiement [2]=nb [3]=montant
+     */
+    private BlocCadence buildBloc(String libelle, String codePays,
+            List<Object[]> rows,
+            List<Integer> exercicesPaiement,
+            int anneeMin, int anneeMax) {
+
+        // Grouper par annee_survenance
+        java.util.Map<Integer, List<Object[]>> bySurv = new java.util.LinkedHashMap<>();
+        for (Object[] r : rows) {
+            int as = ((Number) r[0]).intValue();
+            bySurv.computeIfAbsent(as, k -> new java.util.ArrayList<>()).add(r);
+        }
+
+        List<LigneCadence> lignes = buildLignes(bySurv, exercicesPaiement, anneeMin, anneeMax, 1, 2, 3);
+        LigneCadence total = buildTotalLigne(lignes, exercicesPaiement);
+        return new BlocCadence(libelle, codePays, lignes, total);
+    }
+
+    /**
+     * Regroupe un résultat multi-entités (pays ou compagnie) en liste de
+     * BlocCadence.
+     */
+    private <T> List<BlocCadence> groupByEntity(
+            List<Object[]> rows,
+            List<Integer> exercicesPaiement,
+            int anneeMin, int anneeMax,
+            java.util.function.Function<Object[], String> getLibelle,
+            java.util.function.Function<Object[], String> getCode,
+            java.util.function.Function<Object[], Integer> getSurv,
+            java.util.function.Function<Object[], Integer> getPai,
+            java.util.function.Function<Object[], Long> getNb,
+            java.util.function.Function<Object[], java.math.BigDecimal> getMt) {
+
+        // Grouper par entité
+        java.util.LinkedHashMap<String, List<Object[]>> byEntity = new java.util.LinkedHashMap<>();
+        java.util.Map<String, String> codeByLib = new java.util.LinkedHashMap<>();
+        for (Object[] r : rows) {
+            String lib = getLibelle.apply(r);
+            byEntity.computeIfAbsent(lib, k -> new java.util.ArrayList<>()).add(r);
+            codeByLib.putIfAbsent(lib, getCode.apply(r));
+        }
+
+        List<BlocCadence> blocs = new java.util.ArrayList<>();
+        for (var entry : byEntity.entrySet()) {
+            String lib = entry.getKey();
+            List<Object[]> entityRows = entry.getValue();
+
+            // Remap en [survenance, paiement, nb, montant]
+            java.util.Map<Integer, List<Object[]>> bySurv = new java.util.LinkedHashMap<>();
+            for (Object[] r : entityRows) {
+                int as = getSurv.apply(r);
+                // Créer un tableau normalisé [survenance, paiement, nb, montant]
+                Object[] norm = new Object[] { as, getPai.apply(r), getNb.apply(r), getMt.apply(r) };
+                bySurv.computeIfAbsent(as, k -> new java.util.ArrayList<>()).add(norm);
+            }
+
+            List<LigneCadence> lignes = buildLignes(bySurv, exercicesPaiement, anneeMin, anneeMax, 1, 2, 3);
+            LigneCadence total = buildTotalLigne(lignes, exercicesPaiement);
+            blocs.add(new BlocCadence(lib, codeByLib.get(lib), lignes, total));
+        }
+        return blocs;
+    }
+
+    /**
+     * Construit les lignes (une par exercice de survenance) à partir d'un map
+     * survenance → rows normalisés [s, paiement, nb, montant].
+     */
+    private List<LigneCadence> buildLignes(
+            java.util.Map<Integer, List<Object[]>> bySurv,
+            List<Integer> exercicesPaiement,
+            int anneeMin, int anneeMax,
+            int paiIdx, int nbIdx, int mtIdx) {
+
+        List<LigneCadence> lignes = new java.util.ArrayList<>();
+
+        // Regrouper les survenues < anneeMin dans "anneeMin-1+ant"
+        java.util.Map<Integer, List<Object[]>> bySurvClean = new java.util.LinkedHashMap<>();
+        List<Object[]> antRows = new java.util.ArrayList<>();
+        for (var e : bySurv.entrySet()) {
+            if (e.getKey() < anneeMin)
+                antRows.addAll(e.getValue());
+            else
+                bySurvClean.put(e.getKey(), e.getValue());
+        }
+
+        // Ligne "2020+ant" (années antérieures regroupées)
+        if (!antRows.isEmpty()) {
+            lignes.add(buildLigne(anneeMin - 1 + "+ant", -1, antRows,
+                    exercicesPaiement, paiIdx, nbIdx, mtIdx));
+        }
+
+        // Lignes par année de survenance, ordre croissant
+        new java.util.TreeMap<>(bySurvClean).forEach((as, r) -> lignes.add(buildLigne(String.valueOf(as), as, r,
+                exercicesPaiement, paiIdx, nbIdx, mtIdx)));
+
+        return lignes;
+    }
+
+    private LigneCadence buildLigne(String libelle, int anneeAcc, List<Object[]> rows,
+            List<Integer> exercicesPaiement,
+            int paiIdx, int nbIdx, int mtIdx) {
+        // Index par exercice de paiement
+        java.util.Map<Integer, long[]> cellMap = new java.util.HashMap<>();
+        java.util.Map<Integer, java.math.BigDecimal[]> cellMtMap = new java.util.HashMap<>();
+        for (Object[] r : rows) {
+            int ap = ((Number) r[paiIdx]).intValue();
+            cellMap.merge(ap, new long[] { toLong(r[nbIdx]) }, (a, b) -> new long[] { a[0] + b[0] });
+            cellMtMap.merge(ap,
+                    new java.math.BigDecimal[] { toBd(r[mtIdx]) },
+                    (a, b) -> new java.math.BigDecimal[] { a[0].add(b[0]) });
+        }
+
+        List<CelluleCadence> cellules = exercicesPaiement.stream().map(ep -> new CelluleCadence(ep,
+                cellMap.containsKey(ep) ? cellMap.get(ep)[0] : 0L,
+                cellMtMap.containsKey(ep) ? cellMtMap.get(ep)[0] : java.math.BigDecimal.ZERO)).toList();
+
+        long totalNb = cellules.stream().mapToLong(CelluleCadence::nb).sum();
+        java.math.BigDecimal totalMt = cellules.stream()
+                .map(CelluleCadence::montant)
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+
+        return new LigneCadence(libelle, anneeAcc, cellules, totalNb, totalMt, 0L, java.math.BigDecimal.ZERO);
+    }
+
+    private LigneCadence buildTotalLigne(List<LigneCadence> lignes, List<Integer> exercicesPaiement) {
+        List<CelluleCadence> cellules = new java.util.ArrayList<>();
+        for (int i = 0; i < exercicesPaiement.size(); i++) {
+            final int fi = i;
+            long nb = lignes.stream().mapToLong(l -> l.cellules().get(fi).nb()).sum();
+            java.math.BigDecimal mt = lignes.stream()
+                    .map(l -> l.cellules().get(fi).montant())
+                    .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+            cellules.add(new CelluleCadence(exercicesPaiement.get(i), nb, mt));
+        }
+        long totalNb = cellules.stream().mapToLong(CelluleCadence::nb).sum();
+        java.math.BigDecimal totalMt = cellules.stream()
+                .map(CelluleCadence::montant)
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+        return new LigneCadence("TOTAL", -1, cellules, totalNb, totalMt, 0L, java.math.BigDecimal.ZERO);
     }
 
     // ── Helpers montants ─────────────────────────────────────────

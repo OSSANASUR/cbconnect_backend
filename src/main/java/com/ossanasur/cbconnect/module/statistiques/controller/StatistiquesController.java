@@ -1,5 +1,6 @@
 package com.ossanasur.cbconnect.module.statistiques.controller;
 
+import com.ossanasur.cbconnect.module.statistiques.dto.CadenceDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatSinistreDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.ReportingEncaissementDto;
@@ -112,5 +113,24 @@ public class StatistiquesController {
             mois = LocalDate.now().getMonthValue();
         return ResponseEntity.ok(DataResponse.success("Reporting paiements",
                 statsService.reportingPaiements(annee, mois)));
+    }
+
+    /**
+     * R4 — Cadence de survenance par rapport au paiement.
+     * Tableau TOTAL + par pays + par compagnie togolaise.
+     *
+     * GET /v1/stats/cadence?annee=2026&mois=1
+     */
+    @GetMapping("/cadence")
+    @Operation(summary = "Cadence de survenance par rapport au paiement (R4)")
+    public ResponseEntity<DataResponse<CadenceDto>> cadenceSurvenance(
+            @RequestParam(defaultValue = "0") int annee,
+            @RequestParam(defaultValue = "0") int mois) {
+        if (annee == 0)
+            annee = LocalDate.now().getYear();
+        if (mois == 0)
+            mois = LocalDate.now().getMonthValue();
+        return ResponseEntity.ok(DataResponse.success("Cadence survenance",
+                statsService.cadenceSurvenance(annee, mois)));
     }
 }

@@ -201,4 +201,92 @@ public interface PaiementRepository extends JpaRepository<Paiement, Integer> {
       @Param("anneeN1") int anneeN1,
       @Param("mois") int mois);
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // R4 — CADENCE DE SURVENANCE PAR RAPPORT AU PAIEMENT
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Cadence TOTAL — tous sinistres, tous pays.
+   *
+   * Colonnes : [0]=annee_survenance [1]=annee_paiement [2]=nb [3]=montant
+   */
+  @Query(value = """
+      SELECT
+          EXTRACT(YEAR FROM s.date_accident)::INT                              AS annee_survenance,
+          EXTRACT(YEAR FROM COALESCE(pm.date_paiement, pm.date_emission))::INT AS annee_paiement,
+          COUNT(pm.historique_id)                                               AS nb,
+          COALESCE(SUM(pm.montant), 0)                                          AS montant
+      FROM paiement pm
+      JOIN sinistre s ON s.historique_id = pm.sinistre_id
+                     AND s.active_data   = TRUE AND s.deleted_data = FALSE
+      WHERE pm.deleted_data = FALSE
+        AND pm.active_data  = TRUE
+        AND pm.statut       <> 'ANNULE'
+        AND EXTRACT(YEAR FROM COALESCE(pm.date_paiement, pm.date_emission)) <= :anneeMax
+      GROUP BY annee_survenance, annee_paiement
+      ORDER BY annee_survenance, annee_paiement
+      """, nativeQuery = true)
+  List<Object[]> cadenceTotal(@Param("anneeMax") int anneeMax);
+
+  /**
+   * Cadence par PAYS ÉMETTEUR du sinistre.
+   *
+   * Colonnes : [0]=pays [1]=code_pays [2]=annee_survenance [3]=annee_paiement
+   * [4]=nb [5]=montant
+   */
+  @Query(value = """
+      SELECT
+          p.libelle                                                             AS pays,
+          p.code_carte_brune                                                    AS code_pays,
+          EXTRACT(YEAR FROM s.date_accident)::INT                              AS annee_survenance,
+          EXTRACT(YEAR FROM COALESCE(pm.date_paiement, pm.date_emission))::INT AS annee_paiement,
+          COUNT(pm.historique_id)                                               AS nb,
+          COALESCE(SUM(pm.montant), 0)                                          AS montant
+      FROM paiement pm
+      JOIN sinistre s ON s.historique_id = pm.sinistre_id
+                     AND s.active_data   = TRUE AND s.deleted_data = FALSE
+      JOIN pays p     ON p.historique_id = s.pays_emetteur_id
+      WHERE pm.deleted_data = FALSE
+        AND pm.active_data  = TRUE
+        AND pm.statut       <> 'ANNULE'
+        AND EXTRACT(YEAR FROM COALESCE(pm.date_paiement, pm.date_emission)) <= :anneeMax
+      GROUP BY p.libelle, p.code_carte_brune, annee_survenance, annee_paiement
+      ORDER BY p.libelle, annee_survenance, annee_paiement
+      """, nativeQuery = true)
+  List<Object[]> cadenceParPays(@Param("anneeMax") int anneeMax);
+
+  /**
+   * Cadence par COMPAGNIE MEMBRE TOGOLAISE (organisme_membre).
+   *
+   * Filtre : pays_gestionnaire = TG.
+   *
+   * Colonnes : [0]=compagnie [1]=annee_survenance [2]=annee_paiement [3]=nb
+   * [4]=montant
+   */
+  @Query(value = """
+      SELECT
+          COALESCE(o.raison_sociale, 'AUTRES')                                 AS compagnie,
+          EXTRACT(YEAR FROM s.date_accident)::INT                              AS annee_survenance,
+          EXTRACT(YEAR FROM COALESCE(pm.date_paiement, pm.date_emission))::INT AS annee_paiement,
+          COUNT(pm.historique_id)                                               AS nb,
+          COALESCE(SUM(pm.montant), 0)                                          AS montant
+      FROM paiement pm
+      JOIN sinistre  s  ON s.historique_id = pm.sinistre_id
+                       AND s.active_data   = TRUE AND s.deleted_data = FALSE
+      JOIN pays      pg ON pg.historique_id = s.pays_gestionnaire_id
+      LEFT JOIN organisme o ON o.historique_id = s.organisme_membre_id
+          AND o.active_data    = TRUE
+          AND o.deleted_data   = FALSE
+          AND o.type_organisme = 'COMPAGNIE_MEMBRE'
+          AND o.code_pays_bcb  = 'TG'
+      WHERE pm.deleted_data     = FALSE
+        AND pm.active_data      = TRUE
+        AND pm.statut           <> 'ANNULE'
+        AND pg.code_carte_brune  = 'TG'
+        AND EXTRACT(YEAR FROM COALESCE(pm.date_paiement, pm.date_emission)) <= :anneeMax
+      GROUP BY COALESCE(o.raison_sociale, 'AUTRES'), annee_survenance, annee_paiement
+      ORDER BY COALESCE(o.raison_sociale, 'AUTRES'), annee_survenance, annee_paiement
+      """, nativeQuery = true)
+  List<Object[]> cadenceParCompagnieTogo(@Param("anneeMax") int anneeMax);
+
 }

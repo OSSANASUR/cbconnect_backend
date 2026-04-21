@@ -49,7 +49,7 @@ public class Victime extends InternalHistorique {
     @Builder.Default
     private boolean lienDecesAccident = false;
     @Column(name = "ossan_ged_correspondent_id")
-    private Long ossanGedCorrespondentId;
+    private Integer ossanGedCorrespondentId;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sinistre_id", nullable = false)
     private Sinistre sinistre;

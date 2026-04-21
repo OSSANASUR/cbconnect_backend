@@ -37,7 +37,7 @@ public class FactureAttestation extends InternalHistorique {
     private String instructionCheque;
     private LocalDate dateEcheance;
     @Column(name = "ossan_ged_document_id")
-    private Long ossanGedDocumentId;
+    private Integer ossanGedDocumentId;
     @Builder.Default
     private boolean annulee = false;
     private String motifAnnulation;

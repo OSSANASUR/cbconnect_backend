@@ -47,7 +47,7 @@ public class PvSinistre extends InternalHistorique {
     private boolean estComplet = false;
     private String remarques;
     @Column(name = "ossan_ged_document_id")
-    private Long ossanGedDocumentId;
+    private Integer ossanGedDocumentId;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "entite_constat_id", nullable = false)
     private EntiteConstat entiteConstat;

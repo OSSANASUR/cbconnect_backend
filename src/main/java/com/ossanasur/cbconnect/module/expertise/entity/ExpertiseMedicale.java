@@ -48,7 +48,7 @@ public class ExpertiseMedicale extends InternalHistorique {
     @Builder.Default
     private BigDecimal honorairesContreExpertise = BigDecimal.ZERO;
     @Column(name = "ossan_ged_document_id")
-    private Long ossanGedDocumentId;
+    private Integer ossanGedDocumentId;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "victime_id", nullable = false)
     private Victime victime;

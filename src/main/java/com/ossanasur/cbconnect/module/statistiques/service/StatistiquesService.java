@@ -11,6 +11,7 @@ import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto.LignePai
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatSinistreDto.LigneSinistre;
 import com.ossanasur.cbconnect.module.statistiques.dto.ReportingEncaissementDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.ReportingMensuelDto;
+import com.ossanasur.cbconnect.module.statistiques.dto.ReportingPaiementDto;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -207,6 +208,57 @@ public class StatistiquesService {
                 sumL(parComp, l -> l.nb_fda_n()), sumBd(parComp, l -> l.mt_fda_n()));
 
         return new ReportingEncaissementDto(
+                annee, mois,
+                mois >= 1 && mois <= 12 ? MOIS_FR[mois] : "?",
+                n1, parPays, totalPays, parComp, totalComp);
+    }
+
+    public ReportingPaiementDto reportingPaiements(int annee, int mois) {
+        int n1 = annee - 1;
+
+        // ── Tableau I : par pays bénéficiaire ───────────────────────────
+        List<Object[]> paysRows = paiementRepository.reportingMensuelPaiParPays(annee, n1, mois);
+
+        List<ReportingPaiementDto.LignePaiPays> parPays = paysRows.stream()
+                .map(r -> new ReportingPaiementDto.LignePaiPays(
+                        (String) r[0], (String) r[1],
+                        toLong(r[2]), toBd(r[3]),
+                        toLong(r[4]), toBd(r[5]),
+                        toLong(r[6]), toBd(r[7]),
+                        toLong(r[8]), toBd(r[9]),
+                        toLong(r[10]), toBd(r[11])))
+                .toList();
+
+        ReportingPaiementDto.LignePaiPays totalPays = new ReportingPaiementDto.LignePaiPays(
+                "TOTAL", "",
+                sumL(parPays, l -> l.nb_mois_n1()), sumBd(parPays, l -> l.mt_mois_n1()),
+                sumL(parPays, l -> l.nb_mois_n()), sumBd(parPays, l -> l.mt_mois_n()),
+                sumL(parPays, l -> l.nb_cumul_n1()), sumBd(parPays, l -> l.mt_cumul_n1()),
+                sumL(parPays, l -> l.nb_cumul_n()), sumBd(parPays, l -> l.mt_cumul_n()),
+                sumL(parPays, l -> l.nb_fda_n()), sumBd(parPays, l -> l.mt_fda_n()));
+
+        // ── Tableau II : par compagnie membre togolaise ─────────────────
+        List<Object[]> compRows = paiementRepository.reportingMensuelPaiParCompagnie(annee, n1, mois);
+
+        List<ReportingPaiementDto.LignePaiCompagnie> parComp = compRows.stream()
+                .map(r -> new ReportingPaiementDto.LignePaiCompagnie(
+                        (String) r[0],
+                        toLong(r[2]), toBd(r[3]),
+                        toLong(r[4]), toBd(r[5]),
+                        toLong(r[6]), toBd(r[7]),
+                        toLong(r[8]), toBd(r[9]),
+                        toLong(r[10]), toBd(r[11])))
+                .toList();
+
+        ReportingPaiementDto.LignePaiCompagnie totalComp = new ReportingPaiementDto.LignePaiCompagnie(
+                "TOTAL",
+                sumL(parComp, l -> l.nb_mois_n1()), sumBd(parComp, l -> l.mt_mois_n1()),
+                sumL(parComp, l -> l.nb_mois_n()), sumBd(parComp, l -> l.mt_mois_n()),
+                sumL(parComp, l -> l.nb_cumul_n1()), sumBd(parComp, l -> l.mt_cumul_n1()),
+                sumL(parComp, l -> l.nb_cumul_n()), sumBd(parComp, l -> l.mt_cumul_n()),
+                sumL(parComp, l -> l.nb_fda_n()), sumBd(parComp, l -> l.mt_fda_n()));
+
+        return new ReportingPaiementDto(
                 annee, mois,
                 mois >= 1 && mois <= 12 ? MOIS_FR[mois] : "?",
                 n1, parPays, totalPays, parComp, totalComp);

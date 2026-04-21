@@ -4,6 +4,7 @@ import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatSinistreDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.ReportingEncaissementDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.ReportingMensuelDto;
+import com.ossanasur.cbconnect.module.statistiques.dto.ReportingPaiementDto;
 import com.ossanasur.cbconnect.module.statistiques.service.StatistiquesService;
 import com.ossanasur.cbconnect.utils.DataResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -91,5 +92,25 @@ public class StatistiquesController {
             mois = LocalDate.now().getMonthValue();
         return ResponseEntity.ok(DataResponse.success("Reporting encaissements",
                 statsService.reportingEncaissements(annee, mois)));
+    }
+
+    /**
+     * Reporting mensuel paiements — Tableaux comparatifs des sinistres payés.
+     * Tableau I : par pays bénéficiaire (pays émetteur du sinistre).
+     * Tableau II : par compagnie membre togolaise (marché togolais).
+     *
+     * GET /v1/stats/reporting-paiements?annee=2025&mois=3
+     */
+    @GetMapping("/reporting-paiements")
+    @Operation(summary = "Reporting mensuel — tableaux comparatifs des sinistres payés")
+    public ResponseEntity<DataResponse<ReportingPaiementDto>> reportingPaiements(
+            @RequestParam(defaultValue = "0") int annee,
+            @RequestParam(defaultValue = "0") int mois) {
+        if (annee == 0)
+            annee = LocalDate.now().getYear();
+        if (mois == 0)
+            mois = LocalDate.now().getMonthValue();
+        return ResponseEntity.ok(DataResponse.success("Reporting paiements",
+                statsService.reportingPaiements(annee, mois)));
     }
 }

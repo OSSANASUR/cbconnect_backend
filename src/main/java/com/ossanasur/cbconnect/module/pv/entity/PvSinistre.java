@@ -46,7 +46,8 @@ public class PvSinistre extends InternalHistorique {
     @Builder.Default
     private boolean estComplet = false;
     private String remarques;
-    private Integer paperlessDocumentId;
+    @Column(name = "ossan_ged_document_id")
+    private Integer ossanGedDocumentId;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "entite_constat_id", nullable = false)
     private EntiteConstat entiteConstat;

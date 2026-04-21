@@ -2,7 +2,8 @@ package com.ossanasur.cbconnect.module.reclamation.entity;
 
 import com.ossanasur.cbconnect.common.entity.InternalHistorique;
 import com.ossanasur.cbconnect.common.enums.StatutPiece;
-import com.ossanasur.cbconnect.module.ged.entity.PaperlessDocument;
+import com.ossanasur.cbconnect.module.ged.entity.OssanGedDocument;
+
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
@@ -49,8 +50,8 @@ public class PieceDossierReclamation extends InternalHistorique {
      * NULL tant que la pièce n'est pas encore reçue et associée.
      */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "paperless_document_id")
-    private PaperlessDocument paperlessDocument;
+    @JoinColumn(name = "ossan_ged_document_id")
+    private OssanGedDocument ossanGedDocument;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

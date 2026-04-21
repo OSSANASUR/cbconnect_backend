@@ -60,7 +60,8 @@ public class Courrier extends InternalHistorique {
 
     private LocalDateTime dateTraitement;
 
-    private Integer paperlessDocumentId;
+    @Column(name = "ossan_ged_document_id")
+    private Integer ossanGedDocumentId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sinistre_id")

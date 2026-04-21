@@ -4,6 +4,7 @@ import com.ossanasur.cbconnect.module.statistiques.dto.CadenceDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatReclamationDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatSinistreDto;
+import com.ossanasur.cbconnect.module.statistiques.dto.GraphiqueEncPaiDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.ReportingEncaissementDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.ReportingMensuelDto;
 // import com.ossanasur.cbconnect.module.statistiques.dto.ReportingPaiementDto;
@@ -176,6 +177,23 @@ public class StatistiquesController {
     public ResponseEntity<DataResponse<EtatReclamationDto>> etatReclamation() {
         return ResponseEntity.ok(DataResponse.success("État réclamations",
                 statsService.etatReclamation()));
+    }
+
+    /**
+     * Graphique pluriannuel — Encaissements vs Paiements.
+     * Par nombre de dossiers ET par montant, sur une plage d'années.
+     *
+     * GET /v1/stats/graphique-enc-pai?anneeDebut=2020&anneeFin=2026
+     */
+    @GetMapping("/graphique-enc-pai")
+    @Operation(summary = "Graphique Encaissements vs Paiements — pluriannuel (nb + montant)")
+    public ResponseEntity<DataResponse<GraphiqueEncPaiDto>> graphiqueEncPai(
+            @RequestParam(defaultValue = "0") int anneeDebut,
+            @RequestParam(defaultValue = "0") int anneeFin) {
+        int fin = anneeFin == 0 ? LocalDate.now().getYear() : anneeFin;
+        int debut = anneeDebut == 0 ? fin - 5 : anneeDebut;
+        return ResponseEntity.ok(DataResponse.success("Graphique Enc/Pai",
+                statsService.graphiqueEncPai(debut, fin)));
     }
 
 }

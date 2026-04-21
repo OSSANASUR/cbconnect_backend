@@ -456,4 +456,23 @@ public interface PaiementRepository extends JpaRepository<Paiement, Integer> {
       @Param("anneeN1") int anneeN1,
       @Param("mois") int mois);
 
+  /**
+   * Graphique pluriannuel — Paiements par année.
+   * Colonnes : [0]=annee [1]=nb [2]=montant
+   */
+  @Query(value = """
+      SELECT
+          EXTRACT(YEAR FROM COALESCE(pm.date_paiement, pm.date_emission))::INT AS annee,
+          COUNT(pm.historique_id)                                                AS nb,
+          COALESCE(SUM(pm.montant), 0)                                           AS montant
+      FROM paiement pm
+      WHERE pm.deleted_data = FALSE AND pm.active_data = TRUE
+        AND pm.statut <> 'ANNULE'
+        AND EXTRACT(YEAR FROM COALESCE(pm.date_paiement, pm.date_emission))
+            BETWEEN :anneeDebut AND :anneeFin
+      GROUP BY annee
+      ORDER BY annee
+      """, nativeQuery = true)
+  List<Object[]> paiementsParAnnee(@Param("anneeDebut") int anneeDebut, @Param("anneeFin") int anneeFin);
+
 }

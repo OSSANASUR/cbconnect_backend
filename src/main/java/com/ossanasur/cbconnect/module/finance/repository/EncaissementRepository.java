@@ -295,4 +295,22 @@ public interface EncaissementRepository extends JpaRepository<Encaissement, Inte
       """, nativeQuery = true)
   List<Object[]> cadenceEncParCompagnie(@Param("anneeMin") int anneeMin);
 
+  /**
+   * Graphique pluriannuel — Encaissements par année.
+   * Colonnes : [0]=annee [1]=nb [2]=montant
+   */
+  @Query(value = """
+      SELECT
+          EXTRACT(YEAR FROM COALESCE(e.date_encaissement, e.date_reception))::INT AS annee,
+          COUNT(e.historique_id)                                                    AS nb,
+          COALESCE(SUM(e.montant_cheque), 0)                                        AS montant
+      FROM encaissement e
+      WHERE e.deleted_data = FALSE AND e.active_data = TRUE
+        AND EXTRACT(YEAR FROM COALESCE(e.date_encaissement, e.date_reception))
+            BETWEEN :anneeDebut AND :anneeFin
+      GROUP BY annee
+      ORDER BY annee
+      """, nativeQuery = true)
+  List<Object[]> encaissementsParAnnee(@Param("anneeDebut") int anneeDebut, @Param("anneeFin") int anneeFin);
+
 }

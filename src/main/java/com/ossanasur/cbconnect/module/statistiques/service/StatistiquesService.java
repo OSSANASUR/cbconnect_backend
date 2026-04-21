@@ -12,6 +12,8 @@ import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto.LigneEnc
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto.LignePaiement;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatReclamationDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatSinistreDto.LigneSinistre;
+import com.ossanasur.cbconnect.module.statistiques.dto.GraphiqueEncPaiDto;
+import com.ossanasur.cbconnect.module.statistiques.dto.GraphiqueEncPaiDto.LigneAnnuelle;
 import com.ossanasur.cbconnect.module.statistiques.dto.ReportingEncaissementDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.ReportingMensuelDto;
 // import com.ossanasur.cbconnect.module.statistiques.dto.ReportingPaiementDto;
@@ -610,6 +612,40 @@ public class StatistiquesService {
         List<EtatReclamationDto.LigneCompagnie> toutes = blocs.stream().flatMap(b -> b.lignes().stream()).toList();
 
         return new EtatReclamationDto.EtatReclamation(blocs, totalLignesGlobal(toutes));
+    }
+
+    // ─── Graphique Encaissements vs Paiements pluriannuel ─────────────
+
+    public GraphiqueEncPaiDto graphiqueEncPai(int anneeDebut, int anneeFin) {
+        List<Object[]> encRows = encaissementRepository.encaissementsParAnnee(anneeDebut, anneeFin);
+        List<Object[]> payRows = paiementRepository.paiementsParAnnee(anneeDebut, anneeFin);
+
+        Map<Integer, long[]> encNb = new HashMap<>();
+        Map<Integer, BigDecimal[]> encMt = new HashMap<>();
+        for (Object[] r : encRows) {
+            int a = ((Number) r[0]).intValue();
+            encNb.put(a, new long[] { toLong(r[1]) });
+            encMt.put(a, new BigDecimal[] { toBd(r[2]) });
+        }
+
+        Map<Integer, long[]> payNb = new HashMap<>();
+        Map<Integer, BigDecimal[]> payMt = new HashMap<>();
+        for (Object[] r : payRows) {
+            int a = ((Number) r[0]).intValue();
+            payNb.put(a, new long[] { toLong(r[1]) });
+            payMt.put(a, new BigDecimal[] { toBd(r[2]) });
+        }
+
+        List<LigneAnnuelle> series = new ArrayList<>();
+        for (int a = anneeDebut; a <= anneeFin; a++) {
+            series.add(new LigneAnnuelle(
+                    a,
+                    encNb.containsKey(a) ? encNb.get(a)[0] : 0L,
+                    encMt.containsKey(a) ? encMt.get(a)[0] : BigDecimal.ZERO,
+                    payNb.containsKey(a) ? payNb.get(a)[0] : 0L,
+                    payMt.containsKey(a) ? payMt.get(a)[0] : BigDecimal.ZERO));
+        }
+        return new GraphiqueEncPaiDto(anneeDebut, anneeFin, series);
     }
 
     private EtatReclamationDto.LigneCompagnie totalLignes(

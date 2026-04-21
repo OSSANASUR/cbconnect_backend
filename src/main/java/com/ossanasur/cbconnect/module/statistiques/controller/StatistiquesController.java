@@ -2,6 +2,8 @@ package com.ossanasur.cbconnect.module.statistiques.controller;
 
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatSinistreDto;
+import com.ossanasur.cbconnect.module.statistiques.dto.ReportingEncaissementDto;
+import com.ossanasur.cbconnect.module.statistiques.dto.ReportingMensuelDto;
 import com.ossanasur.cbconnect.module.statistiques.service.StatistiquesService;
 import com.ossanasur.cbconnect.utils.DataResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -48,5 +50,46 @@ public class StatistiquesController {
         if (annee == 0)
             annee = LocalDate.now().getYear();
         return ResponseEntity.ok(DataResponse.success("État financier", statsService.etatFinancier(annee)));
+    }
+
+    /**
+     * Reporting mensuel BNCB-TG — Tableaux comparatifs des sinistres enregistrés.
+     * Tableau 1 : par pays partenaire CEDEAO.
+     * Tableau 2 : par compagnie membre togolaise (CIMA RC Auto).
+     *
+     * GET /v1/stats/reporting-mensuel?annee=2025&mois=3
+     */
+    @GetMapping("/reporting-mensuel")
+    @Operation(summary = "Reporting mensuel — tableaux comparatifs des sinistres enregistrés")
+    public ResponseEntity<DataResponse<ReportingMensuelDto>> reportingMensuel(
+            @RequestParam(defaultValue = "0") int annee,
+            @RequestParam(defaultValue = "0") int mois) {
+        if (annee == 0)
+            annee = LocalDate.now().getYear();
+        if (mois == 0)
+            mois = LocalDate.now().getMonthValue();
+        return ResponseEntity.ok(DataResponse.success("Reporting mensuel",
+                statsService.reportingMensuel(annee, mois)));
+    }
+
+    /**
+     * Reporting mensuel encaissements — Tableaux comparatifs des sinistres
+     * encaissés.
+     * Tableau I : par pays payeur (inclut TOGO).
+     * Tableau II : par compagnie membre togolaise (marché togolais).
+     *
+     * GET /v1/stats/reporting-encaissements?annee=2025&mois=3
+     */
+    @GetMapping("/reporting-encaissements")
+    @Operation(summary = "Reporting mensuel — tableaux comparatifs des encaissements")
+    public ResponseEntity<DataResponse<ReportingEncaissementDto>> reportingEncaissements(
+            @RequestParam(defaultValue = "0") int annee,
+            @RequestParam(defaultValue = "0") int mois) {
+        if (annee == 0)
+            annee = LocalDate.now().getYear();
+        if (mois == 0)
+            mois = LocalDate.now().getMonthValue();
+        return ResponseEntity.ok(DataResponse.success("Reporting encaissements",
+                statsService.reportingEncaissements(annee, mois)));
     }
 }

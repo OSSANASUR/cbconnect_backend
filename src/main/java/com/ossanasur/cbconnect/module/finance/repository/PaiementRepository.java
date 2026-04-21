@@ -340,4 +340,120 @@ public interface PaiementRepository extends JpaRepository<Paiement, Integer> {
       """, nativeQuery = true)
   List<Object[]> cadenceParCompagnie(@Param("anneeMin") int anneeMin);
 
+  /**
+   * Reporting mensuel Paiements — Tableau I : par PAYS émetteur.
+   *
+   * Structure identique à reportingMensuelEncParPays mais sur la table paiement.
+   * Date pivot = COALESCE(pm.date_paiement, pm.date_emission).
+   * Montant = pm.montant.
+   *
+   * Colonnes : [0]=pays_libelle [1]=code_pays [2-11] nb/mt mois/cumul/fda
+   */
+  @Query(value = """
+      SELECT
+          p.libelle                                                                              AS pays_libelle,
+          p.code_carte_brune                                                                     AS code_pays,
+          COUNT(pm.historique_id) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN1
+              AND EXTRACT(MONTH FROM COALESCE(pm.date_paiement, pm.date_emission)) = :mois)     AS nb_mois_n1,
+          COALESCE(SUM(pm.montant) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN1
+              AND EXTRACT(MONTH FROM COALESCE(pm.date_paiement, pm.date_emission)) = :mois), 0) AS mt_mois_n1,
+          COUNT(pm.historique_id) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN
+              AND EXTRACT(MONTH FROM COALESCE(pm.date_paiement, pm.date_emission)) = :mois)     AS nb_mois_n,
+          COALESCE(SUM(pm.montant) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN
+              AND EXTRACT(MONTH FROM COALESCE(pm.date_paiement, pm.date_emission)) = :mois), 0) AS mt_mois_n,
+          COUNT(pm.historique_id) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN1
+              AND EXTRACT(MONTH FROM COALESCE(pm.date_paiement, pm.date_emission)) <= :mois)    AS nb_cumul_n1,
+          COALESCE(SUM(pm.montant) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN1
+              AND EXTRACT(MONTH FROM COALESCE(pm.date_paiement, pm.date_emission)) <= :mois), 0) AS mt_cumul_n1,
+          COUNT(pm.historique_id) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN
+              AND EXTRACT(MONTH FROM COALESCE(pm.date_paiement, pm.date_emission)) <= :mois)    AS nb_cumul_n,
+          COALESCE(SUM(pm.montant) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN
+              AND EXTRACT(MONTH FROM COALESCE(pm.date_paiement, pm.date_emission)) <= :mois), 0) AS mt_cumul_n,
+          COUNT(pm.historique_id) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN)       AS nb_fda_n,
+          COALESCE(SUM(pm.montant) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN), 0)   AS mt_fda_n
+      FROM paiement pm
+      JOIN sinistre s ON s.historique_id = pm.sinistre_id
+          AND s.active_data = TRUE AND s.deleted_data = FALSE
+      JOIN pays p ON p.historique_id = s.pays_emetteur_id
+      WHERE pm.deleted_data = FALSE
+        AND pm.active_data  = TRUE
+        AND pm.statut       <> 'ANNULE'
+        AND EXTRACT(YEAR FROM COALESCE(pm.date_paiement, pm.date_emission)) IN (:anneeN1, :anneeN)
+      GROUP BY p.libelle, p.code_carte_brune
+      ORDER BY p.libelle
+      """, nativeQuery = true)
+  List<Object[]> reportingMensuelPayParPays(
+      @Param("anneeN") int anneeN,
+      @Param("anneeN1") int anneeN1,
+      @Param("mois") int mois);
+
+  /**
+   * Reporting mensuel Paiements — Tableau II : par compagnie membre togolaise.
+   * Filtre : paiements liés à des sinistres gérés par le Togo (pays_gestionnaire
+   * = TG).
+   */
+  @Query(value = """
+      SELECT
+          COALESCE(om.raison_sociale, 'AUTRES')                                              AS compagnie,
+          NULL                                                                               AS code_compagnie,
+          COUNT(pm.historique_id) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN1
+              AND EXTRACT(MONTH FROM COALESCE(pm.date_paiement, pm.date_emission)) = :mois)     AS nb_mois_n1,
+          COALESCE(SUM(pm.montant) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN1
+              AND EXTRACT(MONTH FROM COALESCE(pm.date_paiement, pm.date_emission)) = :mois), 0) AS mt_mois_n1,
+          COUNT(pm.historique_id) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN
+              AND EXTRACT(MONTH FROM COALESCE(pm.date_paiement, pm.date_emission)) = :mois)     AS nb_mois_n,
+          COALESCE(SUM(pm.montant) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN
+              AND EXTRACT(MONTH FROM COALESCE(pm.date_paiement, pm.date_emission)) = :mois), 0) AS mt_mois_n,
+          COUNT(pm.historique_id) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN1
+              AND EXTRACT(MONTH FROM COALESCE(pm.date_paiement, pm.date_emission)) <= :mois)    AS nb_cumul_n1,
+          COALESCE(SUM(pm.montant) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN1
+              AND EXTRACT(MONTH FROM COALESCE(pm.date_paiement, pm.date_emission)) <= :mois), 0) AS mt_cumul_n1,
+          COUNT(pm.historique_id) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN
+              AND EXTRACT(MONTH FROM COALESCE(pm.date_paiement, pm.date_emission)) <= :mois)    AS nb_cumul_n,
+          COALESCE(SUM(pm.montant) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN
+              AND EXTRACT(MONTH FROM COALESCE(pm.date_paiement, pm.date_emission)) <= :mois), 0) AS mt_cumul_n,
+          COUNT(pm.historique_id) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN)       AS nb_fda_n,
+          COALESCE(SUM(pm.montant) FILTER (WHERE
+              EXTRACT(YEAR  FROM COALESCE(pm.date_paiement, pm.date_emission)) = :anneeN), 0)   AS mt_fda_n
+      FROM paiement pm
+      JOIN sinistre s ON s.historique_id = pm.sinistre_id
+          AND s.active_data = TRUE AND s.deleted_data = FALSE
+      JOIN pays pg ON pg.historique_id = s.pays_gestionnaire_id
+          AND pg.code_carte_brune = 'TG'
+      LEFT JOIN organisme om ON om.historique_id = s.organisme_membre_id
+          AND om.active_data    = TRUE
+          AND om.deleted_data   = FALSE
+          AND om.type_organisme = 'COMPAGNIE_MEMBRE'
+          AND om.code_pays_bcb  = 'TG'
+      WHERE pm.deleted_data = FALSE
+        AND pm.active_data  = TRUE
+        AND pm.statut       <> 'ANNULE'
+        AND EXTRACT(YEAR FROM COALESCE(pm.date_paiement, pm.date_emission)) IN (:anneeN1, :anneeN)
+      GROUP BY COALESCE(om.raison_sociale, 'AUTRES')
+      ORDER BY COALESCE(om.raison_sociale, 'AUTRES')
+      """, nativeQuery = true)
+  List<Object[]> reportingMensuelPayParCompagnie(
+      @Param("anneeN") int anneeN,
+      @Param("anneeN1") int anneeN1,
+      @Param("mois") int mois);
+
 }

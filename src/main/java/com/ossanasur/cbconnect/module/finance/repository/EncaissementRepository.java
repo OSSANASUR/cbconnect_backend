@@ -105,67 +105,59 @@ public interface EncaissementRepository extends JpaRepository<Encaissement, Inte
       @Param("org") com.ossanasur.cbconnect.module.auth.entity.Organisme organismeEmetteur);
 
   /**
-   * Reporting mensuel Encaissements — Tableau I : par PAYS PAYEUR.
+   * Reporting mensuel Encaissements — Tableau I : par PAYS (non plus par
+   * compagnie).
    *
-   * Le PAYEUR est l'organisme émetteur du chèque (organismeEmetteur).
-   * Inclut le TOGO (contrairement au reporting sinistres).
+   * Groupement par pays du sinistre (pays_emetteur) — identique à la
+   * structure Excel R2 : BENIN, BURKINA, CI, GHANA, MALI, NIGER, NIGERIA, TOGO*.
    *
-   * Colonnes renvoyées :
-   * [0] pays_libelle [1] code_pays
-   * [2] nb_mois_n1 [3] mt_mois_n1
-   * [4] nb_mois_n [5] mt_mois_n
-   * [6] nb_cumul_n1 [7] mt_cumul_n1
-   * [8] nb_cumul_n [9] mt_cumul_n
-   * [10] nb_fda_n [11] mt_fda_n
+   * Colonnes renvoyées : [0]=pays_libelle [1]=code_pays
+   * [2-3] nb/mt mois N-1, [4-5] nb/mt mois N,
+   * [6-7] nb/mt cumul N-1, [8-9] nb/mt cumul N,
+   * [10-11] nb/mt fda N
    */
   @Query(value = """
       SELECT
-          o.raison_sociale                                                                            AS pays_libelle,
-          o.code_pays_bcb                                                                            AS code_pays,
-          -- MOIS N-1
+          p.libelle                                                                            AS pays_libelle,
+          p.code_carte_brune                                                                   AS code_pays,
           COUNT(e.historique_id) FILTER (WHERE
               EXTRACT(YEAR  FROM COALESCE(e.date_encaissement, e.date_reception)) = :anneeN1
-              AND EXTRACT(MONTH FROM COALESCE(e.date_encaissement, e.date_reception)) = :mois)       AS nb_mois_n1,
+              AND EXTRACT(MONTH FROM COALESCE(e.date_encaissement, e.date_reception)) = :mois) AS nb_mois_n1,
           COALESCE(SUM(e.montant_cheque) FILTER (WHERE
               EXTRACT(YEAR  FROM COALESCE(e.date_encaissement, e.date_reception)) = :anneeN1
-              AND EXTRACT(MONTH FROM COALESCE(e.date_encaissement, e.date_reception)) = :mois), 0)   AS mt_mois_n1,
-          -- MOIS N
+              AND EXTRACT(MONTH FROM COALESCE(e.date_encaissement, e.date_reception)) = :mois), 0) AS mt_mois_n1,
           COUNT(e.historique_id) FILTER (WHERE
               EXTRACT(YEAR  FROM COALESCE(e.date_encaissement, e.date_reception)) = :anneeN
-              AND EXTRACT(MONTH FROM COALESCE(e.date_encaissement, e.date_reception)) = :mois)       AS nb_mois_n,
+              AND EXTRACT(MONTH FROM COALESCE(e.date_encaissement, e.date_reception)) = :mois) AS nb_mois_n,
           COALESCE(SUM(e.montant_cheque) FILTER (WHERE
               EXTRACT(YEAR  FROM COALESCE(e.date_encaissement, e.date_reception)) = :anneeN
-              AND EXTRACT(MONTH FROM COALESCE(e.date_encaissement, e.date_reception)) = :mois), 0)   AS mt_mois_n,
-          -- CUMUL jan -> mois N-1
+              AND EXTRACT(MONTH FROM COALESCE(e.date_encaissement, e.date_reception)) = :mois), 0) AS mt_mois_n,
           COUNT(e.historique_id) FILTER (WHERE
               EXTRACT(YEAR  FROM COALESCE(e.date_encaissement, e.date_reception)) = :anneeN1
-              AND EXTRACT(MONTH FROM COALESCE(e.date_encaissement, e.date_reception)) <= :mois)      AS nb_cumul_n1,
+              AND EXTRACT(MONTH FROM COALESCE(e.date_encaissement, e.date_reception)) <= :mois) AS nb_cumul_n1,
           COALESCE(SUM(e.montant_cheque) FILTER (WHERE
               EXTRACT(YEAR  FROM COALESCE(e.date_encaissement, e.date_reception)) = :anneeN1
-              AND EXTRACT(MONTH FROM COALESCE(e.date_encaissement, e.date_reception)) <= :mois), 0)  AS mt_cumul_n1,
-          -- CUMUL jan -> mois N
+              AND EXTRACT(MONTH FROM COALESCE(e.date_encaissement, e.date_reception)) <= :mois), 0) AS mt_cumul_n1,
           COUNT(e.historique_id) FILTER (WHERE
               EXTRACT(YEAR  FROM COALESCE(e.date_encaissement, e.date_reception)) = :anneeN
-              AND EXTRACT(MONTH FROM COALESCE(e.date_encaissement, e.date_reception)) <= :mois)      AS nb_cumul_n,
+              AND EXTRACT(MONTH FROM COALESCE(e.date_encaissement, e.date_reception)) <= :mois) AS nb_cumul_n,
           COALESCE(SUM(e.montant_cheque) FILTER (WHERE
               EXTRACT(YEAR  FROM COALESCE(e.date_encaissement, e.date_reception)) = :anneeN
-              AND EXTRACT(MONTH FROM COALESCE(e.date_encaissement, e.date_reception)) <= :mois), 0)  AS mt_cumul_n,
-          -- FIN D ANNEE N
+              AND EXTRACT(MONTH FROM COALESCE(e.date_encaissement, e.date_reception)) <= :mois), 0) AS mt_cumul_n,
           COUNT(e.historique_id) FILTER (WHERE
-              EXTRACT(YEAR  FROM COALESCE(e.date_encaissement, e.date_reception)) = :anneeN)         AS nb_fda_n,
+              EXTRACT(YEAR  FROM COALESCE(e.date_encaissement, e.date_reception)) = :anneeN) AS nb_fda_n,
           COALESCE(SUM(e.montant_cheque) FILTER (WHERE
-              EXTRACT(YEAR  FROM COALESCE(e.date_encaissement, e.date_reception)) = :anneeN), 0)     AS mt_fda_n
+              EXTRACT(YEAR  FROM COALESCE(e.date_encaissement, e.date_reception)) = :anneeN), 0) AS mt_fda_n
       FROM encaissement e
-      JOIN organisme o ON o.historique_id = e.organisme_emetteur_id
-          AND o.active_data = TRUE AND o.deleted_data = FALSE
-      JOIN sinistre  s ON s.historique_id = e.sinistre_id
+      JOIN sinistre s ON s.historique_id = e.sinistre_id
           AND s.active_data = TRUE AND s.deleted_data = FALSE
+      JOIN pays p ON p.historique_id = s.pays_emetteur_id
       WHERE e.deleted_data = FALSE
         AND e.active_data  = TRUE
         AND e.statut_cheque <> 'ANNULE'
         AND EXTRACT(YEAR FROM COALESCE(e.date_encaissement, e.date_reception)) IN (:anneeN1, :anneeN)
-      GROUP BY o.raison_sociale, o.code_pays_bcb
-      ORDER BY o.raison_sociale
+      GROUP BY p.libelle, p.code_carte_brune
+      ORDER BY p.libelle
       """, nativeQuery = true)
   List<Object[]> reportingMensuelEncParPays(
       @Param("anneeN") int anneeN,
@@ -233,5 +225,74 @@ public interface EncaissementRepository extends JpaRepository<Encaissement, Inte
       @Param("anneeN") int anneeN,
       @Param("anneeN1") int anneeN1,
       @Param("mois") int mois);
+
+  /**
+   * Cadence encaissements par PAYS — triangle (survenus en × encaissés en).
+   *
+   * Axe survenance = EXTRACT(YEAR FROM s.date_accident).
+   * Axe encaissement = EXTRACT(YEAR FROM COALESCE(e.date_encaissement,
+   * e.date_reception)).
+   * Groupement par pays_emetteur du sinistre.
+   *
+   * Colonnes : [0]=pays_libelle [1]=code_pays [2]=annee_surv [3]=annee_enc [4]=nb
+   * [5]=montant
+   */
+  @Query(value = """
+      SELECT
+          p.libelle                                                                          AS pays_libelle,
+          p.code_carte_brune                                                                 AS code_pays,
+          CASE WHEN EXTRACT(YEAR FROM s.date_accident)::int >= :anneeMin
+               THEN EXTRACT(YEAR FROM s.date_accident)::int
+               ELSE -1 END                                                                   AS annee_surv,
+          CASE WHEN EXTRACT(YEAR FROM COALESCE(e.date_encaissement, e.date_reception))::int >= :anneeMin
+               THEN EXTRACT(YEAR FROM COALESCE(e.date_encaissement, e.date_reception))::int
+               ELSE -1 END                                                                   AS annee_enc,
+          COUNT(e.historique_id)                                                             AS nb,
+          COALESCE(SUM(e.montant_cheque), 0)                                                 AS montant
+      FROM encaissement e
+      JOIN sinistre s ON s.historique_id = e.sinistre_id
+          AND s.active_data = TRUE AND s.deleted_data = FALSE
+      JOIN pays p ON p.historique_id = s.pays_emetteur_id
+      WHERE e.deleted_data = FALSE
+        AND e.active_data  = TRUE
+        AND e.statut_cheque <> 'ANNULE'
+      GROUP BY p.libelle, p.code_carte_brune, annee_surv, annee_enc
+      ORDER BY p.libelle, annee_surv DESC, annee_enc DESC
+      """, nativeQuery = true)
+  List<Object[]> cadenceEncParPays(@Param("anneeMin") int anneeMin);
+
+  /**
+   * Cadence encaissements par COMPAGNIE MEMBRE TG.
+   * Colonnes : mêmes indices que cadenceEncParPays, [0]=compagnie [1]=null.
+   */
+  @Query(value = """
+      SELECT
+          COALESCE(om.raison_sociale, 'AUTRES')                                              AS compagnie,
+          NULL                                                                               AS code_compagnie,
+          CASE WHEN EXTRACT(YEAR FROM s.date_accident)::int >= :anneeMin
+               THEN EXTRACT(YEAR FROM s.date_accident)::int
+               ELSE -1 END                                                                   AS annee_surv,
+          CASE WHEN EXTRACT(YEAR FROM COALESCE(e.date_encaissement, e.date_reception))::int >= :anneeMin
+               THEN EXTRACT(YEAR FROM COALESCE(e.date_encaissement, e.date_reception))::int
+               ELSE -1 END                                                                   AS annee_enc,
+          COUNT(e.historique_id)                                                             AS nb,
+          COALESCE(SUM(e.montant_cheque), 0)                                                 AS montant
+      FROM encaissement e
+      JOIN sinistre s ON s.historique_id = e.sinistre_id
+          AND s.active_data = TRUE AND s.deleted_data = FALSE
+      JOIN pays pg ON pg.historique_id = s.pays_gestionnaire_id
+          AND pg.code_carte_brune = 'TG'
+      LEFT JOIN organisme om ON om.historique_id = s.organisme_membre_id
+          AND om.active_data    = TRUE
+          AND om.deleted_data   = FALSE
+          AND om.type_organisme = 'COMPAGNIE_MEMBRE'
+          AND om.code_pays_bcb  = 'TG'
+      WHERE e.deleted_data = FALSE
+        AND e.active_data  = TRUE
+        AND e.statut_cheque <> 'ANNULE'
+      GROUP BY COALESCE(om.raison_sociale, 'AUTRES'), annee_surv, annee_enc
+      ORDER BY COALESCE(om.raison_sociale, 'AUTRES'), annee_surv DESC, annee_enc DESC
+      """, nativeQuery = true)
+  List<Object[]> cadenceEncParCompagnie(@Param("anneeMin") int anneeMin);
 
 }

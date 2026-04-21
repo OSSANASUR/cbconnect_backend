@@ -5,7 +5,7 @@ import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatSinistreDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.ReportingEncaissementDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.ReportingMensuelDto;
-import com.ossanasur.cbconnect.module.statistiques.dto.ReportingPaiementDto;
+// import com.ossanasur.cbconnect.module.statistiques.dto.ReportingPaiementDto;
 import com.ossanasur.cbconnect.module.statistiques.service.StatistiquesService;
 import com.ossanasur.cbconnect.utils.DataResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -102,18 +102,19 @@ public class StatistiquesController {
      *
      * GET /v1/stats/reporting-paiements?annee=2025&mois=3
      */
-    @GetMapping("/reporting-paiements")
-    @Operation(summary = "Reporting mensuel — tableaux comparatifs des sinistres payés")
-    public ResponseEntity<DataResponse<ReportingPaiementDto>> reportingPaiements(
-            @RequestParam(defaultValue = "0") int annee,
-            @RequestParam(defaultValue = "0") int mois) {
-        if (annee == 0)
-            annee = LocalDate.now().getYear();
-        if (mois == 0)
-            mois = LocalDate.now().getMonthValue();
-        return ResponseEntity.ok(DataResponse.success("Reporting paiements",
-                statsService.reportingPaiements(annee, mois)));
-    }
+    // @GetMapping("/reporting-paiements")
+    // @Operation(summary = "Reporting mensuel — tableaux comparatifs des sinistres
+    // payés")
+    // public ResponseEntity<DataResponse<ReportingPaiementDto>> reportingPaiements(
+    // @RequestParam(defaultValue = "0") int annee,
+    // @RequestParam(defaultValue = "0") int mois) {
+    // if (annee == 0)
+    // annee = LocalDate.now().getYear();
+    // if (mois == 0)
+    // mois = LocalDate.now().getMonthValue();
+    // return ResponseEntity.ok(DataResponse.success("Reporting paiements",
+    // statsService.reportingPaiements(annee, mois)));
+    // }
 
     /**
      * Triangle de cadence — Sinistres par exercice de survenance.
@@ -130,4 +131,37 @@ public class StatistiquesController {
                 statsService.cadence(annee)));
     }
 
+    /**
+     * Reporting mensuel paiements.
+     * Réutilise ReportingEncaissementDto (structure identique).
+     *
+     * GET /v1/stats/reporting-paiements?annee=2025&mois=3
+     */
+    @GetMapping("/reporting-paiements")
+    @Operation(summary = "Reporting mensuel — tableaux comparatifs des paiements")
+    public ResponseEntity<DataResponse<ReportingEncaissementDto>> reportingPaiements(
+            @RequestParam(defaultValue = "0") int annee,
+            @RequestParam(defaultValue = "0") int mois) {
+        if (annee == 0)
+            annee = LocalDate.now().getYear();
+        if (mois == 0)
+            mois = LocalDate.now().getMonthValue();
+        return ResponseEntity.ok(DataResponse.success("Reporting paiements",
+                statsService.reportingPaiements(annee, mois)));
+    }
+
+    /**
+     * Triangle de cadence des encaissements.
+     *
+     * GET /v1/stats/cadence-encaissements?annee=2024
+     */
+    @GetMapping("/cadence-encaissements")
+    @Operation(summary = "Triangle de cadence des encaissements (survenus en × encaissés en)")
+    public ResponseEntity<DataResponse<CadenceDto>> cadenceEncaissements(
+            @RequestParam(defaultValue = "0") int annee) {
+        if (annee == 0)
+            annee = LocalDate.now().getYear();
+        return ResponseEntity.ok(DataResponse.success("Cadence encaissements",
+                statsService.cadenceEncaissements(annee)));
+    }
 }

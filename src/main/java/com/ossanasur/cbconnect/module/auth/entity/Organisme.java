@@ -67,6 +67,20 @@ public class Organisme extends InternalHistorique {
     private String numeroAgrement;
     private String apiEndpointUrl;
     private String logo;
+
+    // ── Coordonnees (V30) ─────────────────────────────────────────────────────
+    private String adresse;
+    @Column(name = "boite_postale", length = 50)
+    private String boitePostale;
+    @Column(length = 100)
+    private String ville;
+    @Column(name = "telephone_principal", length = 30)
+    private String telephonePrincipal;
+    @Column(length = 30)
+    private String fax;
+    @Column(name = "site_web")
+    private String siteWeb;
+
     @Builder.Default
     private boolean active = true;
 

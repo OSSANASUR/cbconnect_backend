@@ -31,16 +31,21 @@ public class AttestationServiceImpl implements AttestationService {
     private final ParametreRepository parametreRepository;
     private final AttestationMapper mapper;
 
-    private static final BigDecimal PRIX_UNITAIRE_DEFAUT = new BigDecimal("1075");
-    private static final BigDecimal CONTRIBUTION_FONDS_DEFAUT = new BigDecimal("100");
-
-    private BigDecimal getMontantParam(String cle, BigDecimal defaut) {
-        return parametreRepository.findByCle(cle)
-            .map(p -> { try { return new BigDecimal(p.getValeur()); } catch (Exception e) { return defaut; } })
-            .orElse(defaut);
+    // Pas de fallback en dur : les tarifs sont configures dans Parametres > Attestations.
+    // Si la cle est absente ou non parsable, on echoue tot et explicitement.
+    private BigDecimal getMontantParamRequired(String cle) {
+        var p = parametreRepository.findByCle(cle)
+            .orElseThrow(() -> new BadRequestException(
+                "Parametre tarifaire '" + cle + "' non configure. Renseignez-le dans Parametres > Attestations."));
+        try {
+            return new BigDecimal(p.getValeur());
+        } catch (NumberFormatException e) {
+            throw new BadRequestException(
+                "Parametre '" + cle + "' a une valeur invalide ('" + p.getValeur() + "'). Corrigez-la dans Parametres > Attestations.");
+        }
     }
-    public BigDecimal getPrixUnitaire() { return getMontantParam("PRIX_UNITAIRE_ATTESTATION_FCFA", PRIX_UNITAIRE_DEFAUT); }
-    public BigDecimal getContributionFonds() { return getMontantParam("CONTRIBUTION_FONDS_ATTESTATION_FCFA", CONTRIBUTION_FONDS_DEFAUT); }
+    public BigDecimal getPrixUnitaire() { return getMontantParamRequired("PRIX_UNITAIRE_ATTESTATION_FCFA"); }
+    public BigDecimal getContributionFonds() { return getMontantParamRequired("CONTRIBUTION_FONDS_ATTESTATION_FCFA"); }
 
     // ============== COMMANDES ==============
 

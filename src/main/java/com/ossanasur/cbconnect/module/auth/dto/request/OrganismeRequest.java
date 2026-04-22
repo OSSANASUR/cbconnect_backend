@@ -18,5 +18,12 @@ public record OrganismeRequest(
     LocalDate dateCreation,
     String numeroAgrement,
     String apiEndpointUrl,
-    boolean active
+    boolean active,
+    // Coordonnees (V30)
+    String adresse,
+    String boitePostale,
+    String ville,
+    String telephonePrincipal,
+    String fax,
+    String siteWeb
 ) {}

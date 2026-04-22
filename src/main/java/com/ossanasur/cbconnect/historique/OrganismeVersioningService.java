@@ -28,6 +28,12 @@ public class OrganismeVersioningService extends AbstractVersioningService<Organi
         if (r.dateCreation() != null) u.setDateCreation(r.dateCreation());
         if (r.numeroAgrement() != null) u.setNumeroAgrement(r.numeroAgrement());
         if (r.apiEndpointUrl() != null) u.setApiEndpointUrl(r.apiEndpointUrl());
+        if (r.adresse() != null) u.setAdresse(r.adresse());
+        if (r.boitePostale() != null) u.setBoitePostale(r.boitePostale());
+        if (r.ville() != null) u.setVille(r.ville());
+        if (r.telephonePrincipal() != null) u.setTelephonePrincipal(r.telephonePrincipal());
+        if (r.fax() != null) u.setFax(r.fax());
+        if (r.siteWeb() != null) u.setSiteWeb(r.siteWeb());
         u.setActive(r.active());
         return u;
     }

@@ -28,4 +28,9 @@ public interface UtilisateurRepository extends JpaRepository<Utilisateur, Intege
 
     // findByUsername
     Optional<Utilisateur> findByUsernameAndActiveDataTrueAndDeletedDataFalse(String username);
+
+    @Query("SELECT u FROM Utilisateur u " +
+           "WHERE u.accountSetupToken = :token " +
+           "AND u.activeData = true AND u.deletedData = false")
+    Optional<Utilisateur> findByAccountSetupToken(@Param("token") String token);
 }

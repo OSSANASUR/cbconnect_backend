@@ -82,7 +82,16 @@ public record ReprisePaiementsRequest(
             BigDecimal principalPaye,
 
             /** Col O — frais de gestion payés */
-            BigDecimal fgPaye
+            BigDecimal fgPaye,
+
+            /**
+             * Lieu de survenance (optionnel, déduit côté frontend depuis le
+             * format du numeroSinistreManuel) :
+             *   "T" → SURVENU_TOGO (ET : étranger en Togo)
+             *   "E" → SURVENU_ETRANGER (TE : Togolais à l'étranger)
+             * Si null/absent, le backend déduit depuis le format du numéro.
+             */
+            String lieuSurvenance
 
     ) {
     }

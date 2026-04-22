@@ -1,5 +1,8 @@
 package com.ossanasur.cbconnect.module.sinistre.controller;
 
+import com.ossanasur.cbconnect.module.sinistre.dto.request.ConfirmationGarantieRequest;
+import com.ossanasur.cbconnect.module.sinistre.dto.request.MiseEnArbitrageRequest;
+import com.ossanasur.cbconnect.module.sinistre.dto.request.MiseEnContentieuxRequest;
 import com.ossanasur.cbconnect.module.sinistre.dto.request.SinistreRequest;
 import com.ossanasur.cbconnect.module.sinistre.dto.response.SinistreResponse;
 import com.ossanasur.cbconnect.module.sinistre.service.SinistreService;
@@ -40,9 +43,14 @@ public class SinistreController {
     }
 
     @GetMapping
-    @Operation(summary = "Lister tous les sinistres")
+    @Operation(summary = "Lister les sinistres (search optionnel : numéro, assuré, immatriculation, police)")
     public ResponseEntity<PaginatedResponse<SinistreResponse>> getAll(
-            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String search) {
+        if (search != null && !search.isBlank()) {
+            return ResponseEntity.ok(sinistreService.search(search, page, size));
+        }
         return ResponseEntity.ok(sinistreService.getAll(page, size));
     }
 
@@ -62,6 +70,19 @@ public class SinistreController {
         return ResponseEntity.ok(sinistreService.changerStatut(id, statut, u.getUsername()));
     }
 
+    /* V27 : la position RC se gère adversaire par adversaire.
+       Endpoint déplacé : PATCH /v1/victimes/{adversaireId}/position-rc */
+
+    @PatchMapping("/{id}/confirmer-garantie")
+    @PreAuthorize("hasAnyRole('SE','CSS','REDACTEUR','GESTIONNAIRE')")
+    @Operation(summary = "Confirmer la garantie (acquise ou non) et changer le statut en GARANTIE_CONFIRMEE ou GARANTIE_NON_ACQUISE")
+    public ResponseEntity<DataResponse<SinistreResponse>> confirmerGarantie(
+            @PathVariable UUID id,
+            @Valid @RequestBody ConfirmationGarantieRequest r,
+            @AuthenticationPrincipal UserDetails u) {
+        return ResponseEntity.ok(sinistreService.confirmerGarantie(id, r, u.getUsername()));
+    }
+
     @PatchMapping("/{id}/assigner")
     @PreAuthorize("hasAnyRole('SE','CSS')")
     @Operation(summary = "Assigner un redacteur au sinistre")
@@ -75,5 +96,36 @@ public class SinistreController {
     @Operation(summary = "Supprimer logiquement un sinistre")
     public ResponseEntity<DataResponse<Void>> delete(@PathVariable UUID id, @AuthenticationPrincipal UserDetails u) {
         return ResponseEntity.ok(sinistreService.delete(id, u.getUsername()));
+    }
+
+    /* ═════════ Passages en CONTENTIEUX / ARBITRAGE / sortie vers BAP ═════════ */
+
+    @PatchMapping("/{id}/contentieux")
+    @PreAuthorize("hasAnyRole('SE','CSS')")
+    @Operation(summary = "Mettre le dossier en CONTENTIEUX (procédure judiciaire). Capture niveau de juridiction et prochaine audience.")
+    public ResponseEntity<DataResponse<SinistreResponse>> mettreEnContentieux(
+            @PathVariable UUID id,
+            @Valid @RequestBody MiseEnContentieuxRequest r,
+            @AuthenticationPrincipal UserDetails u) {
+        return ResponseEntity.ok(sinistreService.mettreEnContentieux(id, r, u.getUsername()));
+    }
+
+    @PatchMapping("/{id}/arbitrage")
+    @PreAuthorize("hasAnyRole('SE','CSS')")
+    @Operation(summary = "Mettre le dossier en ARBITRAGE (instance arbitrale / commission).")
+    public ResponseEntity<DataResponse<SinistreResponse>> mettreEnArbitrage(
+            @PathVariable UUID id,
+            @Valid @RequestBody MiseEnArbitrageRequest r,
+            @AuthenticationPrincipal UserDetails u) {
+        return ResponseEntity.ok(sinistreService.mettreEnArbitrage(id, r, u.getUsername()));
+    }
+
+    @PatchMapping("/{id}/sortir-litige")
+    @PreAuthorize("hasAnyRole('SE','CSS')")
+    @Operation(summary = "Sortir un dossier du contentieux/arbitrage. Statut → BAP, réintègre la file normale.")
+    public ResponseEntity<DataResponse<SinistreResponse>> sortirDuLitige(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserDetails u) {
+        return ResponseEntity.ok(sinistreService.sortirDuLitige(id, u.getUsername()));
     }
 }

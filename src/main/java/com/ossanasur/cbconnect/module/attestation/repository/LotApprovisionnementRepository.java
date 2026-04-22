@@ -1,5 +1,7 @@
 package com.ossanasur.cbconnect.module.attestation.repository;
 import com.ossanasur.cbconnect.module.attestation.entity.LotApprovisionnement;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,4 +13,9 @@ public interface LotApprovisionnementRepository extends JpaRepository<LotApprovi
     Optional<LotApprovisionnement> findActiveByTrackingId(@Param("id") UUID id);
     @Query("SELECT l FROM LotApprovisionnement l WHERE l.activeData=true AND l.deletedData=false ORDER BY l.dateCommande DESC")
     List<LotApprovisionnement> findAllActive();
+    @Query("SELECT l FROM LotApprovisionnement l WHERE l.activeData=true AND l.deletedData=false ORDER BY l.dateCommande DESC")
+    Page<LotApprovisionnement> findAllActive(Pageable pageable);
+    boolean existsByReferenceLot(String referenceLot);
+    @Query("SELECT COALESCE(MAX(CAST(SUBSTRING(l.referenceLot, 10) AS int)),0) FROM LotApprovisionnement l WHERE l.referenceLot LIKE CONCAT('LOT-', :annee, '-%')")
+    long findMaxSequenceByAnnee(@Param("annee") int annee);
 }

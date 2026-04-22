@@ -1,12 +1,12 @@
 package com.ossanasur.cbconnect.module.ged.dto.response;
-import com.ossanasur.cbconnect.common.enums.TypeDocumentPaperless;
+import com.ossanasur.cbconnect.common.enums.TypeDocumentOssanGed;
 import java.time.LocalDate;
 import java.util.UUID;
 public record DocumentGedResponse(
-    UUID paperlessDocumentTrackingId,
-    Integer paperlessDocumentId,
+    UUID ossanGedDocumentTrackingId,
+    Integer ossanGedDocumentId,
     String titre,
-    TypeDocumentPaperless typeDocument,
+    TypeDocumentOssanGed typeDocument,
     LocalDate dateDocument,
     String mimeType,
     String sinistreNumeroLocal,

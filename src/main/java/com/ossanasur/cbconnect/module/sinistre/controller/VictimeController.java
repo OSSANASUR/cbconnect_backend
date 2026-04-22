@@ -1,5 +1,6 @@
 package com.ossanasur.cbconnect.module.sinistre.controller;
 
+import com.ossanasur.cbconnect.module.sinistre.dto.request.ActionRcRequest;
 import com.ossanasur.cbconnect.module.sinistre.dto.request.VictimeRequest;
 import com.ossanasur.cbconnect.module.sinistre.dto.response.VictimeResponse;
 import com.ossanasur.cbconnect.module.sinistre.service.VictimeService;
@@ -61,5 +62,15 @@ public class VictimeController {
     @PreAuthorize("hasAnyRole('SE','CSS')")
     public ResponseEntity<DataResponse<Void>> delete(@PathVariable UUID id, @AuthenticationPrincipal UserDetails u) {
         return ResponseEntity.ok(victimeService.delete(id, u.getUsername()));
+    }
+
+    @PatchMapping("/{id}/position-rc")
+    @PreAuthorize("hasAnyRole('SE','CSS','REDACTEUR','GESTIONNAIRE')")
+    @Operation(summary = "Negocier la position RC d'un adversaire (PROPOSER / REJETER / ACCEPTER / TRANCHER)")
+    public ResponseEntity<DataResponse<VictimeResponse>> executerActionRc(
+            @PathVariable UUID id,
+            @Valid @RequestBody ActionRcRequest r,
+            @AuthenticationPrincipal UserDetails u) {
+        return ResponseEntity.ok(victimeService.executerActionRc(id, r, u.getUsername()));
     }
 }

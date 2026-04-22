@@ -3,7 +3,6 @@ package com.ossanasur.cbconnect.historique;
 import com.ossanasur.cbconnect.common.entity.InternalHistorique;
 import com.ossanasur.cbconnect.exception.NoChangesDetectedException;
 import com.ossanasur.cbconnect.exception.RessourceNotFoundException;
-import com.ossanasur.cbconnect.module.auth.entity.Profil;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.transaction.annotation.Transactional;

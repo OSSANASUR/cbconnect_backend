@@ -3,7 +3,6 @@ package com.ossanasur.cbconnect.historique;
 import com.ossanasur.cbconnect.module.auth.dto.request.OrganismeRequest;
 import com.ossanasur.cbconnect.module.auth.entity.Organisme;
 import com.ossanasur.cbconnect.module.auth.repository.OrganismeRepository;
-import com.ossanasur.cbconnect.module.expertise.entity.Expert;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.repository.JpaRepository;

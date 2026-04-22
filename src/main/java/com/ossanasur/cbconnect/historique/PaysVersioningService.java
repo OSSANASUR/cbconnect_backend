@@ -1,6 +1,5 @@
 package com.ossanasur.cbconnect.historique;
 
-import com.ossanasur.cbconnect.module.auth.entity.Parametre;
 import com.ossanasur.cbconnect.module.pays.dto.request.PaysRequest;
 import com.ossanasur.cbconnect.module.pays.entity.Pays;
 import com.ossanasur.cbconnect.module.pays.repository.PaysRepository;

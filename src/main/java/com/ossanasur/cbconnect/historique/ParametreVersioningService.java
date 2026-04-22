@@ -1,7 +1,6 @@
 package com.ossanasur.cbconnect.historique;
 
 import com.ossanasur.cbconnect.module.auth.dto.request.ParametreRequest;
-import com.ossanasur.cbconnect.module.auth.entity.Organisme;
 import com.ossanasur.cbconnect.module.auth.entity.Parametre;
 import com.ossanasur.cbconnect.module.auth.repository.ParametreRepository;
 import lombok.RequiredArgsConstructor;

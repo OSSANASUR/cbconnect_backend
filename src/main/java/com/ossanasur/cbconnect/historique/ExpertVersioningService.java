@@ -2,7 +2,6 @@ package com.ossanasur.cbconnect.historique;
 
 import com.ossanasur.cbconnect.module.expertise.dto.request.ExpertRequest;
 import com.ossanasur.cbconnect.module.expertise.entity.Expert;
-import com.ossanasur.cbconnect.module.expertise.entity.ExpertiseMedicale;
 import com.ossanasur.cbconnect.module.expertise.repository.ExpertRepository;
 import com.ossanasur.cbconnect.module.pays.repository.PaysRepository;
 import lombok.RequiredArgsConstructor;

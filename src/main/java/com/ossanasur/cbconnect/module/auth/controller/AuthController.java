@@ -47,9 +47,11 @@ public class AuthController {
         return ResponseEntity.ok(utilisateurService.logout(token));
     }
 
+    /** @deprecated Remplace par POST /activation (Task 13). */
+    @Deprecated
     @GetMapping("/activate/{code}")
-    @Operation(summary = "Activer un compte via code email")
+    @Operation(summary = "Activer un compte via code email (deprecated - sera remplace Task 13)")
     public ResponseEntity<DataResponse<Void>> activateAccount(@PathVariable String code) {
-        return ResponseEntity.ok(utilisateurService.activerCompte(code));
+        throw new UnsupportedOperationException("Endpoint remplace. Utiliser POST /v1/activation a la place.");
     }
 }

@@ -13,8 +13,11 @@ import com.ossanasur.cbconnect.module.auth.repository.ProfilRepository;
 import com.ossanasur.cbconnect.module.auth.repository.UtilisateurRepository;
 import com.ossanasur.cbconnect.module.auth.service.ParametreService;
 import com.ossanasur.cbconnect.module.auth.service.UtilisateurService;
+import com.ossanasur.cbconnect.exception.LinkExpiredException;
+import com.ossanasur.cbconnect.security.dto.request.ActivateAccountRequest;
 import com.ossanasur.cbconnect.security.dto.request.ChangePasswordRequest;
 import com.ossanasur.cbconnect.security.dto.request.LoginRequest;
+import com.ossanasur.cbconnect.security.dto.response.ActivationInfoResponse;
 import com.ossanasur.cbconnect.security.dto.response.LoginResponse;
 import com.ossanasur.cbconnect.security.dto.response.UserInfoResponse;
 import com.ossanasur.cbconnect.security.entity.Passwords;
@@ -169,9 +172,51 @@ public class UtilisateurServiceImpl implements UtilisateurService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public ActivationInfoResponse validateActivationToken(String token) {
+        Utilisateur u = loadActiveTokenOrThrow(token);
+        String supportEmail = parametreService.getValeur("MAIL_SUPPORT_EMAIL", "support@bncb-togo.com");
+        return new ActivationInfoResponse(
+                u.getEmail(),
+                u.getNom() + " " + u.getPrenoms(),
+                u.getAccountSetupTokenExpiresAt(),
+                supportEmail);
+    }
+
+    @Override
     @Transactional
-    public DataResponse<Void> activerCompte(String verificationCode) {
-        throw new UnsupportedOperationException("TODO: implementer activation par code");
+    public DataResponse<Void> activerCompte(ActivateAccountRequest request) {
+        Utilisateur u = loadActiveTokenOrThrow(request.token());
+
+        Passwords pwd = Passwords.builder()
+                .passwordsTrackingId(UUID.randomUUID())
+                .password(passwordEncoder.encode(request.password()))
+                .isTemporary(false)
+                .utilisateur(u)
+                .createdBy(u.getEmail())
+                .activeData(true).deletedData(false)
+                .fromTable(com.ossanasur.cbconnect.common.enums.TypeTable.UTILISATEUR)
+                .build();
+        passwordRepository.save(pwd);
+
+        u.setActive(true);
+        u.setAccountSetupToken(null);
+        u.setAccountSetupTokenExpiresAt(null);
+        utilisateurRepository.save(u);
+
+        return DataResponse.success("Compte active avec succes", null);
+    }
+
+    /** Recharge l'utilisateur via le token et applique les regles 404 / 410 / 409. */
+    private Utilisateur loadActiveTokenOrThrow(String token) {
+        Utilisateur u = utilisateurRepository.findByAccountSetupToken(token)
+                .orElseThrow(() -> new RessourceNotFoundException("Lien d'activation invalide"));
+        if (u.isActive())
+            throw new AlreadyExistException("Ce compte est deja active");
+        if (u.getAccountSetupTokenExpiresAt() == null
+                || u.getAccountSetupTokenExpiresAt().isBefore(java.time.LocalDateTime.now()))
+            throw new LinkExpiredException("Ce lien d'activation a expire");
+        return u;
     }
 
     @Override

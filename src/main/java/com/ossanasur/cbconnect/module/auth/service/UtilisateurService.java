@@ -7,7 +7,7 @@ import com.ossanasur.cbconnect.utils.DataResponse;
 import java.util.List;
 import java.util.UUID;
 public interface UtilisateurService {
-    DataResponse<UtilisateurResponse> creer(UtilisateurRequest request, String password, String loginAuteur);
+    DataResponse<UtilisateurResponse> creer(UtilisateurRequest request, String loginAuteur);
     DataResponse<UtilisateurResponse> modifier(UUID trackingId, UtilisateurRequest request, String loginAuteur);
     DataResponse<UtilisateurResponse> getByTrackingId(UUID trackingId);
     DataResponse<List<UtilisateurResponse>> getAll();

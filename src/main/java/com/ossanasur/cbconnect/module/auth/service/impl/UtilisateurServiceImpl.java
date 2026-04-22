@@ -11,6 +11,7 @@ import com.ossanasur.cbconnect.module.auth.entity.Utilisateur;
 import com.ossanasur.cbconnect.module.auth.mapper.UtilisateurMapper;
 import com.ossanasur.cbconnect.module.auth.repository.ProfilRepository;
 import com.ossanasur.cbconnect.module.auth.repository.UtilisateurRepository;
+import com.ossanasur.cbconnect.module.auth.service.ParametreService;
 import com.ossanasur.cbconnect.module.auth.service.UtilisateurService;
 import com.ossanasur.cbconnect.security.dto.request.ChangePasswordRequest;
 import com.ossanasur.cbconnect.security.dto.request.LoginRequest;
@@ -18,6 +19,7 @@ import com.ossanasur.cbconnect.security.dto.response.LoginResponse;
 import com.ossanasur.cbconnect.security.dto.response.UserInfoResponse;
 import com.ossanasur.cbconnect.security.entity.Passwords;
 import com.ossanasur.cbconnect.security.repository.PasswordRepository;
+import com.ossanasur.cbconnect.security.service.EmailSenderService;
 import com.ossanasur.cbconnect.security.service.JwtService;
 import com.ossanasur.cbconnect.security.service.TwoFactorAuthService;
 import com.ossanasur.cbconnect.utils.DataResponse;
@@ -26,7 +28,11 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -43,40 +49,71 @@ public class UtilisateurServiceImpl implements UtilisateurService {
     private final JwtService jwtService;
     private final TwoFactorAuthService twoFactorAuthService;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final EmailSenderService senderService;
+    private final ParametreService parametreService;
 
     @Override
     @Transactional
-    public DataResponse<UtilisateurResponse> creer(UtilisateurRequest r, String password, String loginAuteur) {
-        if (utilisateurRepository.existsByEmailAndActiveDataTrueAndDeletedDataFalse(r.email()))
-            throw new AlreadyExistException("L'email '" + r.email() + "' est deja utilise");
+    public DataResponse<UtilisateurResponse> creer(UtilisateurRequest request, String loginAuteur) {
+        if (utilisateurRepository.existsByEmailAndActiveDataTrueAndDeletedDataFalse(request.email()))
+            throw new AlreadyExistException("L'email '" + request.email() + "' est deja utilise");
 
         Profil profil = null;
-        if (r.profilTrackingId() != null) {
-            profil = profilRepository.findActiveByTrackingId(r.profilTrackingId())
+        if (request.profilTrackingId() != null) {
+            profil = profilRepository.findActiveByTrackingId(request.profilTrackingId())
                     .orElseThrow(() -> new RessourceNotFoundException("Profil introuvable"));
         }
 
-        Utilisateur u = Utilisateur.builder()
-                .utilisateurTrackingId(UUID.randomUUID())
-                .nom(r.nom()).prenoms(r.prenoms()).email(r.email())
-                .username(r.username() != null ? r.username() : r.email())
-                .telephone(r.telephone()).profil(profil)
-                .isActive(true).mustChangePassword(true)
-                .createdBy(loginAuteur).activeData(true).deletedData(false)
-                .fromTable(com.ossanasur.cbconnect.common.enums.TypeTable.UTILISATEUR)
-                .build();
-        Utilisateur saved = utilisateurRepository.save(u);
+        int ttlDays = Integer.parseInt(parametreService.getValeur("ACCOUNT_SETUP_TOKEN_TTL_DAYS", "7"));
+        String token = UUID.randomUUID().toString();
+        LocalDateTime expiresAt = LocalDateTime.now().plusDays(ttlDays);
 
-        Passwords pwd = Passwords.builder()
-                .passwordsTrackingId(UUID.randomUUID())
-                .password(passwordEncoder.encode(password))
-                .isTemporary(true).utilisateur(saved)
+        Utilisateur utilisateur = Utilisateur.builder()
+                .utilisateurTrackingId(UUID.randomUUID())
+                .nom(request.nom()).prenoms(request.prenoms()).email(request.email())
+                .username(request.username() != null ? request.username() : request.email())
+                .telephone(request.telephone()).profil(profil)
+                .isActive(false)
+                .mustChangePassword(false)
+                .accountSetupToken(token)
+                .accountSetupTokenExpiresAt(expiresAt)
                 .createdBy(loginAuteur).activeData(true).deletedData(false)
                 .fromTable(com.ossanasur.cbconnect.common.enums.TypeTable.UTILISATEUR)
                 .build();
-        passwordRepository.save(pwd);
+        Utilisateur saved = utilisateurRepository.save(utilisateur);
+
+        sendActivationEmail(saved, token, expiresAt, ttlDays);
 
         return DataResponse.created("Utilisateur cree avec succes", utilisateurMapper.toResponse(saved));
+    }
+
+    private void sendActivationEmail(Utilisateur u, String token, LocalDateTime expiresAt, int ttlDays) {
+        String frontUrl = parametreService.getValeur("MAIL_FRONTEND_BASE_URL", "http://localhost:3000");
+        String roleLabel = (u.getProfil() != null && u.getProfil().getOrganisme() != null)
+                ? u.getProfil().getProfilNom() + " — " + u.getProfil().getOrganisme().getRaisonSociale()
+                : "—";
+        String expirationLabel = expiresAt.format(
+                DateTimeFormatter.ofPattern("d MMMM uuuu 'à' HH:mm", Locale.FRENCH));
+
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("nomComplet",       u.getNom() + " " + u.getPrenoms());
+        vars.put("emailUtilisateur", u.getEmail());
+        vars.put("roleLabel",        roleLabel);
+        vars.put("expirationLabel",  expirationLabel);
+        vars.put("activationUrl",    frontUrl + "/activation/" + token);
+        vars.put("ttlDays",          ttlDays);
+        vars.put("footerOrganisme",  parametreService.getValeur("MAIL_FOOTER_ORGANISME",  "Carte Brune CEDEAO"));
+        vars.put("footerAdresse",    parametreService.getValeur("MAIL_FOOTER_ADRESSE",    ""));
+        vars.put("footerBp",         parametreService.getValeur("MAIL_FOOTER_BP",         ""));
+        vars.put("footerTel",        parametreService.getValeur("MAIL_FOOTER_TEL",        ""));
+        vars.put("footerEmail",      parametreService.getValeur("MAIL_FOOTER_EMAIL",      "contact@cartebrune.org"));
+        vars.put("footerLogoUrl",    parametreService.getValeur("MAIL_FOOTER_LOGO_URL",   ""));
+        vars.put("supportEmail",     parametreService.getValeur("MAIL_SUPPORT_EMAIL",     "support@bncb-togo.com"));
+
+        senderService.sendTemplated(u.getEmail(),
+                "Activation de votre compte CBConnect",
+                "registration",
+                vars);
     }
 
     @Override

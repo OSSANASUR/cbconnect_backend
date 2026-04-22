@@ -29,13 +29,12 @@ public class UtilisateurController {
     private final UtilisateurService utilisateurService;
 
     @PostMapping
-    @Operation(summary = "Creer un utilisateur")
+    @Operation(summary = "Creer un utilisateur (envoie un mail d'activation)")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SE')")
     public ResponseEntity<DataResponse<UtilisateurResponse>> create(
             @Valid @RequestBody UtilisateurRequest request,
-            @RequestParam String password,
             @AuthenticationPrincipal UserDetails user) {
-        return ResponseEntity.ok(utilisateurService.creer(request, password, user.getUsername()));
+        return ResponseEntity.ok(utilisateurService.creer(request, user.getUsername()));
     }
 
     @GetMapping("/{trackingId}")

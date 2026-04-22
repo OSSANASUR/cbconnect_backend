@@ -72,6 +72,12 @@ public class SecurityConfig {
         "/actuator/health",
         "/v1/auth/refresh-token",
         "/v1/auth/forgot-password",
-        "/v1/auth/reset-password/**"
+        "/v1/auth/reset-password/**",
+        // ── SSO OssanGED : les endpoints /exchange et /verify sont appelés
+        //    par nginx OssanGED (pas par un user browser) et utilisent leur
+        //    propre mécanisme d'authentification (ticket JWT signé).
+        //    /redirect reste protégé pour vérifier l'auth CBConnect.
+        "/v1/ged/portail/exchange",
+        "/v1/ged/portail/verify"
     };
 }

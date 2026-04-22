@@ -11,6 +11,7 @@ public class OrganismeMapper {
             o.getOrganismeTrackingId(), o.getTypeOrganisme(), o.getRaisonSociale(),
             o.getCode(), o.getEmail(), o.getResponsable(), o.getContacts(),
             o.getCodePays(), o.getCodePaysBCB(), o.getPaysId(),
+            o.getAdresse(), o.getBoitePostale(), o.getVille(),
             o.getDateCreation(), o.getNumeroAgrement(), o.getApiEndpointUrl(),
             o.isActive(), o.isTwoFactorEnabled(), o.getCreatedAt()
         );

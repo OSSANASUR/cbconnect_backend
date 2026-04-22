@@ -12,7 +12,7 @@ public class OrganismeMapper {
             o.getCode(), o.getEmail(), o.getResponsable(), o.getContacts(),
             o.getCodePays(), o.getCodePaysBCB(), o.getPaysId(),
             o.getDateCreation(), o.getNumeroAgrement(), o.getApiEndpointUrl(),
-            o.isActive(), o.getCreatedAt()
+            o.isActive(), o.isTwoFactorEnabled(), o.getCreatedAt()
         );
     }
 }

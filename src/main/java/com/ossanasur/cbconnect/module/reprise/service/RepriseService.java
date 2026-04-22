@@ -138,30 +138,45 @@ public class RepriseService {
             throw new IllegalArgumentException("Date accident absente ou illisible : " + dto.dateAccident());
         }
 
-        // ── Résolution pays émetteur ──
-        Pays paysEmetteur = resoudrePays(dto.paysEmetteurCode());
+        // ── Type sinistre (requis) ──
+        TypeSinistre type = TypeSinistre.valueOf(dto.typeSinistre());
+
+        // ── Résolution pays (sémantique corrigée) ──
+        // Rappel :
+        //   ET (SURVENU_TOGO)     : gestionnaire = TG, émetteur = pays étranger
+        //   TE (SURVENU_ETRANGER) : gestionnaire = pays étranger, émetteur = TG
+        Pays paysTG = resoudrePays("TG");
+        Pays paysEmetteur    = resoudrePays(dto.paysEmetteurCode());
+        Pays paysGestionnaire = resoudrePays(dto.paysGestionnaireCode());
+
+        // Fallback intelligent selon le type si un pays manque dans l'Excel
+        if (paysGestionnaire == null) {
+            paysGestionnaire = (type == TypeSinistre.SURVENU_TOGO) ? paysTG : paysEmetteur;
+        }
         if (paysEmetteur == null) {
-            throw new IllegalArgumentException("Pays émetteur introuvable : " + dto.paysEmetteurCode());
+            paysEmetteur = (type == TypeSinistre.SURVENU_ETRANGER) ? paysTG : null;
         }
 
-        // ── Résolution pays gestionnaire ──
-        // Le champ sinistre.pays_gestionnaire_id est NOT NULL : on tente le code
-        // fourni, puis on retombe sur TG si absent ou non résolu.
-        Pays paysGestionnaire = resoudrePays(dto.paysGestionnaireCode());
+        // Validation cohérence : au moins un des deux pays doit être TG
         if (paysGestionnaire == null) {
-            paysGestionnaire = resoudrePays("TG");
+            throw new IllegalArgumentException("Pays gestionnaire introuvable pour "
+                    + dto.numeroSinistreManuel() + " (type=" + type + ")");
         }
-        if (paysGestionnaire == null) {
-            throw new IllegalStateException("Pays gestionnaire introuvable (TG absent en base ?)");
+        if (type == TypeSinistre.SURVENU_TOGO && !isTG(paysGestionnaire)) {
+            log.warn("[REPRISE] Sinistre ET {} : paysGestionnaire attendu=TG, reçu={}",
+                    dto.numeroSinistreManuel(), paysGestionnaire.getCodeIso());
+        }
+        if (type == TypeSinistre.SURVENU_ETRANGER && (paysEmetteur == null || !isTG(paysEmetteur))) {
+            log.warn("[REPRISE] Sinistre TE {} : paysEmetteur attendu=TG, reçu={}",
+                    dto.numeroSinistreManuel(), paysEmetteur != null ? paysEmetteur.getCodeIso() : "null");
         }
 
         // ── Résolution organisme membre (assureur déclarant) ──
         Organisme organismeMembre = resoudreOrganisme(dto.assureurDeclarant());
 
-        // ── Résolution bureau homologue (BCB du pays émetteur) ──
-        // Pour ET : homologue = BCB du pays étranger émetteur (ex: BCB-BJ).
-        // Pour TE : homologue = BCB du pays de destination (même logique).
-        Organisme organismeHomologue = resoudreOrganismeHomologue(dto.paysEmetteurCode());
+        // ── Résolution bureau homologue = BCB du pays étranger ──
+        // (toujours celui qui n'est pas TG, quel que soit le type de sinistre)
+        Organisme organismeHomologue = resoudreOrganismeHomologueEtranger(paysEmetteur, paysGestionnaire);
 
         // ── Création de l'Assure (obligatoire : relation @ManyToOne nullable=false) ──
         // Le fichier Excel ne fournit qu'un nom complet brut : on remplit
@@ -182,7 +197,7 @@ public class RepriseService {
                 .numeroSinistreLocal(numLocal)
                 .numeroSinistreEcarteBrune(clean(dto.numeroSinistreEcarteBrune()))
                 .numeroSinistreHomologue(clean(dto.numeroSinistreHomologue()))
-                .typeSinistre(TypeSinistre.valueOf(dto.typeSinistre()))
+                .typeSinistre(type)
                 .typeDommage(parseTypeDommage(dto.typeDommage()))
                 // En reprise, date déclaration = date accident (le fichier BNCB
                 // ne distingue pas les deux).
@@ -451,33 +466,54 @@ public class RepriseService {
 
     /**
      * Crée un sinistre minimal à partir des données de l'encaissement.
-     * Tous les champs non renseignables sont laissés à null ou à leur valeur
-     * par défaut — l'opérateur pourra compléter manuellement.
      *
-     * typeSinistre déduit de Col K :
-     * "T" → SURVENU_TOGO (étranger en Togo — ET)
-     * "E" → SURVENU_ETRANGER (Togolais à l'étranger — TE)
+     * Sémantique pays/organismes (validée avec l'utilisateur) :
+     *  - paysGestionnaire = pays OÙ L'ACCIDENT A EU LIEU
+     *  - paysEmetteur     = pays qui A ÉMIS LA CARTE BRUNE de l'assuré
+     *  - organismeHomologue = BCB ÉTRANGER (dans les 2 cas de figure)
+     *
+     * ET (SURVENU_TOGO — étranger accidenté au Togo) :
+     *   paysGestionnaire = TG
+     *   paysEmetteur     = pays étranger du véhicule (BJ, BF, CI…)
+     *
+     * TE (SURVENU_ETRANGER — Togolais accidenté à l'étranger) :
+     *   paysGestionnaire = pays étranger où l'accident a eu lieu
+     *   paysEmetteur     = TG
      */
     private Sinistre creerSinistreMinimal(EncaissementRepriseDto dto,
             Organisme organisme,
             String loginAuteur) {
-        // TypeSinistre depuis le lieu de survenance
         TypeSinistre type = "T".equalsIgnoreCase(dto.lieuSurvenance())
                 ? TypeSinistre.SURVENU_TOGO
                 : TypeSinistre.SURVENU_ETRANGER;
 
-        // Pays gestionnaire = Togo (toujours pour le BNCB-TG)
-        Pays paysGestionnaire = resoudrePays("TG");
+        // Le pays extrait du code organisme est TOUJOURS le pays étranger
+        // dans la logique Carte Brune : l'organisme lié à un encaissement est
+        // soit le BCB étranger qui rembourse TG (ET), soit l'assureur togolais
+        // qui remonte les fonds vers TG (TE, cas rare).
+        Pays paysTG = resoudrePays("TG");
+        Pays paysOrg = extrairePaysDepuisOrganisme(dto.organismeEmetteurCode());
 
-        // Pays émetteur : extraire depuis le code organismeEmetteur
-        // ex: "BNCB BF" → "BF", "FIDELIA TG" → "TG"
-        Pays paysEmetteur = extrairePaysDepuisOrganisme(dto.organismeEmetteurCode());
+        Pays paysGestionnaire, paysEmetteur;
+        if (type == TypeSinistre.SURVENU_TOGO) {
+            paysGestionnaire = paysTG;
+            paysEmetteur     = (paysOrg != null && !isTG(paysOrg)) ? paysOrg : null;
+        } else {
+            paysGestionnaire = (paysOrg != null && !isTG(paysOrg)) ? paysOrg : null;
+            paysEmetteur     = paysTG;
+        }
 
-        // Assure minimal
+        // Fallback garde-fou : paysGestionnaire est NOT NULL en base
+        if (paysGestionnaire == null) {
+            paysGestionnaire = paysTG;
+        }
+
+        // Organisme homologue = BCB du pays étranger (qui n'est pas TG)
+        Organisme homologue = resoudreOrganismeHomologueEtranger(paysEmetteur, paysGestionnaire);
+
         Assure assure = creerAssureMinimal(dto.assureNomComplet(), organisme, loginAuteur);
         assureRepository.save(assure);
 
-        // Numero local = manuel (on n'a pas le format 4 digits)
         String numLocal = dto.numeroSinistreManuel();
 
         return Sinistre.builder()
@@ -486,13 +522,14 @@ public class RepriseService {
                 .numeroSinistreLocal(numLocal)
                 .numeroSinistreHomologue(clean(dto.numeroSinistreHomologue()))
                 .typeSinistre(type)
-                .typeDommage(TypeDommage.MATERIEL) // défaut — à compléter
+                .typeDommage(TypeDommage.MATERIEL)
                 .dateAccident(parseDate(dto.dateSinistre()))
                 .dateDeclaration(parseDate(dto.dateSinistre()))
                 .assure(assure)
                 .paysGestionnaire(paysGestionnaire)
                 .paysEmetteur(paysEmetteur)
                 .organismeMembre(organisme)
+                .organismeHomologue(homologue)
                 .assureurDeclarant(clean(dto.organismeEmetteurCode()))
                 .statut(StatutSinistre.NOUVEAU)
                 .repriseHistorique(true)
@@ -500,6 +537,10 @@ public class RepriseService {
                 .activeData(true)
                 .deletedData(false)
                 .build();
+    }
+
+    private boolean isTG(Pays p) {
+        return p != null && ("TG".equalsIgnoreCase(p.getCodeIso()) || "TG".equalsIgnoreCase(p.getCodeCarteBrune()));
     }
 
     private Assure creerAssureMinimal(String nom, Organisme organisme, String loginAuteur) {
@@ -568,6 +609,20 @@ public class RepriseService {
      * Charge tous les BUREAU_HOMOLOGUE en mémoire au premier appel (14 entrées max)
      * pour éviter une requête SQL par sinistre lors des 1350 imports.
      */
+    /**
+     * Résout l'organisme BCB du pays étranger à partir des pays gestionnaire
+     * et émetteur d'un sinistre. L'homologue est toujours le BCB qui n'est PAS
+     * celui du Togo, quelle que soit l'orientation ET ou TE du sinistre.
+     */
+    private Organisme resoudreOrganismeHomologueEtranger(Pays paysEmetteur, Pays paysGestionnaire) {
+        Pays etranger = (paysEmetteur != null && !isTG(paysEmetteur)) ? paysEmetteur
+                      : (paysGestionnaire != null && !isTG(paysGestionnaire)) ? paysGestionnaire
+                      : null;
+        if (etranger == null) return null;
+        String code = etranger.getCodeCarteBrune() != null ? etranger.getCodeCarteBrune() : etranger.getCodeIso();
+        return resoudreOrganismeHomologue(code);
+    }
+
     private Organisme resoudreOrganismeHomologue(String codePays) {
         if (codePays == null || codePays.isBlank())
             return null;
@@ -774,21 +829,42 @@ public class RepriseService {
 
     // ─── Adapter creerSinistreMinimal pour accepter PaiementRepriseDto ──
     // (surcharge — même logique que celle pour encaissements)
+    /**
+     * Création d'un sinistre minimal depuis un paiement.
+     * Applique la même sémantique pays/organismes que pour les encaissements
+     * (cf. creerSinistreMinimal(EncaissementRepriseDto)).
+     *
+     * Le typeSinistre est :
+     *  1. pris dans dto.lieuSurvenance() si fourni ("T" ou "E")
+     *  2. sinon déduit du format de numeroSinistreManuel :
+     *     "AAAA/NNN/PAYS"       → ET (commence par 4 chiffres)
+     *     "PREF/NNN/PAYS/AAAA"  → TE (commence par lettres)
+     *  3. fallback conservateur : SURVENU_TOGO
+     */
     private Sinistre creerSinistreMinimal(PaiementRepriseDto dto,
             Organisme organisme,
             String loginAuteur) {
-        // numeroSinistreManuel sert de clé pour les deux colonnes NOT NULL
-        // (numero_sinistre_manuel + numero_sinistre_local). Sans valeur, la
-        // ligne Excel est inexploitable : on remonte une erreur claire plutôt
-        // que de laisser passer un null qui ferait échouer l'INSERT.
         String numSinistre = clean(dto.numeroSinistreManuel());
         if (numSinistre == null || numSinistre.isBlank()) {
-            throw new IllegalArgumentException(
-                    "Numéro sinistre manuel absent — paiement ignoré");
+            throw new IllegalArgumentException("Numéro sinistre manuel absent — paiement ignoré");
         }
 
-        Pays paysGestionnaire = resoudrePays("TG");
-        Pays paysEmetteur = extrairePaysDepuisOrganisme(dto.organismePayeurCode());
+        TypeSinistre type = deduireTypeSinistre(dto.lieuSurvenance(), numSinistre);
+
+        Pays paysTG = resoudrePays("TG");
+        Pays paysOrg = extrairePaysDepuisOrganisme(dto.organismePayeurCode());
+
+        Pays paysGestionnaire, paysEmetteur;
+        if (type == TypeSinistre.SURVENU_TOGO) {
+            paysGestionnaire = paysTG;
+            paysEmetteur     = (paysOrg != null && !isTG(paysOrg)) ? paysOrg : null;
+        } else {
+            paysGestionnaire = (paysOrg != null && !isTG(paysOrg)) ? paysOrg : null;
+            paysEmetteur     = paysTG;
+        }
+        if (paysGestionnaire == null) paysGestionnaire = paysTG;
+
+        Organisme homologue = resoudreOrganismeHomologueEtranger(paysEmetteur, paysGestionnaire);
 
         Assure assure = creerAssureMinimal(dto.assureNomComplet(), organisme, loginAuteur);
         assureRepository.save(assure);
@@ -798,14 +874,15 @@ public class RepriseService {
                 .numeroSinistreManuel(numSinistre)
                 .numeroSinistreLocal(numSinistre)
                 .numeroSinistreHomologue(clean(dto.numeroSinistreHomologue()))
-                .typeSinistre(TypeSinistre.SURVENU_TOGO) // défaut — à corriger si besoin
-                .typeDommage(TypeDommage.MIXTE) // défaut neutre
+                .typeSinistre(type)
+                .typeDommage(TypeDommage.MIXTE)
                 .dateAccident(parseDate(dto.dateSinistre()))
                 .dateDeclaration(parseDate(dto.dateSinistre()))
                 .assure(assure)
                 .paysGestionnaire(paysGestionnaire)
                 .paysEmetteur(paysEmetteur)
                 .organismeMembre(organisme)
+                .organismeHomologue(homologue)
                 .assureurDeclarant(clean(dto.organismePayeurCode()))
                 .statut(StatutSinistre.NOUVEAU)
                 .repriseHistorique(true)
@@ -813,6 +890,25 @@ public class RepriseService {
                 .activeData(true)
                 .deletedData(false)
                 .build();
+    }
+
+    /**
+     * Déduit le typeSinistre en priorité depuis lieuSurvenance, sinon depuis
+     * le format du numéro manuel.
+     */
+    private TypeSinistre deduireTypeSinistre(String lieuSurvenance, String numeroSinistreManuel) {
+        if (lieuSurvenance != null) {
+            if ("T".equalsIgnoreCase(lieuSurvenance.trim())) return TypeSinistre.SURVENU_TOGO;
+            if ("E".equalsIgnoreCase(lieuSurvenance.trim())) return TypeSinistre.SURVENU_ETRANGER;
+        }
+        if (numeroSinistreManuel != null) {
+            String s = numeroSinistreManuel.trim();
+            // ET : commence par 4 chiffres (année) "2024/001/BJ"
+            if (s.matches("^\\d{4}/.*")) return TypeSinistre.SURVENU_TOGO;
+            // TE : commence par lettres "TE/001/BJ/2024"
+            if (s.matches("^[A-Za-z]+/.*")) return TypeSinistre.SURVENU_ETRANGER;
+        }
+        return TypeSinistre.SURVENU_TOGO; // fallback conservateur
     }
 
     /**

@@ -2,6 +2,7 @@ package com.ossanasur.cbconnect.module.auth.controller;
 
 import com.ossanasur.cbconnect.module.auth.dto.request.HabilitationRequest;
 import com.ossanasur.cbconnect.module.auth.dto.response.HabilitationResponse;
+import com.ossanasur.cbconnect.module.auth.dto.response.ImportResultResponse;
 import com.ossanasur.cbconnect.module.auth.service.HabilitationService;
 import com.ossanasur.cbconnect.module.auth.service.HabilitationImportService;
 import com.ossanasur.cbconnect.utils.DataResponse;
@@ -15,6 +16,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -79,11 +81,10 @@ public class HabilitationController {
     @PostMapping(value = "/import", consumes = "multipart/form-data")
     @Operation(summary = "Importer des habilitations depuis un fichier xlsx")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SE')")
-    public ResponseEntity<com.ossanasur.cbconnect.module.auth.dto.response.ImportResultResponse> importXlsx(
-            @org.springframework.web.bind.annotation.RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+    public ResponseEntity<ImportResultResponse> importXlsx(
+            @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal UserDetails user) {
-        com.ossanasur.cbconnect.module.auth.dto.response.ImportResultResponse result =
-            habilitationImportService.importXlsx(file, user.getUsername());
+        ImportResultResponse result = habilitationImportService.importXlsx(file, user.getUsername());
         int status = result.erreurs().isEmpty() ? 201 : 400;
         return ResponseEntity.status(status).body(result);
     }
@@ -94,8 +95,8 @@ public class HabilitationController {
     public ResponseEntity<byte[]> downloadTemplate() {
         byte[] bytes = habilitationImportService.generateTemplate();
         return ResponseEntity.ok()
-            .header("Content-Disposition", "attachment; filename=template-habilitations.xlsx")
-            .header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-            .body(bytes);
+                .header("Content-Disposition", "attachment; filename=template-habilitations.xlsx")
+                .header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                .body(bytes);
     }
 }

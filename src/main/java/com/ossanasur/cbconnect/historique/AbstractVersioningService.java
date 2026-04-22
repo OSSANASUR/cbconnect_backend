@@ -3,6 +3,8 @@ package com.ossanasur.cbconnect.historique;
 import com.ossanasur.cbconnect.common.entity.InternalHistorique;
 import com.ossanasur.cbconnect.exception.NoChangesDetectedException;
 import com.ossanasur.cbconnect.exception.RessourceNotFoundException;
+import com.ossanasur.cbconnect.module.auth.entity.Profil;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,9 +22,14 @@ import java.util.*;
 public abstract class AbstractVersioningService<E extends InternalHistorique, R> {
 
     protected abstract JpaRepository<E, Integer> getRepository();
+
     protected abstract E findActiveByTrackingId(UUID trackingId);
+
     protected abstract E mapToEntity(R request, E existing);
+
     protected abstract UUID getTrackingId(E entity);
+
+    protected abstract void setTrackingId(E entity, UUID newId);
 
     @Transactional
     public E createVersion(UUID trackingId, R request, String loginAuteur) {
@@ -39,6 +46,7 @@ public abstract class AbstractVersioningService<E extends InternalHistorique, R>
         E newVersion = cloneEntity(proposed);
         newVersion.setHistoriqueId(null);
         newVersion.setParentCodeId(getTrackingId(current).toString());
+        setTrackingId(newVersion, UUID.randomUUID());
         newVersion.setCreatedAt(LocalDateTime.now());
         newVersion.setCreatedBy(loginAuteur);
         newVersion.setActiveData(true);
@@ -68,21 +76,24 @@ public abstract class AbstractVersioningService<E extends InternalHistorique, R>
 
     protected boolean hasChanges(E current, E proposed) {
         Set<String> ignored = Set.of(
-            "historiqueId", "createdAt", "updatedAt", "deletedAt",
-            "createdBy", "updatedBy", "deletedBy", "activeData",
-            "deletedData", "parentCodeId", "fromTable", "excel", "libelle"
-        );
+                "historiqueId", "createdAt", "updatedAt", "deletedAt",
+                "createdBy", "updatedBy", "deletedBy", "activeData",
+                "deletedData", "parentCodeId", "fromTable", "excel", "libelle");
         for (Field field : getAllFields(current.getClass())) {
             field.setAccessible(true);
-            if (ignored.contains(field.getName())) continue;
+            if (ignored.contains(field.getName()))
+                continue;
             try {
                 Object cv = field.get(current), pv = field.get(proposed);
                 if (cv instanceof InternalHistorique && pv instanceof InternalHistorique) {
                     if (!Objects.equals(((InternalHistorique) cv).getParentCodeId(),
-                                        ((InternalHistorique) pv).getParentCodeId())) return true;
+                            ((InternalHistorique) pv).getParentCodeId()))
+                        return true;
                 } else if (cv instanceof Collection && pv instanceof Collection) {
-                    if (!collectionsEqual((Collection<?>) cv, (Collection<?>) pv)) return true;
-                } else if (!Objects.equals(cv, pv)) return true;
+                    if (!collectionsEqual((Collection<?>) cv, (Collection<?>) pv))
+                        return true;
+                } else if (!Objects.equals(cv, pv))
+                    return true;
             } catch (IllegalAccessException e) {
                 throw new RuntimeException("Erreur detection changements", e);
             }
@@ -114,7 +125,8 @@ public abstract class AbstractVersioningService<E extends InternalHistorique, R>
     }
 
     private boolean collectionsEqual(Collection<?> c1, Collection<?> c2) {
-        if (c1.size() != c2.size()) return false;
+        if (c1.size() != c2.size())
+            return false;
         return new HashSet<>(c1).containsAll(c2);
     }
 }

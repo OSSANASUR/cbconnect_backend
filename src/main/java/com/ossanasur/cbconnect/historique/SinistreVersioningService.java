@@ -8,6 +8,7 @@ import com.ossanasur.cbconnect.module.sinistre.entity.Sinistre;
 import com.ossanasur.cbconnect.module.sinistre.repository.AssureRepository;
 import com.ossanasur.cbconnect.module.sinistre.repository.SinistreRepository;
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Service;
 import java.util.UUID;
@@ -57,5 +58,10 @@ public class SinistreVersioningService extends AbstractVersioningService<Sinistr
                     .findByUtilisateurTrackingIdAndActiveDataTrueAndDeletedDataFalse(r.redacteurTrackingId())
                     .ifPresent(u::setRedacteur);
         return u;
+    }
+
+    @Override
+    protected void setTrackingId(Sinistre entity, UUID newId) {
+        entity.setSinistreTrackingId(newId);
     }
 }

@@ -1,7 +1,18 @@
 package com.ossanasur.cbconnect.module.expertise.dto.response;
+
 import com.ossanasur.cbconnect.common.enums.TypeExpert;
-import java.math.BigDecimal; import java.util.UUID;
+import java.math.BigDecimal;
+import java.util.UUID;
+
 public record ExpertResponse(
-    UUID expertTrackingId, TypeExpert typeExpert, String nomComplet,
-    String specialite, String nif, BigDecimal tauxRetenue, boolean actif, String paysLibelle
-) {}
+        UUID expertTrackingId,
+        TypeExpert typeExpert,
+        String nomComplet,
+        String specialite,
+        String nif,
+        String email, // NOUVEAU
+        String telephone, // NOUVEAU
+        BigDecimal tauxRetenue,
+        boolean actif,
+        String paysLibelle) {
+}

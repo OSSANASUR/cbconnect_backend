@@ -6,6 +6,7 @@ import com.ossanasur.cbconnect.module.pays.entity.Pays;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
+
 import java.math.BigDecimal;
 import java.util.UUID;
 
@@ -17,18 +18,33 @@ import java.util.UUID;
 @Entity
 @DiscriminatorValue("EXPERT")
 public class Expert extends InternalHistorique {
+
     @Column(name = "expert_tracking_id", unique = true)
     private UUID expertTrackingId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private TypeExpert typeExpert;
+
     @Column(nullable = false)
     private String nomComplet;
+
     private String specialite;
     private String nif;
+
+    /** Email — utilisé pour l'envoi optionnel de la note de mission */
+    @Column(length = 200)
+    private String email;
+
+    /** Téléphone */
+    @Column(length = 30)
+    private String telephone;
+
     private BigDecimal tauxRetenue;
+
     @Builder.Default
     private boolean actif = true;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "pays_id")
     private Pays pays;

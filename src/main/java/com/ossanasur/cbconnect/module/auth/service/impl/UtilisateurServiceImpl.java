@@ -207,6 +207,27 @@ public class UtilisateurServiceImpl implements UtilisateurService {
         return DataResponse.success("Compte active avec succes", null);
     }
 
+    @Override
+    @Transactional
+    public DataResponse<Void> resendActivationLink(UUID utilisateurTrackingId, String loginAuteur) {
+        Utilisateur u = utilisateurRepository.findByUtilisateurTrackingIdAndActiveDataTrueAndDeletedDataFalse(utilisateurTrackingId)
+                .orElseThrow(() -> new RessourceNotFoundException("Utilisateur introuvable"));
+        if (u.isActive())
+            throw new AlreadyExistException("Ce compte est deja active");
+
+        int ttlDays = Integer.parseInt(parametreService.getValeur("ACCOUNT_SETUP_TOKEN_TTL_DAYS", "7"));
+        String token = UUID.randomUUID().toString();
+        LocalDateTime expiresAt = LocalDateTime.now().plusDays(ttlDays);
+
+        u.setAccountSetupToken(token);
+        u.setAccountSetupTokenExpiresAt(expiresAt);
+        u.setUpdatedBy(loginAuteur);
+        utilisateurRepository.save(u);
+
+        sendActivationEmail(u, token, expiresAt, ttlDays);
+        return DataResponse.success("Lien d'activation renvoye", null);
+    }
+
     /** Recharge l'utilisateur via le token et applique les regles 404 / 410 / 409. */
     private Utilisateur loadActiveTokenOrThrow(String token) {
         Utilisateur u = utilisateurRepository.findByAccountSetupToken(token)

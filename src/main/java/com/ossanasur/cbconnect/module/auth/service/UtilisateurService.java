@@ -18,6 +18,8 @@ public interface UtilisateurService {
     ActivationInfoResponse validateActivationToken(String token);
     /** Consomme le token et cree le mot de passe definitif. Active le compte. */
     DataResponse<Void> activerCompte(ActivateAccountRequest request);
+    /** Regenere un token d'activation et renvoie le mail. Reserve aux admins. */
+    DataResponse<Void> resendActivationLink(java.util.UUID utilisateurTrackingId, String loginAuteur);
     DataResponse<LoginResponse> login(LoginRequest request);
     DataResponse<LoginResponse> verifyOtpAndIssueTokens(UUID otpTrackingId, String code, boolean isMobile);
     DataResponse<LoginResponse> resendLoginOtp(UUID otpTrackingId);

@@ -2,20 +2,35 @@ package com.ossanasur.cbconnect.module.statistiques.service;
 
 import com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository;
 import com.ossanasur.cbconnect.module.finance.repository.PaiementRepository;
+import com.ossanasur.cbconnect.module.reclamation.repository.DossierReclamationRepository;
 import com.ossanasur.cbconnect.module.sinistre.repository.SinistreRepository;
+import com.ossanasur.cbconnect.module.statistiques.dto.CadenceDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatSinistreDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto.LigneCompagnie;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto.LigneEncaissement;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto.LignePaiement;
+import com.ossanasur.cbconnect.module.statistiques.dto.EtatReclamationDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatSinistreDto.LigneSinistre;
+import com.ossanasur.cbconnect.module.statistiques.dto.GraphiqueEncPaiDto;
+import com.ossanasur.cbconnect.module.statistiques.dto.GraphiqueEncPaiDto.LigneAnnuelle;
+import com.ossanasur.cbconnect.module.statistiques.dto.ReportingEncaissementDto;
+import com.ossanasur.cbconnect.module.statistiques.dto.ReportingMensuelDto;
+// import com.ossanasur.cbconnect.module.statistiques.dto.ReportingPaiementDto;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -26,6 +41,7 @@ public class StatistiquesService {
     private final SinistreRepository sinistreRepository;
     private final EncaissementRepository encaissementRepository;
     private final PaiementRepository paiementRepository;
+    private final DossierReclamationRepository dossierRepo;
 
     // ─── État I : Sinistres par pays émetteur ────────────────────────
 
@@ -88,6 +104,586 @@ public class StatistiquesService {
                 toLong(r[4]), toBd(r[5]))).toList();
 
         return new EtatFinancierDto(annee, encaissements, paiements, encTogo, payTogo);
+    }
+
+    private static final String[] MOIS_FR = {
+            "", "JANVIER", "FÉVRIER", "MARS", "AVRIL", "MAI", "JUIN",
+            "JUILLET", "AOÛT", "SEPTEMBRE", "OCTOBRE", "NOVEMBRE", "DÉCEMBRE"
+    };
+
+    public ReportingMensuelDto reportingMensuel(int annee, int mois) {
+        int n1 = annee - 1;
+
+        // ── Tableau 1 : par pays ──────────────────────────────────────
+        List<Object[]> paysRows = sinistreRepository.reportingMensuelParPays(annee, n1, mois);
+
+        List<ReportingMensuelDto.LigneReportingPays> parPays = paysRows.stream()
+                .map(r -> new ReportingMensuelDto.LigneReportingPays(
+                        (String) r[0], (String) r[1],
+                        toLong(r[2]), toLong(r[3]),
+                        toLong(r[4]), toLong(r[5]),
+                        toLong(r[2]) + toLong(r[4]), toLong(r[3]) + toLong(r[5]),
+                        toLong(r[6]), toLong(r[7]),
+                        toLong(r[8]), toLong(r[9]),
+                        toLong(r[6]) + toLong(r[8]), toLong(r[7]) + toLong(r[9]),
+                        toLong(r[10])))
+                .toList();
+
+        ReportingMensuelDto.LigneReportingPays totalPays = new ReportingMensuelDto.LigneReportingPays(
+                "TOTAL", "",
+                sum(parPays, l -> l.te_mois_n1()), sum(parPays, l -> l.te_mois_n()),
+                sum(parPays, l -> l.et_mois_n1()), sum(parPays, l -> l.et_mois_n()),
+                sum(parPays, l -> l.tot_mois_n1()), sum(parPays, l -> l.tot_mois_n()),
+                sum(parPays, l -> l.te_cumul_n1()), sum(parPays, l -> l.te_cumul_n()),
+                sum(parPays, l -> l.et_cumul_n1()), sum(parPays, l -> l.et_cumul_n()),
+                sum(parPays, l -> l.tot_cumul_n1()), sum(parPays, l -> l.tot_cumul_n()),
+                sum(parPays, l -> l.tot_fda_n()));
+
+        // ── Tableau 2 : par compagnie ─────────────────────────────────
+        List<Object[]> compRows = sinistreRepository.reportingMensuelParCompagnie(annee, n1, mois);
+
+        List<ReportingMensuelDto.LigneReportingCompagnie> parCompagnie = compRows.stream()
+                .map(r -> new ReportingMensuelDto.LigneReportingCompagnie(
+                        (String) r[0],
+                        toLong(r[2]), toLong(r[3]),
+                        toLong(r[4]), toLong(r[5]),
+                        toLong(r[2]) + toLong(r[4]), toLong(r[3]) + toLong(r[5]),
+                        toLong(r[6]), toLong(r[7]),
+                        toLong(r[8]), toLong(r[9]),
+                        toLong(r[6]) + toLong(r[8]), toLong(r[7]) + toLong(r[9]),
+                        toLong(r[10])))
+                .toList();
+
+        ReportingMensuelDto.LigneReportingCompagnie totalComp = new ReportingMensuelDto.LigneReportingCompagnie(
+                "TOTAL",
+                sum(parCompagnie, l -> l.te_mois_n1()), sum(parCompagnie, l -> l.te_mois_n()),
+                sum(parCompagnie, l -> l.et_mois_n1()), sum(parCompagnie, l -> l.et_mois_n()),
+                sum(parCompagnie, l -> l.tot_mois_n1()), sum(parCompagnie, l -> l.tot_mois_n()),
+                sum(parCompagnie, l -> l.te_cumul_n1()), sum(parCompagnie, l -> l.te_cumul_n()),
+                sum(parCompagnie, l -> l.et_cumul_n1()), sum(parCompagnie, l -> l.et_cumul_n()),
+                sum(parCompagnie, l -> l.tot_cumul_n1()), sum(parCompagnie, l -> l.tot_cumul_n()),
+                sum(parCompagnie, l -> l.tot_fda_n()));
+
+        return new ReportingMensuelDto(annee, mois,
+                mois >= 1 && mois <= 12 ? MOIS_FR[mois] : "?",
+                n1, parPays, totalPays, parCompagnie, totalComp);
+    }
+
+    // Helper sum
+    private <T> long sum(List<T> list, java.util.function.ToLongFunction<T> fn) {
+        return list.stream().mapToLong(fn).sum();
+    }
+
+    public ReportingEncaissementDto reportingEncaissements(int annee, int mois) {
+        int n1 = annee - 1;
+
+        // ── Tableau I : par pays payeur ──────────────────────────
+        List<Object[]> paysRows = encaissementRepository.reportingMensuelEncParPays(annee, n1, mois);
+
+        List<ReportingEncaissementDto.LigneEncPays> parPays = paysRows.stream()
+                .map(r -> new ReportingEncaissementDto.LigneEncPays(
+                        (String) r[0], (String) r[1],
+                        toLong(r[2]), toBd(r[3]),
+                        toLong(r[4]), toBd(r[5]),
+                        toLong(r[6]), toBd(r[7]),
+                        toLong(r[8]), toBd(r[9]),
+                        toLong(r[10]), toBd(r[11])))
+                .toList();
+
+        ReportingEncaissementDto.LigneEncPays totalPays = new ReportingEncaissementDto.LigneEncPays(
+                "TOTAL", "",
+                sumL(parPays, l -> l.nb_mois_n1()), sumBd(parPays, l -> l.mt_mois_n1()),
+                sumL(parPays, l -> l.nb_mois_n()), sumBd(parPays, l -> l.mt_mois_n()),
+                sumL(parPays, l -> l.nb_cumul_n1()), sumBd(parPays, l -> l.mt_cumul_n1()),
+                sumL(parPays, l -> l.nb_cumul_n()), sumBd(parPays, l -> l.mt_cumul_n()),
+                sumL(parPays, l -> l.nb_fda_n()), sumBd(parPays, l -> l.mt_fda_n()));
+
+        // ── Tableau II : par compagnie membre togolaise ──────────
+        List<Object[]> compRows = encaissementRepository.reportingMensuelEncParCompagnie(annee, n1, mois);
+
+        List<ReportingEncaissementDto.LigneEncCompagnie> parComp = compRows.stream()
+                .map(r -> new ReportingEncaissementDto.LigneEncCompagnie(
+                        (String) r[0],
+                        toLong(r[2]), toBd(r[3]),
+                        toLong(r[4]), toBd(r[5]),
+                        toLong(r[6]), toBd(r[7]),
+                        toLong(r[8]), toBd(r[9]),
+                        toLong(r[10]), toBd(r[11])))
+                .toList();
+
+        ReportingEncaissementDto.LigneEncCompagnie totalComp = new ReportingEncaissementDto.LigneEncCompagnie(
+                "TOTAL",
+                sumL(parComp, l -> l.nb_mois_n1()), sumBd(parComp, l -> l.mt_mois_n1()),
+                sumL(parComp, l -> l.nb_mois_n()), sumBd(parComp, l -> l.mt_mois_n()),
+                sumL(parComp, l -> l.nb_cumul_n1()), sumBd(parComp, l -> l.mt_cumul_n1()),
+                sumL(parComp, l -> l.nb_cumul_n()), sumBd(parComp, l -> l.mt_cumul_n()),
+                sumL(parComp, l -> l.nb_fda_n()), sumBd(parComp, l -> l.mt_fda_n()));
+
+        return new ReportingEncaissementDto(
+                annee, mois,
+                mois >= 1 && mois <= 12 ? MOIS_FR[mois] : "?",
+                n1, parPays, totalPays, parComp, totalComp);
+    }
+
+    // public ReportingPaiementDto reportingPaiements(int annee, int mois) {
+    // int n1 = annee - 1;
+
+    // // ── Tableau I : par pays bénéficiaire ───────────────────────────
+    // List<Object[]> paysRows =
+    // paiementRepository.reportingMensuelPaiParPays(annee, n1, mois);
+
+    // List<ReportingPaiementDto.LignePaiPays> parPays = paysRows.stream()
+    // .map(r -> new ReportingPaiementDto.LignePaiPays(
+    // (String) r[0], (String) r[1],
+    // toLong(r[2]), toBd(r[3]),
+    // toLong(r[4]), toBd(r[5]),
+    // toLong(r[6]), toBd(r[7]),
+    // toLong(r[8]), toBd(r[9]),
+    // toLong(r[10]), toBd(r[11])))
+    // .toList();
+
+    // ReportingPaiementDto.LignePaiPays totalPays = new
+    // ReportingPaiementDto.LignePaiPays(
+    // "TOTAL", "",
+    // sumL(parPays, l -> l.nb_mois_n1()), sumBd(parPays, l -> l.mt_mois_n1()),
+    // sumL(parPays, l -> l.nb_mois_n()), sumBd(parPays, l -> l.mt_mois_n()),
+    // sumL(parPays, l -> l.nb_cumul_n1()), sumBd(parPays, l -> l.mt_cumul_n1()),
+    // sumL(parPays, l -> l.nb_cumul_n()), sumBd(parPays, l -> l.mt_cumul_n()),
+    // sumL(parPays, l -> l.nb_fda_n()), sumBd(parPays, l -> l.mt_fda_n()));
+
+    // // ── Tableau II : par compagnie membre togolaise ─────────────────
+    // List<Object[]> compRows =
+    // paiementRepository.reportingMensuelPaiParCompagnie(annee, n1, mois);
+
+    // List<ReportingPaiementDto.LignePaiCompagnie> parComp = compRows.stream()
+    // .map(r -> new ReportingPaiementDto.LignePaiCompagnie(
+    // (String) r[0],
+    // toLong(r[2]), toBd(r[3]),
+    // toLong(r[4]), toBd(r[5]),
+    // toLong(r[6]), toBd(r[7]),
+    // toLong(r[8]), toBd(r[9]),
+    // toLong(r[10]), toBd(r[11])))
+    // .toList();
+
+    // ReportingPaiementDto.LignePaiCompagnie totalComp = new
+    // ReportingPaiementDto.LignePaiCompagnie(
+    // "TOTAL",
+    // sumL(parComp, l -> l.nb_mois_n1()), sumBd(parComp, l -> l.mt_mois_n1()),
+    // sumL(parComp, l -> l.nb_mois_n()), sumBd(parComp, l -> l.mt_mois_n()),
+    // sumL(parComp, l -> l.nb_cumul_n1()), sumBd(parComp, l -> l.mt_cumul_n1()),
+    // sumL(parComp, l -> l.nb_cumul_n()), sumBd(parComp, l -> l.mt_cumul_n()),
+    // sumL(parComp, l -> l.nb_fda_n()), sumBd(parComp, l -> l.mt_fda_n()));
+
+    // return new ReportingPaiementDto(
+    // annee, mois,
+    // mois >= 1 && mois <= 12 ? MOIS_FR[mois] : "?",
+    // n1, parPays, totalPays, parComp, totalComp);
+    // }
+
+    public ReportingEncaissementDto reportingPaiements(int annee, int mois) {
+        int n1 = annee - 1;
+
+        List<Object[]> paysRows = paiementRepository.reportingMensuelPayParPays(annee, n1, mois);
+        List<Object[]> compRows = paiementRepository.reportingMensuelPayParCompagnie(annee, n1, mois);
+
+        // Mapper avec le même DTO que les encaissements (structure identique)
+        List<ReportingEncaissementDto.LigneEncPays> parPays = paysRows.stream()
+                .map(r -> new ReportingEncaissementDto.LigneEncPays(
+                        (String) r[0], (String) r[1],
+                        toLong(r[2]), toBd(r[3]),
+                        toLong(r[4]), toBd(r[5]),
+                        toLong(r[6]), toBd(r[7]),
+                        toLong(r[8]), toBd(r[9]),
+                        toLong(r[10]), toBd(r[11])))
+                .toList();
+
+        ReportingEncaissementDto.LigneEncPays totalPays = new ReportingEncaissementDto.LigneEncPays(
+                "TOTAL", "",
+                sumL(parPays, l -> l.nb_mois_n1()), sumBd(parPays, l -> l.mt_mois_n1()),
+                sumL(parPays, l -> l.nb_mois_n()), sumBd(parPays, l -> l.mt_mois_n()),
+                sumL(parPays, l -> l.nb_cumul_n1()), sumBd(parPays, l -> l.mt_cumul_n1()),
+                sumL(parPays, l -> l.nb_cumul_n()), sumBd(parPays, l -> l.mt_cumul_n()),
+                sumL(parPays, l -> l.nb_fda_n()), sumBd(parPays, l -> l.mt_fda_n()));
+
+        List<ReportingEncaissementDto.LigneEncCompagnie> parComp = compRows.stream()
+                .map(r -> new ReportingEncaissementDto.LigneEncCompagnie(
+                        (String) r[0],
+                        toLong(r[2]), toBd(r[3]),
+                        toLong(r[4]), toBd(r[5]),
+                        toLong(r[6]), toBd(r[7]),
+                        toLong(r[8]), toBd(r[9]),
+                        toLong(r[10]), toBd(r[11])))
+                .toList();
+
+        ReportingEncaissementDto.LigneEncCompagnie totalComp = new ReportingEncaissementDto.LigneEncCompagnie(
+                "TOTAL",
+                sumL(parComp, l -> l.nb_mois_n1()), sumBd(parComp, l -> l.mt_mois_n1()),
+                sumL(parComp, l -> l.nb_mois_n()), sumBd(parComp, l -> l.mt_mois_n()),
+                sumL(parComp, l -> l.nb_cumul_n1()), sumBd(parComp, l -> l.mt_cumul_n1()),
+                sumL(parComp, l -> l.nb_cumul_n()), sumBd(parComp, l -> l.mt_cumul_n()),
+                sumL(parComp, l -> l.nb_fda_n()), sumBd(parComp, l -> l.mt_fda_n()));
+
+        return new ReportingEncaissementDto(
+                annee, mois,
+                mois >= 1 && mois <= 12 ? MOIS_FR[mois] : "?",
+                n1, parPays, totalPays, parComp, totalComp);
+    }
+
+    // ─── R4 : Cadence de survenance par rapport au paiement ──────────────
+
+    /** Nombre de périodes distinctes dans le triangle (hors "ant"). */
+    private static final int NB_PERIODES = 4;
+
+    /**
+     * Triangle de cadence de règlement.
+     *
+     * @param anneeRef Année de référence (colonne la plus récente).
+     *                 Les colonnes/lignes couvrent [anneeRef, anneeRef-1,
+     *                 anneeRef-2, anneeRef-3, -1("ant")].
+     */
+    public CadenceDto cadence(int anneeRef) {
+        int anneeMin = anneeRef - NB_PERIODES + 1; // ex: 2024-3 = 2021
+
+        // Années colonnes/lignes : [anneeRef, -1, -2, -3, -1(ant)]
+        List<Integer> periodes = new ArrayList<>();
+        for (int i = 0; i < NB_PERIODES; i++)
+            periodes.add(anneeRef - i);
+        periodes.add(-1); // "ant"
+
+        // ── Paiements par pays ──────────────────────────────────
+        List<Object[]> payPays = paiementRepository.cadenceParPays(anneeMin);
+        List<Object[]> decPays = sinistreRepository.sinistresDeclaresParPays(anneeMin);
+
+        List<CadenceDto.BlocCadence> parPays = construireBlocsParPays(payPays, decPays, periodes);
+
+        // ── Paiements par compagnie ─────────────────────────────
+        List<Object[]> payComp = paiementRepository.cadenceParCompagnie(anneeMin);
+        List<Object[]> decComp = sinistreRepository.sinistresDeclaresParCompagnie(anneeMin);
+
+        List<CadenceDto.BlocCadence> parCompagnie = construireBlocs(payComp, decComp, periodes, false);
+        // AUTRES toujours en dernier
+        parCompagnie = parCompagnie.stream()
+                .sorted((a, b) -> {
+                    if ("AUTRES".equals(a.label()))
+                        return 1;
+                    if ("AUTRES".equals(b.label()))
+                        return -1;
+                    return a.label().compareTo(b.label());
+                }).toList();
+
+        // ── TOTAL (agrégation de tous les blocs parPays) ────────
+        CadenceDto.BlocCadence total = aggregerTotal(parPays, periodes);
+
+        return new CadenceDto(anneeRef, periodes, periodes, total, parPays, parCompagnie);
+    }
+
+    // ── Construction des blocs par pays ──────────────────────────
+
+    private List<CadenceDto.BlocCadence> construireBlocsParPays(
+            List<Object[]> paiements, List<Object[]> declares,
+            List<Integer> periodes) {
+        return construireBlocs(paiements, declares, periodes, true);
+    }
+
+    private List<CadenceDto.BlocCadence> construireBlocs(
+            List<Object[]> paiements, List<Object[]> declares,
+            List<Integer> periodes, boolean hasCode) {
+
+        // Map: label → (annee_surv → (annee_pay → {nb, montant}))
+        Map<String, Map<Integer, Map<Integer, long[]>>> data = new LinkedHashMap<>();
+        Map<String, String> codes = new LinkedHashMap<>();
+
+        for (Object[] r : paiements) {
+            String label = (String) r[0];
+            String code = hasCode ? (String) r[1] : null;
+            int surv = ((Number) r[2]).intValue();
+            int pay = ((Number) r[3]).intValue();
+            long nb = ((Number) r[4]).longValue();
+            BigDecimal mt = toBd(r[5]);
+
+            codes.putIfAbsent(label, code);
+            data.computeIfAbsent(label, k -> new LinkedHashMap<>())
+                    .computeIfAbsent(surv, k -> new LinkedHashMap<>())
+                    .put(pay, new long[] { nb, mt.longValue() }); // long pour simplifier
+        }
+
+        // Map: label → (annee_surv → nb_declares)
+        Map<String, Map<Integer, Long>> declsMap = new HashMap<>();
+        for (Object[] r : declares) {
+            String label = (String) r[0];
+            int surv = ((Number) r[2]).intValue();
+            long nb = ((Number) r[3]).longValue();
+            declsMap.computeIfAbsent(label, k -> new HashMap<>()).put(surv, nb);
+        }
+
+        // Construire les blocs
+        List<CadenceDto.BlocCadence> blocs = new ArrayList<>();
+
+        for (Map.Entry<String, Map<Integer, Map<Integer, long[]>>> entry : data.entrySet()) {
+            String label = entry.getKey();
+            String code = codes.get(label);
+            List<CadenceDto.LigneCadence> lignes = new ArrayList<>();
+
+            for (int surv : periodes) {
+                Map<Integer, long[]> cellsForSurv = entry.getValue().getOrDefault(surv, Map.of());
+                Map<Integer, CadenceDto.CelluleCadence> cellules = new LinkedHashMap<>();
+
+                long totalNb = 0;
+                BigDecimal totalMt = BigDecimal.ZERO;
+
+                for (int pay : periodes) {
+                    long[] val = cellsForSurv.getOrDefault(pay, new long[] { 0, 0 });
+                    cellules.put(pay, new CadenceDto.CelluleCadence(
+                            val[0], BigDecimal.valueOf(val[1])));
+                    totalNb += val[0];
+                    totalMt = totalMt.add(BigDecimal.valueOf(val[1]));
+                }
+
+                long nbreDeclares = declsMap.getOrDefault(label, Map.of()).getOrDefault(surv, 0L);
+                double taux = nbreDeclares > 0 ? (double) totalNb / nbreDeclares : 0.0;
+
+                lignes.add(new CadenceDto.LigneCadence(
+                        surv, cellules, totalNb, totalMt, nbreDeclares, taux));
+            }
+            blocs.add(new CadenceDto.BlocCadence(label, code, lignes));
+        }
+        return blocs;
+    }
+
+    // ── Agrégation TOTAL ─────────────────────────────────────────
+
+    private CadenceDto.BlocCadence aggregerTotal(
+            List<CadenceDto.BlocCadence> blocs, List<Integer> periodes) {
+
+        // Accumulateurs: surv → pay → {nb, montant}
+        Map<Integer, Map<Integer, long[]>> acc = new LinkedHashMap<>();
+        Map<Integer, Long> decls = new LinkedHashMap<>();
+
+        for (CadenceDto.BlocCadence bloc : blocs) {
+            for (CadenceDto.LigneCadence ligne : bloc.lignes()) {
+                int surv = ligne.anneeSurvenance();
+                decls.merge(surv, ligne.sinistresDeClares(), Long::sum);
+                Map<Integer, long[]> accSurv = acc.computeIfAbsent(surv, k -> new LinkedHashMap<>());
+                for (Map.Entry<Integer, CadenceDto.CelluleCadence> e : ligne.cellules().entrySet()) {
+                    accSurv.merge(e.getKey(),
+                            new long[] { e.getValue().nb(),
+                                    e.getValue().montant().longValue() },
+                            (a, b) -> new long[] { a[0] + b[0], a[1] + b[1] });
+                }
+            }
+        }
+
+        List<CadenceDto.LigneCadence> lignes = new ArrayList<>();
+        for (int surv : periodes) {
+            Map<Integer, long[]> cellsForSurv = acc.getOrDefault(surv, Map.of());
+            Map<Integer, CadenceDto.CelluleCadence> cellules = new LinkedHashMap<>();
+            long totalNb = 0;
+            BigDecimal totalMt = BigDecimal.ZERO;
+
+            for (int pay : periodes) {
+                long[] val = cellsForSurv.getOrDefault(pay, new long[] { 0, 0 });
+                cellules.put(pay, new CadenceDto.CelluleCadence(
+                        val[0], BigDecimal.valueOf(val[1])));
+                totalNb += val[0];
+                totalMt = totalMt.add(BigDecimal.valueOf(val[1]));
+            }
+
+            long dec = decls.getOrDefault(surv, 0L);
+            double tx = dec > 0 ? (double) totalNb / dec : 0.0;
+            lignes.add(new CadenceDto.LigneCadence(
+                    surv, cellules, totalNb, totalMt, dec, tx));
+        }
+        return new CadenceDto.BlocCadence("TOTAL", null, lignes);
+    }
+
+    /**
+     * Triangle de cadence — survenance (date_accident) × encaissement
+     * (date_encaissement / date_reception).
+     *
+     * Réutilise la logique de cadence() mais sur la table encaissement.
+     */
+    public CadenceDto cadenceEncaissements(int anneeRef) {
+        int anneeMin = anneeRef - NB_PERIODES + 1;
+
+        List<Integer> periodes = new ArrayList<>();
+        for (int i = 0; i < NB_PERIODES; i++)
+            periodes.add(anneeRef - i);
+        periodes.add(-1);
+
+        List<Object[]> encPays = encaissementRepository.cadenceEncParPays(anneeMin);
+        List<Object[]> decPays = sinistreRepository.sinistresDeclaresParPays(anneeMin);
+        List<CadenceDto.BlocCadence> parPays = construireBlocsParPays(encPays, decPays, periodes);
+
+        List<Object[]> encComp = encaissementRepository.cadenceEncParCompagnie(anneeMin);
+        List<Object[]> decComp = sinistreRepository.sinistresDeclaresParCompagnie(anneeMin);
+        List<CadenceDto.BlocCadence> parCompagnie = construireBlocs(encComp, decComp, periodes, false);
+        parCompagnie = parCompagnie.stream()
+                .sorted((a, b) -> {
+                    if ("AUTRES".equals(a.label()))
+                        return 1;
+                    if ("AUTRES".equals(b.label()))
+                        return -1;
+                    return a.label().compareTo(b.label());
+                }).toList();
+
+        CadenceDto.BlocCadence total = aggregerTotal(parPays, periodes);
+
+        return new CadenceDto(anneeRef, periodes, periodes, total, parPays, parCompagnie);
+    }
+
+    private static final List<String> STATUTS_RECLAMATION = List.of(
+            "BON_A_PAYER", "ARBITRAGE", "PROBLEME_RC",
+            "ATTENTE_OFFRE", "ATTENTE_PIECES", "AUTRES");
+
+    public EtatReclamationDto etatReclamation() {
+        String dateArrete = LocalDate.now()
+                .format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+
+        return new EtatReclamationDto(
+                dateArrete,
+                construireEtat(dossierRepo.etatReclamationTogoVersHomologues()),
+                construireEtat(dossierRepo.etatReclamationHomologuesVersTogo()));
+    }
+
+    @SuppressWarnings("unused")
+    private EtatReclamationDto.EtatReclamation construireEtat(List<Object[]> rows) {
+
+        // Structure : pays → compagnie → statut → {nb, montant}
+        record Cle(String pays, String codePays, String compagnie) {
+        }
+        @SuppressWarnings("unused")
+        record Val(long nb, BigDecimal montant) {
+        }
+
+        // Accumulateurs
+        Map<Cle, Map<String, long[]>> acc = new LinkedHashMap<>();
+
+        for (Object[] r : rows) {
+            String pays = (String) r[0];
+            String code = (String) r[1];
+            String comp = (String) r[2];
+            String statut = (String) r[3];
+            long nb = toLong(r[4]);
+            BigDecimal mt = toBd(r[5]);
+
+            Cle cle = new Cle(pays, code, comp);
+            acc.computeIfAbsent(cle, k -> new LinkedHashMap<>())
+                    .merge(statut,
+                            new long[] { nb, mt.longValue() },
+                            (a, b) -> new long[] { a[0] + b[0], a[1] + b[1] });
+        }
+
+        // Construire les blocs par pays
+        Map<String, List<EtatReclamationDto.LigneCompagnie>> parPays = new LinkedHashMap<>();
+        Map<String, String> codesPays = new LinkedHashMap<>();
+
+        for (Map.Entry<Cle, Map<String, long[]>> entry : acc.entrySet()) {
+            Cle cle = entry.getKey();
+            codesPays.put(cle.pays(), cle.codePays());
+
+            Map<String, Long> nbParStatut = new LinkedHashMap<>();
+            Map<String, BigDecimal> mtParStatut = new LinkedHashMap<>();
+            long nbTotal = 0;
+            BigDecimal mtTotal = BigDecimal.ZERO;
+
+            for (String s : STATUTS_RECLAMATION) {
+                long[] val = entry.getValue().getOrDefault(s, new long[] { 0, 0 });
+                nbParStatut.put(s, val[0]);
+                mtParStatut.put(s, BigDecimal.valueOf(val[1]));
+                nbTotal += val[0];
+                mtTotal = mtTotal.add(BigDecimal.valueOf(val[1]));
+            }
+
+            parPays.computeIfAbsent(cle.pays(), k -> new ArrayList<>())
+                    .add(new EtatReclamationDto.LigneCompagnie(
+                            cle.compagnie(), nbTotal, mtTotal, nbParStatut, mtParStatut));
+        }
+
+        // Construire les blocs avec totaux par pays
+        List<EtatReclamationDto.BlocPays> blocs = new ArrayList<>();
+        for (Map.Entry<String, List<EtatReclamationDto.LigneCompagnie>> e : parPays.entrySet()) {
+            String pays = e.getKey();
+            List<EtatReclamationDto.LigneCompagnie> lignes = e.getValue();
+            blocs.add(new EtatReclamationDto.BlocPays(
+                    pays, codesPays.get(pays), lignes, totalLignes(lignes)));
+        }
+
+        // Total global
+        List<EtatReclamationDto.LigneCompagnie> toutes = blocs.stream().flatMap(b -> b.lignes().stream()).toList();
+
+        return new EtatReclamationDto.EtatReclamation(blocs, totalLignesGlobal(toutes));
+    }
+
+    // ─── Graphique Encaissements vs Paiements pluriannuel ─────────────
+
+    public GraphiqueEncPaiDto graphiqueEncPai(int anneeDebut, int anneeFin) {
+        List<Object[]> encRows = encaissementRepository.encaissementsParAnnee(anneeDebut, anneeFin);
+        List<Object[]> payRows = paiementRepository.paiementsParAnnee(anneeDebut, anneeFin);
+
+        Map<Integer, long[]> encNb = new HashMap<>();
+        Map<Integer, BigDecimal[]> encMt = new HashMap<>();
+        for (Object[] r : encRows) {
+            int a = ((Number) r[0]).intValue();
+            encNb.put(a, new long[] { toLong(r[1]) });
+            encMt.put(a, new BigDecimal[] { toBd(r[2]) });
+        }
+
+        Map<Integer, long[]> payNb = new HashMap<>();
+        Map<Integer, BigDecimal[]> payMt = new HashMap<>();
+        for (Object[] r : payRows) {
+            int a = ((Number) r[0]).intValue();
+            payNb.put(a, new long[] { toLong(r[1]) });
+            payMt.put(a, new BigDecimal[] { toBd(r[2]) });
+        }
+
+        List<LigneAnnuelle> series = new ArrayList<>();
+        for (int a = anneeDebut; a <= anneeFin; a++) {
+            series.add(new LigneAnnuelle(
+                    a,
+                    encNb.containsKey(a) ? encNb.get(a)[0] : 0L,
+                    encMt.containsKey(a) ? encMt.get(a)[0] : BigDecimal.ZERO,
+                    payNb.containsKey(a) ? payNb.get(a)[0] : 0L,
+                    payMt.containsKey(a) ? payMt.get(a)[0] : BigDecimal.ZERO));
+        }
+        return new GraphiqueEncPaiDto(anneeDebut, anneeFin, series);
+    }
+
+    private EtatReclamationDto.LigneCompagnie totalLignes(
+            List<EtatReclamationDto.LigneCompagnie> lignes) {
+        Map<String, Long> nbMap = new LinkedHashMap<>();
+        Map<String, BigDecimal> mtMap = new LinkedHashMap<>();
+        long nb = 0;
+        BigDecimal mt = BigDecimal.ZERO;
+        for (String s : STATUTS_RECLAMATION) {
+            long sumNb = lignes.stream().mapToLong(l -> l.nbParStatut().getOrDefault(s, 0L)).sum();
+            BigDecimal sumMt = lignes.stream()
+                    .map(l -> l.montantParStatut().getOrDefault(s, BigDecimal.ZERO))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            nbMap.put(s, sumNb);
+            mtMap.put(s, sumMt);
+            nb += sumNb;
+            mt = mt.add(sumMt);
+        }
+        return new EtatReclamationDto.LigneCompagnie("TOTAL", nb, mt, nbMap, mtMap);
+    }
+
+    private EtatReclamationDto.TotalGlobal totalLignesGlobal(
+            List<EtatReclamationDto.LigneCompagnie> lignes) {
+        EtatReclamationDto.LigneCompagnie t = totalLignes(lignes);
+        return new EtatReclamationDto.TotalGlobal(
+                t.nbTotal(), t.montantTotal(), t.nbParStatut(), t.montantParStatut());
+    }
+
+    // ── Helpers montants ─────────────────────────────────────────
+    private <T> BigDecimal sumBd(List<T> list,
+            java.util.function.Function<T, BigDecimal> fn) {
+        return list.stream().map(fn).filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private <T> long sumL(List<T> list,
+            java.util.function.ToLongFunction<T> fn) {
+        return list.stream().mapToLong(fn).sum();
     }
 
     // ─── Helpers ────────────────────────────────────────────────────

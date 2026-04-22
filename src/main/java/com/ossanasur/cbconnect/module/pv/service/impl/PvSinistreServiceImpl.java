@@ -10,9 +10,9 @@ import com.ossanasur.cbconnect.exception.BadRequestException;
 import com.ossanasur.cbconnect.exception.RessourceNotFoundException;
 import com.ossanasur.cbconnect.historique.PvSinistreVersioningService;
 import com.ossanasur.cbconnect.module.auth.repository.UtilisateurRepository;
-import com.ossanasur.cbconnect.module.ged.dto.request.UploadDocumentRequest;
-import com.ossanasur.cbconnect.module.ged.dto.response.DocumentGedResponse;
-import com.ossanasur.cbconnect.module.ged.service.OssanGedClientService;
+import com.ossanasur.cbconnect.module.ged.service.GedAttachmentService;
+import com.ossanasur.cbconnect.module.ged.service.GedAttachmentService.GedAttachmentRequest;
+import com.ossanasur.cbconnect.module.ged.service.GedAttachmentService.GedAttachmentResult;
 import com.ossanasur.cbconnect.module.pv.dto.request.PvSinistreRequest;
 import com.ossanasur.cbconnect.module.pv.dto.response.PvSinistreResponse;
 import com.ossanasur.cbconnect.module.pv.entity.PvSinistre;
@@ -58,7 +58,7 @@ public class PvSinistreServiceImpl implements PvSinistreService {
     private final UtilisateurRepository utilisateurRepository;
     private final PvSinistreVersioningService versioningService;
     private final PvSinistreMapper pvMapper;
-    private final OssanGedClientService gedService;
+    private final GedAttachmentService gedAttachment;
 
     @Value("${file.upload-dir:./uploads}")
     private String uploadBaseDir;
@@ -199,52 +199,51 @@ public class PvSinistreServiceImpl implements PvSinistreService {
     @Transactional
     public DataResponse<PvSinistreResponse> attacherDocument(UUID pvTrackingId, MultipartFile file, String titre,
             String typeDocument, String loginAuteur) {
-        if (file == null || file.isEmpty()) {
-            throw new BadRequestException("Le fichier est requis");
-        }
-        if (file.getSize() > MAX_FILE_SIZE_BYTES) {
-            throw new BadRequestException("Le fichier dépasse la taille maximale autorisée (20 Mo)");
-        }
 
         PvSinistre pv = pvRepository.findActiveByTrackingId(pvTrackingId)
                 .orElseThrow(() -> new RessourceNotFoundException("PV introuvable"));
 
+        if (pv.getSinistre() == null) {
+            // Sans sinistre associé on stocke localement uniquement
+            String relativePath = storeLocal(file, pvTrackingId);
+            applyLocalToPv(pv, file, relativePath, loginAuteur);
+            return DataResponse.created("PV enregistré (sinistre non associé — fichier en local)",
+                    pvMapper.toResponse(pvRepository.save(pv)));
+        }
+
         String titreFinal = (titre != null && !titre.isBlank()) ? titre : ("PV " + pv.getNumeroPv());
         TypeDocumentOssanGed typeGed = parseTypeDocument(typeDocument);
 
-        // 1) Tentative upload direct vers Ossan GED si le PV est rattaché à un sinistre.
-        if (pv.getSinistre() != null) {
-            try {
-                UploadDocumentRequest req = new UploadDocumentRequest(
-                        titreFinal, typeGed, pv.getDateReceptionBncb(),
-                        pv.getSinistre().getSinistreTrackingId(), null, null, null, null);
-                DataResponse<DocumentGedResponse> res = gedService.uploadDocument(file, req, loginAuteur);
-                if (res != null && res.getData() != null && res.getData().ossanGedDocumentId() != null) {
-                    pv.setOssanGedDocumentId(res.getData().ossanGedDocumentId());
-                    pv.setDocumentNomFichier(file.getOriginalFilename());
-                    pv.setDocumentMimeType(file.getContentType());
-                    pv.setDocumentTaille(file.getSize());
-                    pv.setDocumentUploadedAt(LocalDateTime.now());
-                    pv.setUpdatedBy(loginAuteur);
-                    return DataResponse.created("PV archivé dans la GED", pvMapper.toResponse(pvRepository.save(pv)));
-                }
-            } catch (Exception e) {
-                log.warn("Upload GED du PV {} échoué, bascule en stockage local : {}",
-                        pv.getNumeroPv(), e.getMessage());
-            }
-        }
+        GedAttachmentRequest req = new GedAttachmentRequest(
+                titreFinal, typeGed, pv.getDateReceptionBncb(),
+                pv.getSinistre().getSinistreTrackingId(),
+                null, null, null, MAX_FILE_SIZE_BYTES, "pv");
 
-        // 2) Fallback : stockage local (PV non associé OU GED indisponible).
-        String relativePath = storeLocal(file, pvTrackingId);
+        GedAttachmentResult r = gedAttachment.attacher(file, req, loginAuteur);
+
+        pv.setOssanGedDocumentId(r.ossanGedDocumentId());
+        pv.setOssanGedDocumentTrackingId(r.ossanGedDocumentTrackingId());
+        pv.setDocumentLocalPath(r.localFallbackPath());
+        pv.setDocumentNomFichier(r.nomFichier());
+        pv.setDocumentMimeType(r.mimeType());
+        pv.setDocumentTaille(r.taille());
+        pv.setDocumentUploadedAt(r.uploadedAt());
+        pv.setUpdatedBy(loginAuteur);
+
+        String message = r.gedDisponible()
+                ? "PV archivé dans OssanGED"
+                : "PV enregistré (document en attente de la GED)";
+        return DataResponse.created(message, pvMapper.toResponse(pvRepository.save(pv)));
+    }
+
+    /** Applique les métadonnées d'un stockage local au PV (cas où pas de sinistre associé). */
+    private void applyLocalToPv(PvSinistre pv, MultipartFile file, String relativePath, String loginAuteur) {
         pv.setDocumentLocalPath(relativePath);
         pv.setDocumentNomFichier(file.getOriginalFilename());
         pv.setDocumentMimeType(file.getContentType());
         pv.setDocumentTaille(file.getSize());
         pv.setDocumentUploadedAt(LocalDateTime.now());
         pv.setUpdatedBy(loginAuteur);
-
-        return DataResponse.created("PV enregistré (document en attente de la GED)",
-                pvMapper.toResponse(pvRepository.save(pv)));
     }
 
     private TypeDocumentOssanGed parseTypeDocument(String raw) {

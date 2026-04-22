@@ -13,6 +13,8 @@ public interface OssanGedClientService {
 
     DataResponse<DossierGedResponse> creerDossierVictime(UUID victimeId, String loginAuteur);
 
+    DataResponse<DossierGedResponse> creerDossierReclamation(UUID dossierReclamationId, String loginAuteur);
+
     DataResponse<DocumentGedResponse> uploadDocument(MultipartFile file, UploadDocumentRequest r, String loginAuteur);
 
     DataResponse<byte[]> telechargerDocument(Integer ossanGedDocumentId);
@@ -21,5 +23,5 @@ public interface OssanGedClientService {
 
     DataResponse<List<DocumentGedResponse>> listerDocumentsVictime(UUID victimeId);
 
-    void initTagsPaperless();
+    void initTagsOssanGed();
 }

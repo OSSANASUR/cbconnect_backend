@@ -2,6 +2,7 @@ package com.ossanasur.cbconnect.module.reclamation.entity;
 
 import com.ossanasur.cbconnect.common.entity.InternalHistorique;
 import com.ossanasur.cbconnect.common.enums.StatutDossierReclamation;
+import com.ossanasur.cbconnect.common.enums.StatutReclamation;
 import com.ossanasur.cbconnect.module.auth.entity.Utilisateur;
 import com.ossanasur.cbconnect.module.sinistre.entity.Sinistre;
 import com.ossanasur.cbconnect.module.sinistre.entity.Victime;
@@ -46,4 +47,14 @@ public class DossierReclamation extends InternalHistorique {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "redacteur_id")
     private Utilisateur redacteur;
+    /**
+     * Statut de réclamation par victime.
+     * Permet de distinguer l'état de chaque dossier indépendamment
+     * du statut global du sinistre.
+     * Ex : BAP pour une victime, ATTENTE_OFFRE pour une autre.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "statut_reclamation", length = 30)
+    @Builder.Default
+    private StatutReclamation statutReclamation = StatutReclamation.AUTRES;
 }

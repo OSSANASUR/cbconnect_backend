@@ -4,6 +4,8 @@ import com.ossanasur.cbconnect.common.enums.TypeOrganisme;
 import com.ossanasur.cbconnect.module.auth.dto.request.OrganismeRequest;
 import com.ossanasur.cbconnect.module.auth.dto.response.OrganismeResponse;
 import com.ossanasur.cbconnect.module.auth.service.OrganismeService;
+import com.ossanasur.cbconnect.security.dto.request.TwoFactorUpdateRequest;
+import com.ossanasur.cbconnect.security.dto.response.TwoFactorStatusResponse;
 import com.ossanasur.cbconnect.utils.DataResponse;
 import com.ossanasur.cbconnect.utils.PaginatedResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -73,6 +75,22 @@ public class OrganismeController {
             @PathVariable UUID trackingId,
             @AuthenticationPrincipal UserDetails user) {
         return ResponseEntity.ok(organismeService.delete(trackingId, user.getUsername()));
+    }
+
+    @GetMapping("/{trackingId}/two-factor")
+    @Operation(summary = "Statut de la double authentification d'un organisme")
+    public ResponseEntity<DataResponse<TwoFactorStatusResponse>> getTwoFactor(@PathVariable UUID trackingId) {
+        return ResponseEntity.ok(organismeService.getTwoFactor(trackingId));
+    }
+
+    @PutMapping("/{trackingId}/two-factor")
+    @Operation(summary = "Activer/desactiver la double authentification (habilitation ORGANISMES_2FA_MANAGE)")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SE')")
+    public ResponseEntity<DataResponse<TwoFactorStatusResponse>> updateTwoFactor(
+            @PathVariable UUID trackingId,
+            @Valid @RequestBody TwoFactorUpdateRequest request,
+            @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(organismeService.updateTwoFactor(trackingId, request.enabled(), user.getUsername()));
     }
 
     @GetMapping("/{trackingId}/historique")

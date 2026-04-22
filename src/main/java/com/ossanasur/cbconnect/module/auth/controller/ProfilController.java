@@ -77,7 +77,6 @@ public class ProfilController {
 
     @GetMapping("/{trackingId}/historique")
     @Operation(summary = "Historique des versions d'un profil")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PaginatedResponse<ProfilResponse>> historique(
             @PathVariable UUID trackingId,
             @RequestParam(defaultValue = "0") int page,

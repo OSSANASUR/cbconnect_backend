@@ -85,8 +85,13 @@ public class Organisme extends InternalHistorique {
     private boolean active = true;
 
     // Flag pour distinguer les organismes importés via reprise historique BNCB.
-    // Utile pour filtrer les rapports et compter les imports (voir RepriseService.getStatut).
+    // Utile pour filtrer les rapports et compter les imports (voir
+    // RepriseService.getStatut).
     @Column(name = "reprise_historique")
     @Builder.Default
     private boolean repriseHistorique = false;
+
+    @Column(name = "two_factor_enabled", nullable = false)
+    @Builder.Default
+    private boolean twoFactorEnabled = false;
 }

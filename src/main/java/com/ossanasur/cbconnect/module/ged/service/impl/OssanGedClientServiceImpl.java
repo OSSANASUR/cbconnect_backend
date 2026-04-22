@@ -2,6 +2,8 @@ package com.ossanasur.cbconnect.module.ged.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ossanasur.cbconnect.common.enums.StatutDossierReclamation;
+import com.ossanasur.cbconnect.common.enums.TypeDocumentOssanGed;
 import com.ossanasur.cbconnect.common.enums.TypeDossierOssanGed;
 import com.ossanasur.cbconnect.common.enums.TypeTable;
 import com.ossanasur.cbconnect.config.OssanGedConfig;
@@ -14,8 +16,13 @@ import com.ossanasur.cbconnect.module.ged.dto.response.DossierGedResponse;
 import com.ossanasur.cbconnect.module.ged.entity.OssanGedDocument;
 import com.ossanasur.cbconnect.module.ged.entity.OssanGedDossier;
 import com.ossanasur.cbconnect.module.ged.mapper.GedMapper;
+import com.ossanasur.cbconnect.module.ged.repository.OssanGedDocumentRepository;
 import com.ossanasur.cbconnect.module.ged.repository.OssanGedDossierRepository;
 import com.ossanasur.cbconnect.module.ged.service.OssanGedClientService;
+import com.ossanasur.cbconnect.module.reclamation.entity.DossierReclamation;
+import com.ossanasur.cbconnect.module.reclamation.repository.DossierReclamationRepository;
+import com.ossanasur.cbconnect.module.sinistre.entity.Sinistre;
+import com.ossanasur.cbconnect.module.sinistre.entity.Victime;
 import com.ossanasur.cbconnect.module.sinistre.repository.SinistreRepository;
 import com.ossanasur.cbconnect.module.sinistre.repository.VictimeRepository;
 import com.ossanasur.cbconnect.utils.DataResponse;
@@ -28,270 +35,414 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
- * Proxy Spring Boot vers l'API REST Paperless-ngx.
- * Le React frontend ne communique JAMAIS directement avec Paperless.
- * Tout transite par ces endpoints /v1/ged/**.
+ * Proxy Spring Boot vers OssanGED (moteur GED reconfiguré).
+ * Le frontend ne communique JAMAIS directement avec OssanGED.
+ *
+ * Hiérarchie des dossiers :
+ *   Sinistres/<ET|TE>/<NumeroSinistre>/<NOM_PRENOMS_Victime>/<NumeroDossierReclamation>/
+ *
+ * Création en cascade automatique à l'upload si un niveau manque.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class OssanGedClientServiceImpl implements OssanGedClientService {
 
-    private final OssanGedConfig paperlessConfig;
-    private final OkHttpClient httpClient;
+    private final OssanGedConfig ossanGedConfig;
+    private final OkHttpClient ossanGedHttpClient;
     private final ObjectMapper objectMapper;
     private final OssanGedDossierRepository dossierRepository;
+    private final OssanGedDocumentRepository documentRepository;
     private final SinistreRepository sinistreRepository;
     private final VictimeRepository victimeRepository;
     private final UtilisateurRepository utilisateurRepository;
+    private final DossierReclamationRepository dossierReclamationRepository;
     private final GedMapper gedMapper;
 
-    private String authToken; // Token Paperless conservé côté serveur uniquement
+    private String authToken;
+    private final Map<String, Integer> tagCache = new HashMap<>();
 
-    /** Récupère ou rafraîchit le token Paperless au démarrage */
+    // ── Init ──────────────────────────────────────────────────────────────────
+
     @PostConstruct
-    public void initToken() {
+    public void init() {
         try {
-            authToken = obtainPaperlessToken();
-            log.info("Token Paperless-ngx obtenu avec succès");
+            if (ossanGedConfig.getApiToken() != null && !ossanGedConfig.getApiToken().isBlank()) {
+                authToken = ossanGedConfig.getApiToken();
+                log.info("OssanGED : token API configuré via properties");
+            } else {
+                authToken = obtainToken();
+                log.info("OssanGED : token API obtenu par authentification");
+            }
+            chargerCacheTags();
         } catch (Exception e) {
-            log.warn("Paperless-ngx indisponible au démarrage : {}", e.getMessage());
+            log.warn("OssanGED indisponible au démarrage — mode dégradé actif : {}", e.getMessage());
         }
     }
 
-    /** Initialise les tags Paperless (idempotent, appelé au setup) */
     @Override
-    @PostConstruct
-    public void initTagsPaperless() {
-        if (authToken == null)
-            return;
-        String[] tags = { "PV", "CMI", "CMC", "EXPERTISE_MED", "EXPERTISE_AUTO", "CMI", "FACTURE_MED",
-                "FACTURE_RECLAMATION", "ORDONNANCE", "COURRIER", "ACTE_DECES", "SCOLARITE" };
-        for (String tag : tags) {
-            try {
-                createTagIfAbsent(tag);
-            } catch (Exception e) {
-                log.debug("Tag {} peut-etre existant : {}", tag, e.getMessage());
-            }
+    public void initTagsOssanGed() {
+        try {
+            chargerCacheTags();
+            log.info("OssanGED : cache des tags rechargé ({} tags)", tagCache.size());
+        } catch (Exception e) {
+            log.warn("Impossible de recharger le cache des tags OssanGED : {}", e.getMessage());
         }
     }
+
+    // ── Création de dossiers (publics) ────────────────────────────────────────
 
     @Override
     @Transactional
     public DataResponse<DossierGedResponse> creerDossierSinistre(UUID sinistreId, String loginAuteur) {
         var sinistre = sinistreRepository.findActiveByTrackingId(sinistreId)
-                .orElseThrow(() -> new RessourceNotFoundException("Sinistre introuvable"));
-
-        // Vérifier si dossier existe déjà
-        Optional<OssanGedDossier> existing = dossierRepository.findRootBySinistre(sinistreId);
-        if (existing.isPresent())
-            return DataResponse.success("Dossier GED existant", gedMapper.toDossierResponse(existing.get()));
-
-        String chemin = "BNCB/Sinistres/" + sinistre.getNumeroSinistreLocal();
-        Integer storagePathId = null;
-        try {
-            storagePathId = createStoragePath(chemin);
-        } catch (Exception e) {
-            log.warn("Paperless indisponible, creation dossier local seulement : {}", e.getMessage());
-        }
-
-        OssanGedDossier dossier = OssanGedDossier.builder()
-                .ossanGedDossierTrackingId(UUID.randomUUID())
-                .ossanGedStoragePathId(storagePathId)
-                .cheminStockage(chemin).titre(sinistre.getNumeroSinistreLocal())
-                .typeDossier(TypeDossierOssanGed.SINISTRE).sinistre(sinistre)
-                .createdBy(loginAuteur).activeData(true).deletedData(false)
-                .fromTable(TypeTable.OSSAN_GED_DOSSIER).build();
-        return DataResponse.created("Dossier GED cree", gedMapper.toDossierResponse(dossierRepository.save(dossier)));
+            .orElseThrow(() -> new RessourceNotFoundException("Sinistre introuvable"));
+        OssanGedDossier dossier = getOrCreateDossierSinistre(sinistre, loginAuteur);
+        return DataResponse.success("Dossier sinistre OssanGED", gedMapper.toDossierResponse(dossier));
     }
 
     @Override
     @Transactional
     public DataResponse<DossierGedResponse> creerDossierVictime(UUID victimeId, String loginAuteur) {
         var victime = victimeRepository.findActiveByTrackingId(victimeId)
-                .orElseThrow(() -> new RessourceNotFoundException("Victime introuvable"));
-
-        Optional<OssanGedDossier> existing = dossierRepository.findByVictime(victimeId);
-        if (existing.isPresent())
-            return DataResponse.success("Dossier GED existant", gedMapper.toDossierResponse(existing.get()));
-
-        // Trouver le dossier parent sinistre
-        OssanGedDossier parentDossier = null;
-        if (victime.getSinistre() != null) {
-            parentDossier = dossierRepository.findRootBySinistre(victime.getSinistre().getSinistreTrackingId())
-                    .orElse(null);
-        }
-
-        String nomVictime = victime.getNom().toUpperCase() + "-" + victime.getPrenoms().toUpperCase().replace(" ", "-");
-        String chemin = (parentDossier != null ? parentDossier.getCheminStockage() : "BNCB/Sinistres") + "/"
-                + nomVictime;
-
-        Integer correspondentId = null;
-        try {
-            correspondentId = createCorrespondent(nomVictime);
-        } catch (Exception e) {
-            log.warn("Impossible de créer le correspondent Paperless : {}", e.getMessage());
-        }
-
-        OssanGedDossier dossier = OssanGedDossier.builder()
-                .ossanGedDossierTrackingId(UUID.randomUUID())
-                .ossanGedCorrespondentId(correspondentId)
-                .cheminStockage(chemin).titre(nomVictime)
-                .typeDossier(TypeDossierOssanGed.VICTIME)
-                .sinistre(victime.getSinistre()).victime(victime)
-                .parentDossier(parentDossier)
-                .createdBy(loginAuteur).activeData(true).deletedData(false)
-                .fromTable(TypeTable.OSSAN_GED_DOSSIER).build();
-
-        // Mettre à jour l'ID paperless sur la victime
-        victime.setOssanGedCorrespondentId(correspondentId);
-        victimeRepository.save(victime);
-        return DataResponse.created("Dossier victime cree",
-                gedMapper.toDossierResponse(dossierRepository.save(dossier)));
+            .orElseThrow(() -> new RessourceNotFoundException("Victime introuvable"));
+        OssanGedDossier dossier = getOrCreateDossierVictime(victime, loginAuteur);
+        return DataResponse.success("Dossier victime OssanGED", gedMapper.toDossierResponse(dossier));
     }
 
     @Override
     @Transactional
-    public DataResponse<DocumentGedResponse> uploadDocument(MultipartFile file, UploadDocumentRequest r,
-            String loginAuteur) {
-        if (file.isEmpty())
-            throw new BadRequestException("Fichier vide");
-        OssanGedDossier dossier = null;
+    public DataResponse<DossierGedResponse> creerDossierReclamation(UUID dossierReclamationId, String loginAuteur) {
+        var dr = dossierReclamationRepository.findActiveByTrackingId(dossierReclamationId)
+            .orElseThrow(() -> new RessourceNotFoundException("Dossier de reclamation introuvable"));
+        OssanGedDossier dossier = getOrCreateDossierReclamation(dr, loginAuteur);
+        return DataResponse.success("Dossier reclamation OssanGED", gedMapper.toDossierResponse(dossier));
+    }
+
+    // ── Upload ────────────────────────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    public DataResponse<DocumentGedResponse> uploadDocument(MultipartFile file, UploadDocumentRequest r, String loginAuteur) {
+        if (file.isEmpty()) throw new BadRequestException("Fichier vide");
+        if (r.sinistreTrackingId() == null) throw new BadRequestException("sinistreTrackingId requis");
+
+        var sinistre = sinistreRepository.findActiveByTrackingId(r.sinistreTrackingId())
+            .orElseThrow(() -> new RessourceNotFoundException("Sinistre introuvable"));
+
+        OssanGedDossier dossier = getOrCreateDossierSinistre(sinistre, loginAuteur);
+        Victime victime = null;
+        DossierReclamation dr = null;
+
         if (r.victimeTrackingId() != null) {
-            dossier = dossierRepository.findByVictime(r.victimeTrackingId()).orElse(null);
-        }
-        if (dossier == null && r.sinistreTrackingId() != null) {
-            dossier = dossierRepository.findRootBySinistre(r.sinistreTrackingId()).orElse(null);
-        }
-        if (dossier == null)
-            throw new RessourceNotFoundException("Dossier GED introuvable, creer le dossier d abord");
+            victime = victimeRepository.findActiveByTrackingId(r.victimeTrackingId())
+                .orElseThrow(() -> new RessourceNotFoundException("Victime introuvable"));
+            dossier = getOrCreateDossierVictime(victime, loginAuteur);
 
-        Integer paperlessId = null;
-        // String checksum = null;
+            if (r.dossierReclamationTrackingId() != null) {
+                dr = dossierReclamationRepository.findActiveByTrackingId(r.dossierReclamationTrackingId())
+                    .orElseThrow(() -> new RessourceNotFoundException("Dossier reclamation introuvable"));
+            } else {
+                var list = dossierReclamationRepository.findByVictime(victime.getVictimeTrackingId());
+                dr = list.isEmpty() ? createDefaultDossierReclamation(sinistre, victime, loginAuteur) : list.get(0);
+            }
+            dossier = getOrCreateDossierReclamation(dr, loginAuteur);
+        }
+
+        List<Integer> tagIds = resolverTagsDocument(r.typeDocument(), sinistre, r.tagsExtra(), r.tagIds());
+
+        Integer ossanGedDocId = null;
         try {
-            paperlessId = uploadToPaperless(file, r.titre(), dossier.getOssanGedStoragePathId(), r.tagIds());
+            ossanGedDocId = uploadToOssanGed(file, r.titre(),
+                dossier.getOssanGedStoragePathId(),
+                dossier.getOssanGedCorrespondentId(),
+                tagIds);
+            log.info("Document uploade dans OssanGED : id={}, titre={}", ossanGedDocId, r.titre());
         } catch (Exception e) {
-            log.warn("Upload Paperless echoue, metadata locale uniquement : {}", e.getMessage());
+            log.warn("Upload OssanGED echoue, metadata locale uniquement : {}", e.getMessage());
         }
 
-        final OssanGedDossier finalDossier = dossier;
-        var sinistre = r.sinistreTrackingId() != null
-                ? sinistreRepository.findActiveByTrackingId(r.sinistreTrackingId()).orElse(null)
-                : null;
-        var victime = r.victimeTrackingId() != null
-                ? victimeRepository.findActiveByTrackingId(r.victimeTrackingId()).orElse(null)
-                : null;
         var uploader = utilisateurRepository.findByEmailAndActiveDataTrueAndDeletedDataFalse(loginAuteur).orElse(null);
 
         OssanGedDocument doc = OssanGedDocument.builder()
-                .ossanGedDocumentTrackingId(UUID.randomUUID())
-                .ossanGedDocumentId(paperlessId != null ? paperlessId : (int) (System.currentTimeMillis() % 100000))
-                .titre(r.titre()).typeDocument(r.typeDocument()).dateDocument(r.dateDocument())
-                .mimeType(file.getContentType()).dossier(finalDossier)
-                .sinistre(sinistre).victime(victime).uploadePar(uploader)
-                .createdBy(loginAuteur).activeData(true).deletedData(false)
-                .fromTable(TypeTable.OSSAN_GED_DOCUMENT).build();
-        // Note: PaperlessDocumentRepository injection needed here
-        return DataResponse.created("Document uploade", gedMapper.toDocumentResponse(doc));
+            .ossanGedDocumentTrackingId(UUID.randomUUID())
+            .ossanGedDocumentId(ossanGedDocId != null ? ossanGedDocId : (int) (System.currentTimeMillis() % 1_000_000))
+            .titre(r.titre())
+            .typeDocument(r.typeDocument())
+            .dateDocument(r.dateDocument())
+            .mimeType(file.getContentType())
+            .dossier(dossier)
+            .sinistre(sinistre)
+            .victime(victime)
+            .uploadePar(uploader)
+            .createdBy(loginAuteur).activeData(true).deletedData(false)
+            .fromTable(TypeTable.OSSAN_GED_DOCUMENT)
+            .build();
+
+        return DataResponse.created("Document indexe dans OssanGED",
+            gedMapper.toDocumentResponse(documentRepository.save(doc)));
     }
 
     @Override
     public DataResponse<byte[]> telechargerDocument(Integer ossanGedDocumentId) {
         try {
-            byte[] data = downloadFromPaperless(ossanGedDocumentId);
-            return DataResponse.success(data);
+            return DataResponse.success(downloadFromOssanGed(ossanGedDocumentId));
         } catch (Exception e) {
-            throw new RuntimeException("Impossible de télécharger le document Paperless : " + e.getMessage());
+            throw new RuntimeException("Impossible de telecharger depuis OssanGED : " + e.getMessage());
         }
     }
 
     @Override
     @Transactional(readOnly = true)
     public DataResponse<List<DocumentGedResponse>> listerDocumentsSinistre(UUID sinistreId) {
-        // TODO: query documents by sinistre via PaperlessDocumentRepository
-        return DataResponse.success(Collections.emptyList());
+        List<DocumentGedResponse> list = documentRepository.findBySinistre(sinistreId).stream()
+            .map(gedMapper::toDocumentResponse).collect(Collectors.toList());
+        return DataResponse.success(list);
     }
 
     @Override
     @Transactional(readOnly = true)
     public DataResponse<List<DocumentGedResponse>> listerDocumentsVictime(UUID victimeId) {
-        return DataResponse.success(Collections.emptyList());
+        List<DocumentGedResponse> list = documentRepository.findByVictime(victimeId).stream()
+            .map(gedMapper::toDocumentResponse).collect(Collectors.toList());
+        return DataResponse.success(list);
     }
 
-    // ── Méthodes privées HTTP vers Paperless-ngx ──────────────────────────────
+    // ── Get or create en cascade ──────────────────────────────────────────────
 
-    private String obtainPaperlessToken() throws IOException {
-        String url = paperlessConfig.getBaseUrl() + "/api/token/";
-        String json = "{\"username\":\"" + paperlessConfig.getUsername() + "\",\"password\":\""
-                + paperlessConfig.getPassword() + "\"}";
-        RequestBody body = RequestBody.create(json, MediaType.get("application/json"));
-        Request request = new Request.Builder().url(url).post(body).build();
-        try (Response response = httpClient.newCall(request).execute()) {
-            JsonNode node = objectMapper.readTree(response.body().string());
-            return node.get("token").asText();
+    private OssanGedDossier getOrCreateDossierSinistre(Sinistre sinistre, String loginAuteur) {
+        return dossierRepository.findRootBySinistre(sinistre.getSinistreTrackingId()).orElseGet(() -> {
+            String typeDir = "SURVENU_TOGO".equals(sinistre.getTypeSinistre().name()) ? "ET" : "TE";
+            String chemin = String.format("Sinistres/%s/%s", typeDir, sinistre.getNumeroSinistreLocal());
+            Integer storagePathId = tryCreateStoragePath(chemin);
+            OssanGedDossier d = OssanGedDossier.builder()
+                .ossanGedDossierTrackingId(UUID.randomUUID())
+                .ossanGedStoragePathId(storagePathId)
+                .cheminStockage(chemin)
+                .titre(sinistre.getNumeroSinistreLocal())
+                .typeDossier(TypeDossierOssanGed.SINISTRE)
+                .sinistre(sinistre)
+                .createdBy(loginAuteur).activeData(true).deletedData(false)
+                .fromTable(TypeTable.OSSAN_GED_DOSSIER).build();
+            return dossierRepository.save(d);
+        });
+    }
+
+    private OssanGedDossier getOrCreateDossierVictime(Victime victime, String loginAuteur) {
+        return dossierRepository.findByVictime(victime.getVictimeTrackingId()).orElseGet(() -> {
+            OssanGedDossier parent = victime.getSinistre() != null
+                ? getOrCreateDossierSinistre(victime.getSinistre(), loginAuteur) : null;
+            String nomVictime = victime.getNom().toUpperCase() + "_"
+                + victime.getPrenoms().replaceAll("\\s+", "_").toUpperCase();
+            String chemin = (parent != null ? parent.getCheminStockage() : "Sinistres") + "/" + nomVictime;
+            Integer correspondantId = tryCreateCorrespondent(nomVictime);
+            if (correspondantId != null) {
+                victime.setOssanGedCorrespondentId(correspondantId);
+                victimeRepository.save(victime);
+            }
+            OssanGedDossier d = OssanGedDossier.builder()
+                .ossanGedDossierTrackingId(UUID.randomUUID())
+                .ossanGedCorrespondentId(correspondantId)
+                .cheminStockage(chemin)
+                .titre(nomVictime)
+                .typeDossier(TypeDossierOssanGed.VICTIME)
+                .sinistre(victime.getSinistre())
+                .victime(victime)
+                .parentDossier(parent)
+                .createdBy(loginAuteur).activeData(true).deletedData(false)
+                .fromTable(TypeTable.OSSAN_GED_DOSSIER).build();
+            return dossierRepository.save(d);
+        });
+    }
+
+    private OssanGedDossier getOrCreateDossierReclamation(DossierReclamation dr, String loginAuteur) {
+        OssanGedDossier parent = getOrCreateDossierVictime(dr.getVictime(), loginAuteur);
+        return dossierRepository.findByParentAndTypeAndTitre(parent.getHistoriqueId(),
+                TypeDossierOssanGed.RECLAMATION, dr.getNumeroDossier())
+            .orElseGet(() -> {
+                String chemin = parent.getCheminStockage() + "/" + dr.getNumeroDossier();
+                Integer storagePathId = tryCreateStoragePath(chemin);
+                OssanGedDossier d = OssanGedDossier.builder()
+                    .ossanGedDossierTrackingId(UUID.randomUUID())
+                    .ossanGedStoragePathId(storagePathId)
+                    .cheminStockage(chemin)
+                    .titre(dr.getNumeroDossier())
+                    .typeDossier(TypeDossierOssanGed.RECLAMATION)
+                    .sinistre(dr.getSinistre())
+                    .victime(dr.getVictime())
+                    .parentDossier(parent)
+                    .createdBy(loginAuteur).activeData(true).deletedData(false)
+                    .fromTable(TypeTable.OSSAN_GED_DOSSIER).build();
+                return dossierRepository.save(d);
+            });
+    }
+
+    private DossierReclamation createDefaultDossierReclamation(Sinistre sinistre, Victime victime, String loginAuteur) {
+        long count = dossierReclamationRepository.count() + 1;
+        String numero = "REC-" + LocalDate.now().getYear() + "-" + String.format("%05d", count);
+        DossierReclamation d = DossierReclamation.builder()
+            .dossierTrackingId(UUID.randomUUID())
+            .numeroDossier(numero)
+            .dateOuverture(LocalDate.now())
+            .statut(StatutDossierReclamation.OUVERT)
+            .montantTotalReclame(BigDecimal.ZERO)
+            .montantTotalRetenu(BigDecimal.ZERO)
+            .sinistre(sinistre)
+            .victime(victime)
+            .createdBy(loginAuteur).activeData(true).deletedData(false)
+            .fromTable(TypeTable.DOSSIER_RECLAMATION).build();
+        return dossierReclamationRepository.save(d);
+    }
+
+    // ── Résolution des tags OssanGED ──────────────────────────────────────────
+
+    private List<Integer> resolverTagsDocument(TypeDocumentOssanGed typeDoc, Sinistre sinistre,
+                                               List<String> tagsExtra, List<Integer> tagIdsExplicites) {
+        List<Integer> ids = new ArrayList<>();
+
+        Integer enAttente = tagCache.get("EN_ATTENTE");
+        if (enAttente != null) ids.add(enAttente);
+
+        if (typeDoc != null) {
+            Integer t = tagCache.get(typeDoc.name());
+            if (t != null) ids.add(t);
         }
+
+        if (sinistre != null) {
+            String tag = "SURVENU_TOGO".equals(sinistre.getTypeSinistre().name()) ? "SINISTRE_ET" : "SINISTRE_TE";
+            Integer t = tagCache.get(tag);
+            if (t != null) ids.add(t);
+        }
+
+        if (tagsExtra != null) {
+            for (String name : tagsExtra) {
+                Integer t = tagCache.get(name);
+                if (t != null) ids.add(t);
+            }
+        }
+
+        if (tagIdsExplicites != null) ids.addAll(tagIdsExplicites);
+
+        return ids.stream().distinct().collect(Collectors.toList());
+    }
+
+    // ── HTTP OssanGED ─────────────────────────────────────────────────────────
+
+    private String obtainToken() throws IOException {
+        String url = ossanGedConfig.getBaseUrl() + "/api/token/";
+        String json = String.format("{\"username\":\"%s\",\"password\":\"%s\"}",
+            ossanGedConfig.getUsername(), ossanGedConfig.getPassword());
+        Request req = new Request.Builder().url(url)
+            .post(RequestBody.create(json, MediaType.get("application/json"))).build();
+        try (Response res = ossanGedHttpClient.newCall(req).execute()) {
+            if (!res.isSuccessful()) throw new IOException("OssanGED auth failed: " + res.code());
+            return objectMapper.readTree(res.body().string()).get("token").asText();
+        }
+    }
+
+    private void chargerCacheTags() throws IOException {
+        if (authToken == null) return;
+        String url = ossanGedConfig.getBaseUrl() + "/api/tags/?page_size=200";
+        Request req = new Request.Builder().url(url)
+            .header("Authorization", "Token " + authToken).get().build();
+        try (Response res = ossanGedHttpClient.newCall(req).execute()) {
+            if (!res.isSuccessful()) return;
+            JsonNode root = objectMapper.readTree(res.body().string());
+            JsonNode results = root.get("results");
+            if (results != null && results.isArray()) {
+                tagCache.clear();
+                results.forEach(t -> tagCache.put(t.get("name").asText(), t.get("id").asInt()));
+            }
+        }
+    }
+
+    private Integer tryCreateStoragePath(String path) {
+        try { return createStoragePath(path); }
+        catch (Exception e) { log.warn("OssanGED storage_path indispo ({}): {}", path, e.getMessage()); return null; }
+    }
+
+    private Integer tryCreateCorrespondent(String name) {
+        try { return createCorrespondent(name); }
+        catch (Exception e) { log.warn("OssanGED correspondent indispo ({}): {}", name, e.getMessage()); return null; }
     }
 
     private Integer createStoragePath(String path) throws IOException {
-        String url = paperlessConfig.getBaseUrl() + "/api/storage_paths/";
-        String json = "{\"path\":\"" + path + "\",\"name\":\"" + path + "\"}";
-        return callPaperlessPost(url, json, "id");
+        String search = ossanGedConfig.getBaseUrl() + "/api/storage_paths/?name="
+            + URLEncoder.encode(path, StandardCharsets.UTF_8);
+        Integer existing = findByName(search);
+        if (existing != null) return existing;
+        String json = String.format("{\"name\":\"%s\",\"path\":\"%s\"}", path, path);
+        return postJson("/api/storage_paths/", json);
     }
 
     private Integer createCorrespondent(String name) throws IOException {
-        String url = paperlessConfig.getBaseUrl() + "/api/correspondents/";
-        String json = "{\"name\":\"" + name + "\"}";
-        return callPaperlessPost(url, json, "id");
+        String search = ossanGedConfig.getBaseUrl() + "/api/correspondents/?name="
+            + URLEncoder.encode(name, StandardCharsets.UTF_8);
+        Integer existing = findByName(search);
+        if (existing != null) return existing;
+        String json = String.format("{\"name\":\"%s\"}", name);
+        return postJson("/api/correspondents/", json);
     }
 
-    private void createTagIfAbsent(String name) throws IOException {
-        String url = paperlessConfig.getBaseUrl() + "/api/tags/";
-        String json = "{\"name\":\"" + name + "\",\"color\":\"#2E75B6\"}";
-        callPaperlessPost(url, json, "id");
+    private Integer findByName(String url) throws IOException {
+        Request req = new Request.Builder().url(url)
+            .header("Authorization", "Token " + authToken).get().build();
+        try (Response res = ossanGedHttpClient.newCall(req).execute()) {
+            if (!res.isSuccessful()) return null;
+            JsonNode root = objectMapper.readTree(res.body().string());
+            if (root.get("count").asInt() > 0) return root.get("results").get(0).get("id").asInt();
+            return null;
+        }
     }
 
-    private Integer uploadToPaperless(MultipartFile file, String title, Integer storagePathId, List<Integer> tagIds)
-            throws IOException {
-        String url = paperlessConfig.getBaseUrl() + "/api/documents/post_document/";
+    private Integer postJson(String path, String json) throws IOException {
+        String url = ossanGedConfig.getBaseUrl() + path;
+        Request req = new Request.Builder().url(url)
+            .header("Authorization", "Token " + authToken)
+            .post(RequestBody.create(json, MediaType.get("application/json"))).build();
+        try (Response res = ossanGedHttpClient.newCall(req).execute()) {
+            String body = res.body().string();
+            if (!res.isSuccessful()) throw new IOException("OssanGED POST " + path + " erreur " + res.code() + ": " + body);
+            return objectMapper.readTree(body).get("id").asInt();
+        }
+    }
+
+    private Integer uploadToOssanGed(MultipartFile file, String titre, Integer storagePathId,
+                                     Integer correspondantId, List<Integer> tagIds) throws IOException {
+        String url = ossanGedConfig.getBaseUrl() + "/api/documents/post_document/";
         MultipartBody.Builder builder = new MultipartBody.Builder().setType(MultipartBody.FORM)
-                .addFormDataPart("document", file.getOriginalFilename(),
-                        RequestBody.create(file.getBytes(),
-                                MediaType.get(file.getContentType() != null ? file.getContentType()
-                                        : "application/octet-stream")))
-                .addFormDataPart("title", title);
-        if (storagePathId != null)
-            builder.addFormDataPart("storage_path", storagePathId.toString());
-        if (tagIds != null)
-            tagIds.forEach(t -> builder.addFormDataPart("tags", t.toString()));
-        Request request = new Request.Builder().url(url)
-                .header("Authorization", "Token " + authToken).post(builder.build()).build();
-        try (Response response = httpClient.newCall(request).execute()) {
-            String responseBody = response.body().string();
-            if (!response.isSuccessful())
-                throw new IOException("Paperless upload error " + response.code() + ": " + responseBody);
-            return objectMapper.readTree(responseBody).get("id").asInt();
+            .addFormDataPart("document", file.getOriginalFilename(),
+                RequestBody.create(file.getBytes(),
+                    MediaType.get(file.getContentType() != null ? file.getContentType() : "application/octet-stream")))
+            .addFormDataPart("title", titre);
+        if (storagePathId != null)  builder.addFormDataPart("storage_path", storagePathId.toString());
+        if (correspondantId != null) builder.addFormDataPart("correspondent", correspondantId.toString());
+        if (tagIds != null) tagIds.forEach(t -> builder.addFormDataPart("tags", t.toString()));
+        Request req = new Request.Builder().url(url)
+            .header("Authorization", "Token " + authToken).post(builder.build()).build();
+        try (Response res = ossanGedHttpClient.newCall(req).execute()) {
+            String body = res.body().string();
+            if (!res.isSuccessful()) throw new IOException("OssanGED upload erreur " + res.code() + ": " + body);
+            JsonNode node = objectMapper.readTree(body);
+            return node.isInt() ? node.asInt() : (node.get("id") != null ? node.get("id").asInt() : null);
         }
     }
 
-    private byte[] downloadFromPaperless(Integer documentId) throws IOException {
-        String url = paperlessConfig.getBaseUrl() + "/api/documents/" + documentId + "/download/";
-        Request request = new Request.Builder().url(url).header("Authorization", "Token " + authToken).get().build();
-        try (Response response = httpClient.newCall(request).execute()) {
-            if (!response.isSuccessful())
-                throw new IOException("Download failed: " + response.code());
-            return response.body().bytes();
-        }
-    }
-
-    private Integer callPaperlessPost(String url, String json, String idField) throws IOException {
-        RequestBody body = RequestBody.create(json, MediaType.get("application/json"));
-        Request request = new Request.Builder().url(url)
-                .header("Authorization", "Token " + authToken).post(body).build();
-        try (Response response = httpClient.newCall(request).execute()) {
-            return objectMapper.readTree(response.body().string()).get(idField).asInt();
+    private byte[] downloadFromOssanGed(Integer documentId) throws IOException {
+        String url = ossanGedConfig.getBaseUrl() + "/api/documents/" + documentId + "/download/";
+        Request req = new Request.Builder().url(url)
+            .header("Authorization", "Token " + authToken).get().build();
+        try (Response res = ossanGedHttpClient.newCall(req).execute()) {
+            if (!res.isSuccessful()) throw new IOException("OssanGED download erreur " + res.code());
+            return res.body().bytes();
         }
     }
 }

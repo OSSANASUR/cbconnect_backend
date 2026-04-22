@@ -51,6 +51,17 @@ public class PvSinistre extends InternalHistorique {
     private String remarques;
     @Column(name = "ossan_ged_document_id")
     private Integer ossanGedDocumentId;
+    @Column(name = "ossan_ged_document_tracking_id")
+    private java.util.UUID ossanGedDocumentTrackingId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "entite_constat_id", nullable = false)
+    private EntiteConstat entiteConstat;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sinistre_id")
+    private Sinistre sinistre;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "enregistre_par_id", nullable = false)
+    private Utilisateur enregistrePar;
 
     // ─── Stockage local en attendant la mise en service de la GED ───
     @Column(name = "document_local_path", length = 512)
@@ -67,15 +78,6 @@ public class PvSinistre extends InternalHistorique {
 
     @Column(name = "document_uploaded_at")
     private LocalDateTime documentUploadedAt;
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "entite_constat_id", nullable = false)
-    private EntiteConstat entiteConstat;
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sinistre_id")
-    private Sinistre sinistre;
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "enregistre_par_id", nullable = false)
-    private Utilisateur enregistrePar;
 
     @PrePersist
     @PreUpdate

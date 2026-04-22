@@ -23,6 +23,13 @@ public class OTP extends InternalHistorique {
     private LocalDateTime expiresAt;
     private boolean used;
     private String purpose; // LOGIN, RESET_PASSWORD, ACCOUNT_ACTIVATION
+
+    @Column(nullable = false)
+    private int attempts;
+
+    @Column(name = "last_sent_at")
+    private LocalDateTime lastSentAt;
+
     @ManyToOne
     @JoinColumn(name = "utilisateur_id", nullable = false)
     private Utilisateur utilisateur;

@@ -22,7 +22,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/v1/ged")
 @RequiredArgsConstructor
-@Tag(name = "OssanGed", description = "Proxy Spring Boot vers Ossan GED (le frontend ne communique jamais directement avec Ossan GED)")
+@Tag(name = "OssanGED by OSSANASUR", description = "Proxy Spring Boot vers OssanGED (le frontend ne communique jamais directement avec OssanGED)")
 @SecurityRequirement(name = "bearerAuth")
 public class GedController {
     private final OssanGedClientService gedService;

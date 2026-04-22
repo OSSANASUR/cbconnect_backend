@@ -10,5 +10,9 @@ public enum TypeParametre {
      * Liste de valeurs paramétrables (professions, marques véhicules, etc.)
      * Convention clé : {CATEGORIE}.{CODE} ex: PROFESSION.MEDECIN
      */
-    LISTE
+    LISTE,
+    /** Configuration mail (footer, URLs, identite emetteur) */
+    MAIL,
+    /** Parametres systeme (TTL, durees, flags techniques) */
+    SYSTEM
 }

@@ -2,6 +2,8 @@ package com.ossanasur.cbconnect.module.auth.controller;
 
 import com.ossanasur.cbconnect.module.auth.service.UtilisateurService;
 import com.ossanasur.cbconnect.security.dto.request.LoginRequest;
+import com.ossanasur.cbconnect.security.dto.request.OtpResendRequest;
+import com.ossanasur.cbconnect.security.dto.request.OtpVerifyRequest;
 import com.ossanasur.cbconnect.security.dto.response.LoginResponse;
 import com.ossanasur.cbconnect.utils.DataResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,6 +25,19 @@ public class AuthController {
     @Operation(summary = "Connexion a CBConnect")
     public ResponseEntity<DataResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(utilisateurService.login(request));
+    }
+
+    @PostMapping("/verify-otp")
+    @Operation(summary = "Verifier le code OTP de connexion (2FA)")
+    public ResponseEntity<DataResponse<LoginResponse>> verifyOtp(@Valid @RequestBody OtpVerifyRequest request) {
+        return ResponseEntity.ok(utilisateurService.verifyOtpAndIssueTokens(
+                request.otpTrackingId(), request.code(), false));
+    }
+
+    @PostMapping("/resend-otp")
+    @Operation(summary = "Renvoyer un nouveau code OTP (cooldown 60s)")
+    public ResponseEntity<DataResponse<LoginResponse>> resendOtp(@Valid @RequestBody OtpResendRequest request) {
+        return ResponseEntity.ok(utilisateurService.resendLoginOtp(request.otpTrackingId()));
     }
 
     @PostMapping("/logout")

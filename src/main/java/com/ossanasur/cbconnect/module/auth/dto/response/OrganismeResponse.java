@@ -6,5 +6,5 @@ public record OrganismeResponse(
     String code, String email, String responsable, List<String> contacts,
     String codePays, String codePaysBCB, Integer paysId,
     LocalDate dateCreation, String numeroAgrement, String apiEndpointUrl,
-    boolean active, LocalDateTime createdAt
+    boolean active, boolean twoFactorEnabled, LocalDateTime createdAt
 ) {}

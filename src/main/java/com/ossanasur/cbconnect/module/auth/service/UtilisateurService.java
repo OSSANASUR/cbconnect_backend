@@ -15,5 +15,7 @@ public interface UtilisateurService {
     DataResponse<Void> changerPassword(UUID trackingId, ChangePasswordRequest request, String loginAuteur);
     DataResponse<Void> activerCompte(String verificationCode);
     DataResponse<LoginResponse> login(LoginRequest request);
+    DataResponse<LoginResponse> verifyOtpAndIssueTokens(UUID otpTrackingId, String code, boolean isMobile);
+    DataResponse<LoginResponse> resendLoginOtp(UUID otpTrackingId);
     DataResponse<Void> logout(String token);
 }

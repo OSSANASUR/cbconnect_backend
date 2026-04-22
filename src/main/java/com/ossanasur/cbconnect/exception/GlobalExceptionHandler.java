@@ -5,6 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -49,10 +51,44 @@ public class GlobalExceptionHandler {
                 new DataResponse<>(new Date(), false, "Action non autorisee : " + ex.getMessage(), 403, null));
     }
 
+    @ExceptionHandler({AccessDeniedException.class, AuthorizationDeniedException.class})
+    public ResponseEntity<DataResponse<Void>> handleAccessDenied(Exception ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+                new DataResponse<>(new Date(), false,
+                        "Accès refusé : vous ne disposez pas de l'habilitation nécessaire pour effectuer cette action.",
+                        403, null));
+    }
+
     @ExceptionHandler(LockedAccountException.class)
     public ResponseEntity<DataResponse<Void>> handleLockedAccount(LockedAccountException ex) {
         return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE).body(
                 new DataResponse<>(new Date(), false, "Compte bloque : " + ex.getMessage(), 406, null));
+    }
+
+    @ExceptionHandler(OtpExpiredException.class)
+    public ResponseEntity<DataResponse<Void>> handleOtpExpired(OtpExpiredException ex) {
+        return ResponseEntity.status(HttpStatus.GONE).body(
+                new DataResponse<>(new Date(), false, ex.getMessage(), 410, null));
+    }
+
+    @ExceptionHandler(OtpInvalidCodeException.class)
+    public ResponseEntity<DataResponse<java.util.Map<String, Object>>> handleOtpInvalid(OtpInvalidCodeException ex) {
+        java.util.Map<String, Object> details = java.util.Map.of("attemptsRemaining", ex.getAttemptsRemaining());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                new DataResponse<>(new Date(), false, ex.getMessage(), 400, details));
+    }
+
+    @ExceptionHandler(OtpMaxAttemptsException.class)
+    public ResponseEntity<DataResponse<Void>> handleOtpMaxAttempts(OtpMaxAttemptsException ex) {
+        return ResponseEntity.status(HttpStatus.LOCKED).body(
+                new DataResponse<>(new Date(), false, ex.getMessage(), 423, null));
+    }
+
+    @ExceptionHandler(OtpResendCooldownException.class)
+    public ResponseEntity<DataResponse<java.util.Map<String, Object>>> handleOtpCooldown(OtpResendCooldownException ex) {
+        java.util.Map<String, Object> details = java.util.Map.of("secondsRemaining", ex.getSecondsRemaining());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
+                new DataResponse<>(new Date(), false, ex.getMessage(), 429, details));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -9,6 +9,7 @@ import com.ossanasur.cbconnect.module.auth.entity.Organisme;
 import com.ossanasur.cbconnect.module.auth.mapper.OrganismeMapper;
 import com.ossanasur.cbconnect.module.auth.repository.OrganismeRepository;
 import com.ossanasur.cbconnect.module.auth.service.OrganismeService;
+import com.ossanasur.cbconnect.security.dto.response.TwoFactorStatusResponse;
 import com.ossanasur.cbconnect.utils.DataResponse;
 import com.ossanasur.cbconnect.utils.PaginatedResponse;
 import lombok.RequiredArgsConstructor;
@@ -94,5 +95,26 @@ public class OrganismeServiceImpl implements OrganismeService {
                 .findHistoryByTrackingId(id, PageRequest.of(page, size))
                 .map(organismeMapper::toResponse);
         return PaginatedResponse.fromPage(history, "Historique organisme");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DataResponse<TwoFactorStatusResponse> getTwoFactor(UUID trackingId) {
+        Organisme o = versioningService.getActiveVersion(trackingId);
+        return DataResponse.success(new TwoFactorStatusResponse(o.isTwoFactorEnabled()));
+    }
+
+    @Override
+    @Transactional
+    public DataResponse<TwoFactorStatusResponse> updateTwoFactor(UUID trackingId, boolean enabled, String loginAuteur) {
+        Organisme o = versioningService.getActiveVersion(trackingId);
+        o.setTwoFactorEnabled(enabled);
+        o.setUpdatedBy(loginAuteur);
+        o.setUpdatedAt(java.time.LocalDateTime.now());
+        organismeRepository.save(o);
+        String msg = enabled
+                ? "Double authentification activée pour l'organisme"
+                : "Double authentification désactivée pour l'organisme";
+        return DataResponse.success(msg, new TwoFactorStatusResponse(enabled));
     }
 }

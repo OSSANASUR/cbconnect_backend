@@ -76,4 +76,8 @@ public class Organisme extends InternalHistorique {
     @Column(name = "reprise_historique")
     @Builder.Default
     private boolean repriseHistorique = false;
+
+    @Column(name = "two_factor_enabled", nullable = false)
+    @Builder.Default
+    private boolean twoFactorEnabled = false;
 }

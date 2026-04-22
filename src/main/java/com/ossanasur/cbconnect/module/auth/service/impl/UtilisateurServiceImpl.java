@@ -19,6 +19,7 @@ import com.ossanasur.cbconnect.security.dto.response.UserInfoResponse;
 import com.ossanasur.cbconnect.security.entity.Passwords;
 import com.ossanasur.cbconnect.security.repository.PasswordRepository;
 import com.ossanasur.cbconnect.security.service.JwtService;
+import com.ossanasur.cbconnect.security.service.TwoFactorAuthService;
 import com.ossanasur.cbconnect.utils.DataResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -40,6 +41,7 @@ public class UtilisateurServiceImpl implements UtilisateurService {
     private final UtilisateurMapper utilisateurMapper;
     private final UtilisateurVersioningService versioningService;
     private final JwtService jwtService;
+    private final TwoFactorAuthService twoFactorAuthService;
     private final BCryptPasswordEncoder passwordEncoder;
 
     @Override
@@ -144,11 +146,47 @@ public class UtilisateurServiceImpl implements UtilisateurService {
         Passwords pwd = passwordRepository.findActiveByUtilisateurTrackingId(u.getUtilisateurTrackingId());
         if (pwd == null || !passwordEncoder.matches(r.password(), pwd.getPassword()))
             throw new BadRequestException("Identifiants incorrects");
+
+        boolean orgRequires2FA = u.getProfil() != null
+                && u.getProfil().getOrganisme() != null
+                && u.getProfil().getOrganisme().isTwoFactorEnabled();
+
+        if (orgRequires2FA) {
+            var result = twoFactorAuthService.generateAndSendOtp(u);
+            return DataResponse.success("Code OTP envoyé",
+                    LoginResponse.requires2FA(result.otpTrackingId(), result.maskedEmail()));
+        }
+
         Map<String, Object> tokens = jwtService.generateTokens(u, r.isMobile());
-        UserInfoResponse info = new UserInfoResponse(
+        return DataResponse.success("Connexion reussie", LoginResponse.direct(tokens, buildUserInfo(u)));
+    }
+
+    @Override
+    @Transactional
+    public DataResponse<LoginResponse> verifyOtpAndIssueTokens(UUID otpTrackingId, String code, boolean isMobile) {
+        Utilisateur u = twoFactorAuthService.verifyOtp(otpTrackingId, code);
+        Map<String, Object> tokens = jwtService.generateTokens(u, isMobile);
+        return DataResponse.success("Authentification réussie", LoginResponse.direct(tokens, buildUserInfo(u)));
+    }
+
+    @Override
+    @Transactional
+    public DataResponse<LoginResponse> resendLoginOtp(UUID otpTrackingId) {
+        var result = twoFactorAuthService.resendOtp(otpTrackingId);
+        return DataResponse.success("Nouveau code envoyé",
+                LoginResponse.requires2FA(result.otpTrackingId(), result.maskedEmail()));
+    }
+
+    private UserInfoResponse buildUserInfo(Utilisateur u) {
+        var org = (u.getProfil() != null) ? u.getProfil().getOrganisme() : null;
+        boolean orgTwoFactor = org != null && org.isTwoFactorEnabled();
+        return new UserInfoResponse(
                 u.getUtilisateurTrackingId(), u.getNom(), u.getPrenoms(), u.getEmail(),
-                u.getProfil() != null ? u.getProfil().getProfilNom() : null, u.isMustChangePassword());
-        return DataResponse.success("Connexion reussie", new LoginResponse(tokens, info));
+                u.getProfil() != null ? u.getProfil().getProfilNom() : null,
+                u.isMustChangePassword(),
+                orgTwoFactor,
+                org != null ? org.getOrganismeTrackingId() : null,
+                org != null ? org.getRaisonSociale() : null);
     }
 
     @Override

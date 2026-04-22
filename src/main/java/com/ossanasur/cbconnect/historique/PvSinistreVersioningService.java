@@ -23,10 +23,13 @@ public class PvSinistreVersioningService extends AbstractVersioningService<PvSin
         if(r.dateAccidentPv()!=null) u.setDateAccidentPv(r.dateAccidentPv());
         if(r.dateReceptionBncb()!=null) u.setDateReceptionBncb(r.dateReceptionBncb());
         if(r.provenance()!=null) u.setProvenance(r.provenance());
+        if(r.detailProvenance()!=null) u.setDetailProvenance(r.detailProvenance());
+        if(r.sensCirculation()!=null) u.setSensCirculation(r.sensCirculation());
         if(r.aCirconstances()!=null) u.setACirconstances(r.aCirconstances());
         if(r.aAuditions()!=null) u.setAAuditions(r.aAuditions());
         if(r.aCroquis()!=null) u.setACroquis(r.aCroquis());
         if(r.remarques()!=null) u.setRemarques(r.remarques());
+        if(r.referenceSinistreLiee()!=null) u.setReferenceSinistreLiee(r.referenceSinistreLiee());
         if(r.entiteConstatTrackingId()!=null) entiteConstatRepository.findActiveByTrackingId(r.entiteConstatTrackingId()).ifPresent(u::setEntiteConstat);
         if(r.sinistreTrackingId()!=null) sinistreRepository.findActiveByTrackingId(r.sinistreTrackingId()).ifPresent(u::setSinistre);
         return u;

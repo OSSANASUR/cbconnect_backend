@@ -25,6 +25,22 @@ public interface SinistreRepository extends JpaRepository<Sinistre, Integer> {
         @Query("SELECT s FROM Sinistre s WHERE s.activeData=true AND s.deletedData=false ORDER BY s.dateDeclaration DESC")
         Page<Sinistre> findAllActive(Pageable pageable);
 
+        @Query("SELECT s FROM Sinistre s "
+                        + "LEFT JOIN s.assure a "
+                        + "WHERE s.activeData=true AND s.deletedData=false "
+                        + "  AND ("
+                        + "       LOWER(s.numeroSinistreLocal)     LIKE LOWER(CONCAT('%', :q, '%')) "
+                        + "    OR LOWER(s.numeroSinistreManuel)    LIKE LOWER(CONCAT('%', :q, '%')) "
+                        + "    OR LOWER(s.numeroSinistreHomologue) LIKE LOWER(CONCAT('%', :q, '%')) "
+                        + "    OR LOWER(a.nomAssure)               LIKE LOWER(CONCAT('%', :q, '%')) "
+                        + "    OR LOWER(a.prenomAssure)            LIKE LOWER(CONCAT('%', :q, '%')) "
+                        + "    OR LOWER(a.nomComplet)              LIKE LOWER(CONCAT('%', :q, '%')) "
+                        + "    OR LOWER(a.immatriculation)         LIKE LOWER(CONCAT('%', :q, '%')) "
+                        + "    OR LOWER(a.numeroPolice)            LIKE LOWER(CONCAT('%', :q, '%')) "
+                        + "  ) "
+                        + "ORDER BY s.dateDeclaration DESC")
+        Page<Sinistre> search(@Param("q") String query, Pageable pageable);
+
         @Query("SELECT s FROM Sinistre s WHERE s.statut=:statut AND s.activeData=true AND s.deletedData=false ORDER BY s.dateDeclaration DESC")
         List<Sinistre> findAllByStatut(@Param("statut") StatutSinistre statut);
 

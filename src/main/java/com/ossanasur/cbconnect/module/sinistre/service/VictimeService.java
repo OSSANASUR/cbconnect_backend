@@ -1,4 +1,5 @@
 package com.ossanasur.cbconnect.module.sinistre.service;
+import com.ossanasur.cbconnect.module.sinistre.dto.request.ActionRcRequest;
 import com.ossanasur.cbconnect.module.sinistre.dto.request.VictimeRequest;
 import com.ossanasur.cbconnect.module.sinistre.dto.response.VictimeResponse;
 import com.ossanasur.cbconnect.utils.DataResponse;
@@ -10,4 +11,7 @@ public interface VictimeService {
     DataResponse<List<VictimeResponse>> getBySinistre(UUID sinistreId);
     DataResponse<Void> delete(UUID id, String loginAuteur);
     DataResponse<Void> changerStatutVictime(UUID id, String statut, String loginAuteur);
+
+    /** Action RC sur un adversaire (proposer / rejeter / accepter / trancher). */
+    DataResponse<VictimeResponse> executerActionRc(UUID adversaireId, ActionRcRequest r, String loginAuteur);
 }

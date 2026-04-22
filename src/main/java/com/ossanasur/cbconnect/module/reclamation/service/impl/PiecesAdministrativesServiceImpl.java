@@ -1,6 +1,7 @@
 package com.ossanasur.cbconnect.module.reclamation.service.impl;
 
 import com.ossanasur.cbconnect.common.enums.StatutPiece;
+import com.ossanasur.cbconnect.common.enums.StatutSinistre;
 import com.ossanasur.cbconnect.common.enums.TypeDommage;
 import com.ossanasur.cbconnect.exception.RessourceNotFoundException;
 import com.ossanasur.cbconnect.module.ged.entity.OssanGedDocument;
@@ -17,6 +18,8 @@ import com.ossanasur.cbconnect.module.reclamation.repository.DossierReclamationR
 import com.ossanasur.cbconnect.module.reclamation.repository.PieceDossierReclamationRepository;
 import com.ossanasur.cbconnect.module.reclamation.repository.TypePieceAdministrativeRepository;
 import com.ossanasur.cbconnect.module.reclamation.service.PiecesAdministrativesService;
+import com.ossanasur.cbconnect.module.sinistre.entity.Sinistre;
+import com.ossanasur.cbconnect.module.sinistre.repository.SinistreRepository;
 import com.ossanasur.cbconnect.utils.DataResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +40,7 @@ public class PiecesAdministrativesServiceImpl implements PiecesAdministrativesSe
         private final PieceDossierReclamationRepository pieceDossierRepo;
         private final DossierReclamationRepository dossierRepo;
         private final OssanGedDocumentRepository ossanGedDocRepo;
+        private final SinistreRepository sinistreRepository;
 
         // ── Paramétrage ───────────────────────────────────────────────
 
@@ -158,7 +162,31 @@ public class PiecesAdministrativesServiceImpl implements PiecesAdministrativesSe
                                 piece.getTypePiece().getLibelle(),
                                 piece.getDossierReclamation().getNumeroDossier());
 
-                return DataResponse.success("Document associé", toPieceDossierResponse(pieceDossierRepo.save(piece)));
+                PieceDossierReclamation saved = pieceDossierRepo.save(piece);
+
+                // Auto-transition du sinistre vers MUR dès que toutes les pièces obligatoires sont reçues
+                autoTransitionVersMur(saved.getDossierReclamation(), loginAuteur);
+
+                return DataResponse.success("Document associé", toPieceDossierResponse(saved));
+        }
+
+        /**
+         * Règle métier : quand toutes les pièces obligatoires d'un dossier de réclamation
+         * sont reçues, le sinistre associé passe automatiquement en statut MUR
+         * (dossier mûr, prêt pour le calcul d'offre CIMA).
+         * Idempotent — n'a d'effet que si le sinistre est exactement en ATTENTE_PIECES_DE_RECLAMATION.
+         */
+        private void autoTransitionVersMur(DossierReclamation dossier, String loginAuteur) {
+                if (dossier == null) return;
+                if (!pieceDossierRepo.isDossierMur(dossier.getHistoriqueId())) return;
+                Sinistre sinistre = dossier.getSinistre();
+                if (sinistre == null) return;
+                if (sinistre.getStatut() != StatutSinistre.ATTENTE_PIECES_DE_RECLAMATION) return;
+                sinistre.setStatut(StatutSinistre.MUR);
+                sinistre.setUpdatedBy(loginAuteur);
+                sinistreRepository.save(sinistre);
+                log.info("[WORKFLOW] Sinistre {} → MUR (toutes pièces reçues sur dossier {})",
+                                sinistre.getSinistreTrackingId(), dossier.getNumeroDossier());
         }
 
         @Override
@@ -172,7 +200,11 @@ public class PiecesAdministrativesServiceImpl implements PiecesAdministrativesSe
                 piece.setNotes(notes);
                 piece.setUpdatedBy(loginAuteur);
 
-                return DataResponse.success("Document rejeté", toPieceDossierResponse(pieceDossierRepo.save(piece)));
+                PieceDossierReclamation saved = pieceDossierRepo.save(piece);
+                // Si le sinistre était déjà MUR, il redescend à ATTENTE_PIECES_DE_RECLAMATION.
+                rollbackMurSiNecessaire(saved.getDossierReclamation(), loginAuteur);
+
+                return DataResponse.success("Document rejeté", toPieceDossierResponse(saved));
         }
 
         @Override
@@ -187,7 +219,29 @@ public class PiecesAdministrativesServiceImpl implements PiecesAdministrativesSe
                 piece.setDateReception(null);
                 piece.setUpdatedBy(loginAuteur);
 
-                return DataResponse.success("Document retiré", toPieceDossierResponse(pieceDossierRepo.save(piece)));
+                PieceDossierReclamation saved = pieceDossierRepo.save(piece);
+                // Si le sinistre était déjà MUR, il redescend à ATTENTE_PIECES_DE_RECLAMATION.
+                rollbackMurSiNecessaire(saved.getDossierReclamation(), loginAuteur);
+
+                return DataResponse.success("Document retiré", toPieceDossierResponse(saved));
+        }
+
+        /**
+         * Symétrique de {@link #autoTransitionVersMur}. Si on retire ou rejette une pièce
+         * qui rendait le dossier mûr, le sinistre redescend à ATTENTE_PIECES_DE_RECLAMATION
+         * pour attendre la nouvelle pièce — tant qu'il était MUR (pas plus loin dans le workflow).
+         */
+        private void rollbackMurSiNecessaire(DossierReclamation dossier, String loginAuteur) {
+                if (dossier == null) return;
+                if (pieceDossierRepo.isDossierMur(dossier.getHistoriqueId())) return;
+                Sinistre sinistre = dossier.getSinistre();
+                if (sinistre == null) return;
+                if (sinistre.getStatut() != StatutSinistre.MUR) return;
+                sinistre.setStatut(StatutSinistre.ATTENTE_PIECES_DE_RECLAMATION);
+                sinistre.setUpdatedBy(loginAuteur);
+                sinistreRepository.save(sinistre);
+                log.info("[WORKFLOW] Sinistre {} → ATTENTE_PIECES_DE_RECLAMATION (rollback, pièce retirée/rejetée)",
+                                sinistre.getSinistreTrackingId());
         }
 
         // ── Mappers privés ────────────────────────────────────────────

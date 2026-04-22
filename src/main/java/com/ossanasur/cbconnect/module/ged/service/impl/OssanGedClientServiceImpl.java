@@ -15,7 +15,7 @@ import com.ossanasur.cbconnect.module.ged.entity.OssanGedDocument;
 import com.ossanasur.cbconnect.module.ged.entity.OssanGedDossier;
 import com.ossanasur.cbconnect.module.ged.mapper.GedMapper;
 import com.ossanasur.cbconnect.module.ged.repository.OssanGedDossierRepository;
-import com.ossanasur.cbconnect.module.ged.service.PaperlessClientService;
+import com.ossanasur.cbconnect.module.ged.service.OssanGedClientService;
 import com.ossanasur.cbconnect.module.sinistre.repository.SinistreRepository;
 import com.ossanasur.cbconnect.module.sinistre.repository.VictimeRepository;
 import com.ossanasur.cbconnect.utils.DataResponse;
@@ -38,7 +38,7 @@ import java.util.*;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class OssanGedClientServiceImpl implements PaperlessClientService {
+public class OssanGedClientServiceImpl implements OssanGedClientService {
 
     private final OssanGedConfig paperlessConfig;
     private final OkHttpClient httpClient;
@@ -147,7 +147,7 @@ public class OssanGedClientServiceImpl implements PaperlessClientService {
                 .fromTable(TypeTable.OSSAN_GED_DOSSIER).build();
 
         // Mettre à jour l'ID paperless sur la victime
-        victime.setPaperlessCorrespondentId(correspondentId);
+        victime.setOssanGedCorrespondentId(correspondentId);
         victimeRepository.save(victime);
         return DataResponse.created("Dossier victime cree",
                 gedMapper.toDossierResponse(dossierRepository.save(dossier)));

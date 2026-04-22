@@ -22,7 +22,6 @@ public class LotApprovisionnement extends InternalHistorique {
     private UUID lotTrackingId;
     @Column(unique = true, nullable = false)
     private String referenceLot;
-    @Column(nullable = false)
     private String nomFournisseur;
     private String numeroBonCommande;
     @Column(nullable = false)

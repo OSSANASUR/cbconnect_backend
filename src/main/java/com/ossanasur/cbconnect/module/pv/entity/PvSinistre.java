@@ -9,6 +9,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @RequiredArgsConstructor
@@ -33,6 +34,8 @@ public class PvSinistre extends InternalHistorique {
     @Column(nullable = false)
     private LocalDate dateReceptionBncb;
     private String provenance;
+    @Column(name = "detail_provenance", length = 256)
+    private String detailProvenance;
     private String referenceSinistreLiee;
     @Column(nullable = false, length = 10)
     @Builder.Default
@@ -47,7 +50,23 @@ public class PvSinistre extends InternalHistorique {
     private boolean estComplet = false;
     private String remarques;
     @Column(name = "ossan_ged_document_id")
-    private Long ossanGedDocumentId;
+    private Integer ossanGedDocumentId;
+
+    // ─── Stockage local en attendant la mise en service de la GED ───
+    @Column(name = "document_local_path", length = 512)
+    private String documentLocalPath;
+
+    @Column(name = "document_nom_fichier", length = 255)
+    private String documentNomFichier;
+
+    @Column(name = "document_mime_type", length = 100)
+    private String documentMimeType;
+
+    @Column(name = "document_taille")
+    private Long documentTaille;
+
+    @Column(name = "document_uploaded_at")
+    private LocalDateTime documentUploadedAt;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "entite_constat_id", nullable = false)
     private EntiteConstat entiteConstat;

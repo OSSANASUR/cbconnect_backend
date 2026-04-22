@@ -43,4 +43,20 @@ public class Assure extends InternalHistorique {
     @Column(name = "est_personne_morale")
     @Builder.Default
     private boolean estPersonneMorale = false;
+
+    /* ── Extension wizard V22 ── */
+    private String profession;
+
+    @Column(name = "prochaine_vt")
+    private java.time.LocalDate prochaineVT;
+
+    @Column(name = "capacite_vehicule")
+    private Integer capaciteVehicule;
+
+    @Column(name = "nb_personnes_a_bord")
+    private Integer nbPersonnesABord;
+
+    @Column(name = "a_remorque")
+    @Builder.Default
+    private boolean aRemorque = false;
 }

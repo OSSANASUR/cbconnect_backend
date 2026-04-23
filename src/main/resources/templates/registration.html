@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Activation de votre compte CBConnect</title>
+    <style>
+        /* Reset */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: #eef1ee;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        table {
+            border-collapse: collapse;
+        }
+
+        img {
+            display: block;
+            max-width: 100%;
+        }
+
+        a {
+            text-decoration: none;
+        }
+
+        /* Wrapper */
+        .wrapper {
+            width: 100%;
+            background: #eef1ee;
+            padding: 40px 16px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.10);
+        }
+
+        /* Header */
+        .header {
+            background: #1a6b3c;
+            padding: 36px 40px 32px;
+            position: relative;
+        }
+
+        .header-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 28px;
+        }
+
+        .header-logo img {
+            width: 48px;
+            height: 48px;
+            object-fit: contain;
+            filter: brightness(0) invert(1);
+            opacity: .9;
+        }
+
+        .header-logo-text {
+            font-size: 15px;
+            font-weight: 600;
+            color: #ffffff;
+            line-height: 1.3;
+        }
+
+        .header-logo-sub {
+            font-size: 10.5px;
+            color: rgba(255, 255, 255, 0.5);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+
+        .header-divider {
+            width: 36px;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+            margin-bottom: 20px;
+        }
+
+        .header-title {
+            font-size: 22px;
+            font-weight: 400;
+            color: #ffffff;
+            line-height: 1.4;
+            margin: 0;
+            letter-spacing: -0.01em;
+        }
+
+        .header-title em {
+            font-style: italic;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        /* Body */
+        .body {
+            padding: 36px 40px 28px;
+        }
+
+        .greeting {
+            font-size: 18px;
+            font-weight: 500;
+            color: #111111;
+            margin: 0 0 14px;
+        }
+
+        .intro {
+            font-size: 14px;
+            color: #555555;
+            line-height: 1.75;
+            margin: 0 0 28px;
+        }
+
+        /* Info card */
+        .info-card {
+            background: #f7f9f7;
+            border: 1px solid #e6eae6;
+            border-radius: 10px;
+            padding: 18px 20px;
+            margin-bottom: 28px;
+        }
+
+        .info-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 13px;
+            color: #444;
+            line-height: 1.5;
+            margin-bottom: 10px;
+        }
+
+        .info-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .info-label {
+            min-width: 80px;
+            font-weight: 600;
+            color: #888;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding-top: 1px;
+        }
+
+        .info-value {
+            color: #222;
+            font-size: 13.5px;
+        }
+
+        /* CTA button */
+        .cta-wrap {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .cta-btn {
+            display: inline-block;
+            background: #1a6b3c;
+            color: #ffffff !important;
+            font-size: 13.5px;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 15px 36px;
+            border-radius: 10px;
+            text-decoration: none;
+        }
+
+        /* Expiry notice */
+        .notice {
+            background: #fffbf2;
+            border: 1px solid #f5e09a;
+            border-radius: 9px;
+            padding: 12px 16px;
+            font-size: 12.5px;
+            color: #7a5c00;
+            line-height: 1.6;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        /* Fallback URL */
+        .url-fallback {
+            font-size: 11.5px;
+            color: #aaa;
+            word-break: break-all;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        .url-fallback a {
+            color: #1a6b3c;
+        }
+
+        /* Divider */
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #e0e5e0, transparent);
+            margin: 4px 0 24px;
+        }
+
+        /* Security note */
+        .security-note {
+            background: #f2f8f4;
+            border: 1px solid rgba(26, 107, 60, 0.18);
+            border-radius: 9px;
+            padding: 12px 16px;
+            font-size: 12px;
+            color: #2a7a4a;
+            line-height: 1.6;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        /* Footer */
+        .footer {
+            background: #1a6b3c;
+            padding: 24px 40px;
+        }
+
+        .footer-logo-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .footer-logo-img {
+            width: 36px;
+            height: 36px;
+            object-fit: contain;
+            filter: brightness(0) invert(1);
+            opacity: .7;
+        }
+
+        .footer-org {
+            font-size: 13px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.85);
+        }
+
+        .footer-text {
+            font-size: 11.5px;
+            color: rgba(255, 255, 255, 0.45);
+            line-height: 1.7;
+        }
+
+        .footer-text a {
+            color: rgba(255, 255, 255, 0.55);
+        }
+
+        .footer-support {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.12);
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.38);
+        }
+
+        @media (max-width: 480px) {
+
+            .header,
+            .body,
+            .footer {
+                padding-left: 24px;
+                padding-right: 24px;
+            }
+
+            .header-title {
+                font-size: 18px;
+            }
+
+            .cta-btn {
+                padding: 13px 24px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrapper">
+        <div class="container">
+
+            <!-- ═══ HEADER ═══ -->
+            <div class="header">
+                <div class="header-logo">
+                    <img th:src="${footerLogoUrl} ?: 'https://cartebrune.org/squelettes/imgs/logo-fr.png'"
+                        src="https://cartebrune.org/squelettes/imgs/logo-fr.png" alt="Logo Carte Brune CEDEAO" />
+                    <div>
+                        <div class="header-logo-text" th:text="${footerOrganisme} ?: 'Carte Brune CEDEAO'">Carte Brune
+                            CEDEAO</div>
+                        <div class="header-logo-sub">Bureau National — Togo</div>
+                    </div>
+                </div>
+                <div class="header-divider"></div>
+                <h1 class="header-title">
+                    Activez votre compte<br /><em>CBConnect</em>
+                </h1>
+            </div>
+
+            <!-- ═══ BODY ═══ -->
+            <div class="body">
+
+                <p class="greeting">
+                    Bonjour <span th:text="${nomComplet} ?: 'Utilisateur'">Ama KWATCHA</span> 👋
+                </p>
+
+                <p class="intro">
+                    Un compte a été créé pour vous sur la plateforme <strong>CBConnect</strong> du Bureau National
+                    de la Carte Brune du Togo. Pour finaliser la création de votre compte, veuillez définir
+                    votre mot de passe en cliquant sur le bouton ci-dessous.
+                </p>
+
+                <!-- Info card -->
+                <div class="info-card">
+                    <div class="info-row">
+                        <span class="info-label">Email</span>
+                        <span class="info-value"
+                            th:text="${emailUtilisateur} ?: 'utilisateur@ossanasur.com'">Ama.KWATCHA@ossanasur.com</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Profil</span>
+                        <span class="info-value" th:text="${roleLabel} ?: '—'">Agent — BNCB Togo</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Expire le</span>
+                        <span class="info-value" th:text="${expirationLabel} ?: '—'">30 juillet 2025 à 14:00</span>
+                    </div>
+                </div>
+
+                <!-- CTA -->
+                <div class="cta-wrap">
+                    <a th:href="${activationUrl} ?: '#'" href="#" class="cta-btn">
+                        Activer mon compte
+                    </a>
+                </div>
+
+                <!-- Expiry notice -->
+                <div class="notice">
+
+                    <span>
+                        Ce lien est valide pendant
+                        <strong th:text="${ttlDays} + ' jour' + (${ttlDays} > 1 ? 's' : '')">7 jours</strong>
+                        à compter de la réception de cet e-mail. Passé ce délai, vous devrez contacter votre
+                        administrateur.
+                    </span>
+                </div>
+
+                <!-- URL fallback -->
+                <p class="url-fallback">
+                    Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br />
+                    <a th:href="${activationUrl} ?: '#'"
+                        th:text="${activationUrl} ?: '#'">http://localhost:3000/activation/…</a>
+                </p>
+
+                <div class="divider"></div>
+
+
+
+            </div><!-- /.body -->
+
+            <!-- ═══ FOOTER ═══ -->
+            <div class="footer">
+                <div class="footer-logo-row">
+                    <img th:src="${footerLogoUrl} ?: 'https://cartebrune.org/squelettes/imgs/logo-fr.png'"
+                        src="https://cartebrune.org/squelettes/imgs/logo-fr.png" alt="Logo" class="footer-logo-img" />
+                    <span class="footer-org" th:text="${footerOrganisme} ?: 'Carte Brune CEDEAO'">Carte Brune
+                        CEDEAO</span>
+                </div>
+                <div class="footer-text">
+                    <span th:text="${footerAdresse} ?: ''">128, Bvd du 13 Janvier, Immeuble BIDC</span>
+                    <span th:if="${footerBp != null and footerBp != ''}">&nbsp;—&nbsp;<span
+                            th:text="${footerBp}"></span></span>
+                    <br th:if="${footerAdresse != null and footerAdresse != ''}" />
+                    <span th:if="${footerTel != null and footerTel != ''}">
+                        Tél. <span th:text="${footerTel}">(+228) 22 22 39 55</span> &nbsp;·&nbsp;
+                    </span>
+                    <a th:href="'mailto:' + ${footerEmail}" th:text="${footerEmail}"
+                        href="mailto:contact@cartebrune.org">contact@cartebrune.org</a>
+                </div>
+                <div class="footer-support">
+                    Support technique :
+                    <a th:href="'mailto:' + ${supportEmail}" th:text="${supportEmail}"
+                        href="mailto:support@ossanasur.com">support@ossanasur.com</a>
+                    &nbsp;·&nbsp; cartebrune.org
+                </div>
+            </div>
+
+        </div><!-- /.container -->
+    </div><!-- /.wrapper -->
+</body>
+
+</html>

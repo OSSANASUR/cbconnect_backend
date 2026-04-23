@@ -9,7 +9,8 @@ import java.time.LocalDateTime;
 
 /**
  * Superclasse abstraite heritee par toutes les entites metier CBConnect.
- * Chaque modification = INSERT (nouvelle version) + desactivation de l'ancienne.
+ * Chaque modification = INSERT (nouvelle version) + desactivation de
+ * l'ancienne.
  * Jamais de DELETE ni d'UPDATE destructif.
  */
 @Data
@@ -55,6 +56,7 @@ public abstract class InternalHistorique implements Serializable {
 
     @PrePersist
     protected void onPrePersist() {
-        if (this.createdAt == null) this.createdAt = LocalDateTime.now();
+        if (this.createdAt == null)
+            this.createdAt = LocalDateTime.now();
     }
 }

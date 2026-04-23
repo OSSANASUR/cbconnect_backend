@@ -178,7 +178,7 @@ public class MessagerieService {
     // ─── Sauvegarde configuration ─────────────────────────────────
 
     public DataResponse<ConfigMailResponse> sauvegarderConfig(ConfigMailRequest req, String loginAuteur) {
-        Utilisateur utilisateur = utilisateurRepo.findByUsernameAndActiveDataTrueAndDeletedDataFalse(loginAuteur)
+        Utilisateur utilisateur = utilisateurRepo.findActiveByUsername(loginAuteur)
                 .orElseThrow(() -> new RessourceNotFoundException("Utilisateur introuvable"));
 
         ConfigurationMail config = configRepo.findByUtilisateur(utilisateur)
@@ -211,7 +211,7 @@ public class MessagerieService {
 
     @Transactional(readOnly = true)
     public DataResponse<ConfigMailResponse> getConfig(String loginAuteur) {
-        Utilisateur utilisateur = utilisateurRepo.findByUsernameAndActiveDataTrueAndDeletedDataFalse(loginAuteur)
+        Utilisateur utilisateur = utilisateurRepo.findActiveByUsername(loginAuteur)
                 .orElseThrow(() -> new RessourceNotFoundException("Utilisateur introuvable"));
         return configRepo.findByUtilisateur(utilisateur)
                 .map(c -> DataResponse.success("Configuration", toResponse(c)))
@@ -221,7 +221,7 @@ public class MessagerieService {
     // ─── Mise à jour signature ────────────────────────────────────
 
     public DataResponse<ConfigMailResponse> mettreAJourSignature(SignatureRequest req, String loginAuteur) {
-        Utilisateur u = utilisateurRepo.findByUsernameAndActiveDataTrueAndDeletedDataFalse(loginAuteur)
+        Utilisateur u = utilisateurRepo.findActiveByUsername(loginAuteur)
                 .orElseThrow(() -> new RessourceNotFoundException("Utilisateur introuvable"));
         ConfigurationMail c = configRepo.findByUtilisateur(u)
                 .orElseThrow(() -> new RessourceNotFoundException(
@@ -234,7 +234,7 @@ public class MessagerieService {
     // ─── Changer mot de passe mail ────────────────────────────────
 
     public DataResponse<Void> changerMotDePasse(ChangeMotDePasseMailRequest req, String loginAuteur) {
-        Utilisateur u = utilisateurRepo.findByUsernameAndActiveDataTrueAndDeletedDataFalse(loginAuteur)
+        Utilisateur u = utilisateurRepo.findActiveByUsername(loginAuteur)
                 .orElseThrow(() -> new RessourceNotFoundException("Utilisateur introuvable"));
         ConfigurationMail c = configRepo.findByUtilisateur(u)
                 .orElseThrow(() -> new RessourceNotFoundException("Configuration mail non trouvée"));

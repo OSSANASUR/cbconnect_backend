@@ -50,6 +50,13 @@ public class UtilisateurController {
         return ResponseEntity.ok(utilisateurService.getAll());
     }
 
+    @GetMapping("/me")
+    @Operation(summary = "Profil de l'utilisateur connecté")
+    public ResponseEntity<DataResponse<UtilisateurResponse>> getMe(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(utilisateurService.getByUsername(userDetails.getUsername()));
+    }
+
     @PutMapping("/{trackingId}")
     @Operation(summary = "Modifier un utilisateur")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SE')")
@@ -76,5 +83,14 @@ public class UtilisateurController {
             @Valid @RequestBody ChangePasswordRequest request,
             @AuthenticationPrincipal UserDetails user) {
         return ResponseEntity.ok(utilisateurService.changerPassword(trackingId, request, user.getUsername()));
+    }
+
+    @PostMapping("/{trackingId}/resend-activation")
+    @Operation(summary = "Renvoyer le lien d'activation d'un compte inactif")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SE')")
+    public ResponseEntity<DataResponse<Void>> resendActivation(
+            @PathVariable UUID trackingId,
+            @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(utilisateurService.resendActivationLink(trackingId, user.getUsername()));
     }
 }

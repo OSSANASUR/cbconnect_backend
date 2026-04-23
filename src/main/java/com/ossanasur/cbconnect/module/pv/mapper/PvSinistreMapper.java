@@ -21,6 +21,9 @@ public class PvSinistreMapper {
                 p.getSinistre() != null ? p.getSinistre().getSinistreTrackingId() : null,
                 p.getSinistre() != null ? p.getSinistre().getNumeroSinistreLocal() : null,
                 p.getDocumentNomFichier(), p.getDocumentTaille(), p.getDocumentUploadedAt(), aDocument,
-                p.getOssanGedDocumentId());
+                p.getOssanGedDocumentId(),
+                p.getOssanGedTaskId(),
+                p.getOssanGedIndexationStatut(),
+                p.getOssanGedIndexationMessage());
     }
 }

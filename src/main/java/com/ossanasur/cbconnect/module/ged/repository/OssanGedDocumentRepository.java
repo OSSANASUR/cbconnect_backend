@@ -20,4 +20,7 @@ public interface OssanGedDocumentRepository extends JpaRepository<OssanGedDocume
 
     @Query("SELECT d FROM OssanGedDocument d WHERE d.victime.victimeTrackingId=:vid AND d.activeData=true AND d.deletedData=false ORDER BY d.dateDocument DESC NULLS LAST")
     List<OssanGedDocument> findByVictime(@Param("vid") UUID victimeId);
+
+    @Query("SELECT d FROM OssanGedDocument d WHERE d.ossanGedDocumentId IS NOT NULL AND d.activeData=true AND d.deletedData=false")
+    List<OssanGedDocument> findAllWithPaperlessId();
 }

@@ -22,8 +22,14 @@ public interface GedPortailService {
     /** Génère un cookie de session long (validité configurable) pour l'username. */
     String genererSession(String username);
 
+    /** Valide un ticket court d'ouverture SSO et retourne l'username. */
+    String validerTicket(String token);
+
+    /** Valide un token de session long et retourne l'username. */
+    String validerSession(String token);
+
     /**
-     * Valide un ticket ou une session et retourne l'username encodé.
+     * Valide un token SSO et retourne l'username encodé.
      * Retourne null si invalide / expiré.
      */
     String validerToken(String token);

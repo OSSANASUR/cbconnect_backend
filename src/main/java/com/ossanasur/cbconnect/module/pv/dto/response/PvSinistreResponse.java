@@ -14,5 +14,8 @@ public record PvSinistreResponse(
         UUID entiteConstatTrackingId, String entiteConstatNom,
         UUID sinistreTrackingId, String numeroSinistreLocal,
         String documentNomFichier, Long documentTaille, LocalDateTime documentUploadedAt, boolean aDocument,
-        Integer ossanGedDocumentId) {
+        Integer ossanGedDocumentId,
+        String ossanGedTaskId,
+        String ossanGedIndexationStatut,
+        String ossanGedIndexationMessage) {
 }

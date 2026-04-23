@@ -59,7 +59,21 @@ public class GedPortailServiceImpl implements GedPortailService {
     }
 
     @Override
+    public String validerTicket(String token) {
+        return validerToken(token, "ticket");
+    }
+
+    @Override
+    public String validerSession(String token) {
+        return validerToken(token, "session");
+    }
+
+    @Override
     public String validerToken(String token) {
+        return validerToken(token, null);
+    }
+
+    private String validerToken(String token, String expectedType) {
         if (token == null || token.isBlank()) return null;
         try {
             Claims claims = Jwts.parser()
@@ -67,6 +81,11 @@ public class GedPortailServiceImpl implements GedPortailService {
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
+            String tokenType = claims.get("typ", String.class);
+            if (expectedType != null && !expectedType.equals(tokenType)) {
+                log.debug("Token SSO invalide : type {} inattendu", tokenType);
+                return null;
+            }
             String username = claims.getSubject();
             return (username != null && !username.isBlank()) ? username : null;
         } catch (Exception e) {

@@ -53,6 +53,12 @@ public class PvSinistre extends InternalHistorique {
     private Integer ossanGedDocumentId;
     @Column(name = "ossan_ged_document_tracking_id")
     private java.util.UUID ossanGedDocumentTrackingId;
+    @Column(name = "ossan_ged_task_id", length = 64)
+    private String ossanGedTaskId;
+    @Column(name = "ossan_ged_indexation_statut", length = 30)
+    private String ossanGedIndexationStatut;
+    @Column(name = "ossan_ged_indexation_message", length = 1000)
+    private String ossanGedIndexationMessage;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "entite_constat_id", nullable = false)
     private EntiteConstat entiteConstat;

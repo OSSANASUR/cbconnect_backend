@@ -22,8 +22,10 @@ import java.util.UUID;
 public class OssanGedDocument extends InternalHistorique {
     @Column(name = "ossan_ged_document_tracking_id", unique = true)
     private UUID ossanGedDocumentTrackingId;
-    @Column(name = "ossan_ged_document_id", unique = true, nullable = false)
+    @Column(name = "ossan_ged_document_id", unique = true)
     private Integer ossanGedDocumentId;
+    @Column(name = "ged_task_id")
+    private String gedTaskId;
     @Column(nullable = false)
     private String titre;
     @Enumerated(EnumType.STRING)

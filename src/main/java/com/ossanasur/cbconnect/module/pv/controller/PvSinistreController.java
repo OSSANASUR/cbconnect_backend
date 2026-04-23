@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -78,6 +79,12 @@ public class PvSinistreController {
             @RequestPart(value = "typeDocument", required = false) String typeDocument,
             @AuthenticationPrincipal UserDetails u) {
         return ResponseEntity.ok(pvService.attacherDocument(pvTrackingId, file, titre, typeDocument, u.getUsername()));
+    }
+
+    @GetMapping("/{pvTrackingId}/document")
+    @Operation(summary = "Télécharger ou prévisualiser le document du PV (GED ou fallback local)")
+    public ResponseEntity<Resource> telechargerDocument(@PathVariable UUID pvTrackingId) {
+        return pvService.telechargerDocument(pvTrackingId);
     }
 
     @PutMapping("/{id}")

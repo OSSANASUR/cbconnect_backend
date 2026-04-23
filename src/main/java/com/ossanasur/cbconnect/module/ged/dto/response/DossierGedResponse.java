@@ -5,8 +5,11 @@ import java.util.UUID;
 public record DossierGedResponse(
     UUID ossanGedDossierTrackingId,
     Integer ossanGedStoragePathId,
-    String cheminStockage, String titre,
+    String cheminStockage,
+    String titre,
     TypeDossierOssanGed typeDossier,
     String sinistreNumeroLocal,
+    Integer annee,
+    String typeSinistreDir,
     List<DocumentGedResponse> documents
 ) {}

@@ -68,6 +68,9 @@ public interface GedAttachmentService {
             String mimeType,
             Long taille,
             LocalDateTime uploadedAt,
-            boolean gedDisponible
+            boolean gedDisponible,
+            String gedTaskId,
+            String gedIndexationStatut,
+            String gedIndexationMessage
     ) {}
 }

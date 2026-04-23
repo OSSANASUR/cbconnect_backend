@@ -15,23 +15,44 @@ public class BanqueVersioningService extends AbstractVersioningService<Banque, B
 
     private final BanqueRepository repository;
 
-    @Override protected JpaRepository<Banque, Integer> getRepository() { return repository; }
+    @Override
+    protected JpaRepository<Banque, Integer> getRepository() {
+        return repository;
+    }
 
-    @Override protected Banque findActiveByTrackingId(UUID id) {
+    @Override
+    protected Banque findActiveByTrackingId(UUID id) {
         return repository.findActiveByTrackingId(id).orElse(null);
     }
 
-    @Override protected UUID getTrackingId(Banque e) { return e.getBanqueTrackingId(); }
+    @Override
+    protected UUID getTrackingId(Banque e) {
+        return e.getBanqueTrackingId();
+    }
 
-    @Override protected Banque mapToEntity(BanqueRequest r, Banque existing) {
+    @Override
+    protected Banque mapToEntity(BanqueRequest r, Banque existing) {
         Banque u = cloneEntity(existing);
-        if (r.nom() != null)      u.setNom(r.nom());
-        if (r.code() != null)     u.setCode(r.code().toUpperCase());
-        if (r.codeBic() != null)  u.setCodeBic(r.codeBic().toUpperCase());
-        if (r.agence() != null)   u.setAgence(r.agence());
-        if (r.ville() != null)    u.setVille(r.ville());
-        if (r.codePays() != null) u.setCodePays(r.codePays().toUpperCase());
-        if (r.telephone() != null) u.setTelephone(r.telephone());
+        if (r.nom() != null)
+            u.setNom(r.nom());
+        if (r.code() != null)
+            u.setCode(r.code().toUpperCase());
+        if (r.codeBic() != null)
+            u.setCodeBic(r.codeBic().toUpperCase());
+        if (r.agence() != null)
+            u.setAgence(r.agence());
+        if (r.ville() != null)
+            u.setVille(r.ville());
+        if (r.codePays() != null)
+            u.setCodePays(r.codePays().toUpperCase());
+        if (r.telephone() != null)
+            u.setTelephone(r.telephone());
         return u;
+    }
+
+    @Override
+    protected void setTrackingId(Banque entity, UUID newId) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'setTrackingId'");
     }
 }

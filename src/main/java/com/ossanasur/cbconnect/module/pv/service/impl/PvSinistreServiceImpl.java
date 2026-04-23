@@ -13,6 +13,7 @@ import com.ossanasur.cbconnect.module.auth.repository.UtilisateurRepository;
 import com.ossanasur.cbconnect.module.ged.service.GedAttachmentService;
 import com.ossanasur.cbconnect.module.ged.service.GedAttachmentService.GedAttachmentRequest;
 import com.ossanasur.cbconnect.module.ged.service.GedAttachmentService.GedAttachmentResult;
+import com.ossanasur.cbconnect.module.ged.service.OssanGedClientService;
 import com.ossanasur.cbconnect.module.pv.dto.request.PvSinistreRequest;
 import com.ossanasur.cbconnect.module.pv.dto.response.PvSinistreResponse;
 import com.ossanasur.cbconnect.module.pv.entity.PvSinistre;
@@ -25,6 +26,12 @@ import com.ossanasur.cbconnect.utils.DataResponse;
 import com.ossanasur.cbconnect.utils.PaginatedResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -37,6 +44,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.*;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -59,6 +67,7 @@ public class PvSinistreServiceImpl implements PvSinistreService {
     private final PvSinistreVersioningService versioningService;
     private final PvSinistreMapper pvMapper;
     private final GedAttachmentService gedAttachment;
+    private final OssanGedClientService gedService;
 
     @Value("${file.upload-dir:./uploads}")
     private String uploadBaseDir;
@@ -223,6 +232,9 @@ public class PvSinistreServiceImpl implements PvSinistreService {
 
         pv.setOssanGedDocumentId(r.ossanGedDocumentId());
         pv.setOssanGedDocumentTrackingId(r.ossanGedDocumentTrackingId());
+        pv.setOssanGedTaskId(r.gedTaskId());
+        pv.setOssanGedIndexationStatut(r.gedIndexationStatut());
+        pv.setOssanGedIndexationMessage(r.gedIndexationMessage());
         pv.setDocumentLocalPath(r.localFallbackPath());
         pv.setDocumentNomFichier(r.nomFichier());
         pv.setDocumentMimeType(r.mimeType());
@@ -230,10 +242,70 @@ public class PvSinistreServiceImpl implements PvSinistreService {
         pv.setDocumentUploadedAt(r.uploadedAt());
         pv.setUpdatedBy(loginAuteur);
 
-        String message = r.gedDisponible()
+        String message = r.ossanGedDocumentId() != null
                 ? "PV archivé dans OssanGED"
-                : "PV enregistré (document en attente de la GED)";
+                : r.ossanGedDocumentTrackingId() != null
+                        ? "PV soumis à OssanGED (indexation OCR en cours)"
+                        : "PV enregistré (document en attente de la GED)";
         return DataResponse.created(message, pvMapper.toResponse(pvRepository.save(pv)));
+    }
+
+    @Override
+    @Transactional
+    public ResponseEntity<Resource> telechargerDocument(UUID pvTrackingId) {
+        PvSinistre pv = pvRepository.findActiveByTrackingId(pvTrackingId)
+                .orElseThrow(() -> new RessourceNotFoundException("PV introuvable"));
+
+        String filename = pv.getDocumentNomFichier() != null ? pv.getDocumentNomFichier() : ("PV_" + pv.getNumeroPv() + ".pdf");
+        MediaType mediaType = resolveMediaType(pv.getDocumentMimeType(), filename);
+
+        // Auto-résolution : si on a un taskId mais pas encore l'ossanGedDocumentId, on tente de le résoudre
+        if (pv.getOssanGedDocumentId() == null && pv.getOssanGedDocumentTrackingId() != null) {
+            try {
+                var resolved = gedService.resoudreDocument(pv.getOssanGedDocumentTrackingId()).getData();
+                if (resolved != null && resolved.ossanGedDocumentId() != null) {
+                    pv.setOssanGedDocumentId(resolved.ossanGedDocumentId());
+                    pv.setOssanGedTaskId(null);
+                    pv.setOssanGedIndexationStatut("TERMINE");
+                    pvRepository.save(pv);
+                    log.info("PV {} : ossanGedDocumentId résolu → {}", pvTrackingId, resolved.ossanGedDocumentId());
+                }
+            } catch (Exception e) {
+                log.debug("Auto-résolution GED pour PV {} échouée : {}", pvTrackingId, e.getMessage());
+            }
+        }
+
+        if (pv.getOssanGedDocumentId() != null) {
+            try {
+                byte[] data = gedService.telechargerDocument(pv.getOssanGedDocumentId()).getData();
+                return ResponseEntity.ok()
+                        .contentType(mediaType)
+                        .header(HttpHeaders.CONTENT_DISPOSITION, buildInlineDisposition(filename))
+                        .body(new ByteArrayResource(data));
+            } catch (Exception e) {
+                log.warn("Téléchargement GED échoué pour le PV {} (docId={}) : {}. Fallback local.",
+                        pvTrackingId, pv.getOssanGedDocumentId(), e.getMessage());
+            }
+        }
+
+        if (pv.getDocumentLocalPath() == null || pv.getDocumentLocalPath().isBlank()) {
+            throw new RessourceNotFoundException("Aucun document disponible pour ce PV");
+        }
+
+        Path path = Paths.get(uploadBaseDir).resolve(pv.getDocumentLocalPath()).normalize();
+        if (!Files.exists(path) || !Files.isRegularFile(path)) {
+            throw new RessourceNotFoundException("Le fichier local du PV est introuvable");
+        }
+
+        try {
+            byte[] data = Files.readAllBytes(path);
+            return ResponseEntity.ok()
+                    .contentType(mediaType)
+                    .header(HttpHeaders.CONTENT_DISPOSITION, buildInlineDisposition(filename))
+                    .body(new ByteArrayResource(data));
+        } catch (IOException e) {
+            throw new RuntimeException("Lecture du fichier local du PV échouée : " + e.getMessage(), e);
+        }
     }
 
     /** Applique les métadonnées d'un stockage local au PV (cas où pas de sinistre associé). */
@@ -277,5 +349,25 @@ public class PvSinistreServiceImpl implements PvSinistreService {
         } catch (IOException e) {
             throw new RuntimeException("Stockage local du PV échoué : " + e.getMessage(), e);
         }
+    }
+
+    private MediaType resolveMediaType(String mimeType, String filename) {
+        if (mimeType != null && !mimeType.isBlank()) {
+            try {
+                return MediaType.parseMediaType(mimeType);
+            } catch (Exception ignored) {
+            }
+        }
+        if (filename != null && filename.toLowerCase().endsWith(".pdf")) {
+            return MediaType.APPLICATION_PDF;
+        }
+        return MediaType.APPLICATION_OCTET_STREAM;
+    }
+
+    private String buildInlineDisposition(String filename) {
+        return ContentDisposition.inline()
+                .filename(filename, StandardCharsets.UTF_8)
+                .build()
+                .toString();
     }
 }

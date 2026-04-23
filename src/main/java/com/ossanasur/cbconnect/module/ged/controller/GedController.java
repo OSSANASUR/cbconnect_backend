@@ -71,4 +71,30 @@ public class GedController {
     public ResponseEntity<DataResponse<List<DocumentGedResponse>>> docsVictime(@PathVariable UUID victimeId) {
         return ResponseEntity.ok(gedService.listerDocumentsVictime(victimeId));
     }
+
+    @GetMapping("/documents/{trackingId}/resoudre")
+    @Operation(summary = "Résoudre l'ID OssanGED d'un document en attente d'indexation OCR")
+    public ResponseEntity<DataResponse<DocumentGedResponse>> resoudre(@PathVariable UUID trackingId) {
+        return ResponseEntity.ok(gedService.resoudreDocument(trackingId));
+    }
+
+    @GetMapping("/dossiers/arbre")
+    @Operation(summary = "Retourne l'arbre des dossiers sinistres (classés par année > ET/TE > numéro)")
+    public ResponseEntity<DataResponse<List<DossierGedResponse>>> arbre() {
+        return ResponseEntity.ok(gedService.arbreDossiers());
+    }
+
+    @PostMapping("/dossiers/reparer-storage-paths")
+    @PreAuthorize("hasAnyRole('SE','CSS')")
+    @Operation(summary = "Recrée les storage paths Paperless manquants/erronés pour tous les dossiers sinistres")
+    public ResponseEntity<DataResponse<String>> reparer() {
+        return ResponseEntity.ok(gedService.repairerStoragePaths());
+    }
+
+    @PostMapping("/documents/migrer-storage-paths")
+    @PreAuthorize("hasAnyRole('SE','CSS')")
+    @Operation(summary = "Réassigne les documents existants dans Paperless vers leur storage path sinistre correct")
+    public ResponseEntity<DataResponse<String>> migrerDocuments() {
+        return ResponseEntity.ok(gedService.migrerDocumentsStoragePaths());
+    }
 }

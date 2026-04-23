@@ -73,11 +73,14 @@ public class SecurityConfig {
         "/v1/auth/refresh-token",
         "/v1/auth/forgot-password",
         "/v1/auth/reset-password/**",
-        // ── SSO OssanGED : les endpoints /exchange et /verify sont appelés
-        //    par nginx OssanGED (pas par un user browser) et utilisent leur
-        //    propre mécanisme d'authentification (ticket JWT signé).
-        //    /redirect reste protégé pour vérifier l'auth CBConnect.
+        // ── SSO OssanGED : /start, /exchange et /verify sont appelés sans
+        //    bearer CBConnect. Leur sécurité repose sur le ticket/cookie SSO
+        //    signé côté backend.
         "/v1/ged/portail/exchange",
-        "/v1/ged/portail/verify"
+        "/v1/ged/portail/start",
+        "/v1/ged/portail/verify",
+        "/v1/ged/portail/bridge",
+        // Arbre dossiers : appelé par OssanGED branding JS (sans bearer CBConnect)
+        "/v1/ged/dossiers/arbre"
     };
 }

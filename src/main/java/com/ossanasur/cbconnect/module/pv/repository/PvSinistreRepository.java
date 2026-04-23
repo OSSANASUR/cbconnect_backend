@@ -24,5 +24,12 @@ public interface PvSinistreRepository extends JpaRepository<PvSinistre, Integer>
          + "ORDER BY p.dateReceptionBncb DESC")
     Page<PvSinistre> findAllActive(@Param("estComplet") Boolean estComplet, Pageable pageable);
 
+    @Query("SELECT p FROM PvSinistre p "
+         + "WHERE p.activeData=true AND p.deletedData=false "
+         + "  AND p.ossanGedDocumentId IS NULL "
+         + "  AND p.ossanGedTaskId IS NOT NULL "
+         + "  AND p.ossanGedIndexationStatut = 'EN_COURS'")
+    List<PvSinistre> findGedIndexationEnCours();
+
     boolean existsByNumeroPvAndActiveDataTrueAndDeletedDataFalse(String numeroPv);
 }

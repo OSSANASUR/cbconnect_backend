@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit;
  */
 @Configuration
 public class OssanGedConfig {
-    @Value("${ossanged.base-url:http://localhost:8000}") private String baseUrl;
+    @Value("${ossanged.base-url:http://localhost}") private String baseUrl;
     @Value("${ossanged.username:admin}") private String username;
     @Value("${ossanged.password:admin}") private String password;
     @Value("${ossanged.api-token:}")    private String apiToken;

@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.UUID;
 
 public interface OssanGedClientService {
+    record GedTaskStatus(String taskId, String status, Integer documentId, String message) {}
+
     DataResponse<DossierGedResponse> creerDossierSinistre(UUID sinistreId, String loginAuteur);
 
     DataResponse<DossierGedResponse> creerDossierVictime(UUID victimeId, String loginAuteur);
@@ -19,9 +21,23 @@ public interface OssanGedClientService {
 
     DataResponse<byte[]> telechargerDocument(Integer ossanGedDocumentId);
 
+    DataResponse<List<DossierGedResponse>> arbreDossiers();
+
+    DataResponse<String> repairerStoragePaths();
+
+    DataResponse<String> migrerDocumentsStoragePaths();
+
     DataResponse<List<DocumentGedResponse>> listerDocumentsSinistre(UUID sinistreId);
 
     DataResponse<List<DocumentGedResponse>> listerDocumentsVictime(UUID victimeId);
 
     void initTagsOssanGed();
+
+    GedTaskStatus consulterStatutTache(String taskId);
+
+    DataResponse<DocumentGedResponse> resoudreDocument(UUID ossanGedDocumentTrackingId);
+
+    void provisionnerUtilisateur(String username);
+
+    String verifierSessionPaperless(String cookieHeader);
 }

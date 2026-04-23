@@ -85,10 +85,29 @@ public class GedAttachmentServiceImpl implements GedAttachmentService {
                         file.getContentType(),
                         file.getSize(),
                         now,
-                        true);
+                        true,
+                        null,
+                        "TERMINE",
+                        null);
+            }
+            // Document soumis à OssanGED et sauvegardé en DB (OCR asynchrone en cours)
+            if (d != null && d.ossanGedDocumentTrackingId() != null) {
+                log.info("Document soumis à OssanGED, OCR en cours : taskId={}, tracking={}",
+                        d.gedTaskId(), d.ossanGedDocumentTrackingId());
+                return new GedAttachmentResult(
+                        null,
+                        d.ossanGedDocumentTrackingId(),
+                        null,
+                        file.getOriginalFilename(),
+                        file.getContentType(),
+                        file.getSize(),
+                        now,
+                        true,
+                        d.gedTaskId(),
+                        "EN_COURS",
+                        "Indexation OCR en cours — résolvable via GET /v1/ged/documents/" + d.ossanGedDocumentTrackingId() + "/resoudre");
             }
         } catch (BadRequestException bre) {
-            // Erreur utilisateur : on remonte sans fallback
             throw bre;
         } catch (Exception e) {
             log.warn("OssanGED indisponible, fallback local : {}", e.getMessage());
@@ -105,7 +124,10 @@ public class GedAttachmentServiceImpl implements GedAttachmentService {
                 file.getContentType(),
                 file.getSize(),
                 now,
-                false);
+                false,
+                null,
+                "LOCAL",
+                "Indexation GED indisponible");
     }
 
     private boolean isPdfExtension(String filename) {

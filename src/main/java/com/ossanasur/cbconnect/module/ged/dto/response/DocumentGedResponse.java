@@ -10,5 +10,8 @@ public record DocumentGedResponse(
     LocalDate dateDocument,
     String mimeType,
     String sinistreNumeroLocal,
-    String victimeNomPrenom
+    String victimeNomPrenom,
+    String gedTaskId,
+    String gedIndexationStatut,
+    String gedIndexationMessage
 ) {}

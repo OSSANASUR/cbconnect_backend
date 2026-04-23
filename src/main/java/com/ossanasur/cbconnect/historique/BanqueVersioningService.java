@@ -23,6 +23,8 @@ public class BanqueVersioningService extends AbstractVersioningService<Banque, B
 
     @Override protected UUID getTrackingId(Banque e) { return e.getBanqueTrackingId(); }
 
+    @Override protected void setTrackingId(Banque e, UUID newId) { e.setBanqueTrackingId(newId); }
+
     @Override protected Banque mapToEntity(BanqueRequest r, Banque existing) {
         Banque u = cloneEntity(existing);
         if (r.nom() != null)      u.setNom(r.nom());

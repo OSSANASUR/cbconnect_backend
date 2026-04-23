@@ -49,9 +49,9 @@ public class BanqueVersioningService extends AbstractVersioningService<Banque, B
         return u;
     }
 
-    @Override
-    protected void setTrackingId(Banque entity, UUID newId) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'setTrackingId'");
-    }
+    // @Override
+    // protected void setTrackingId(Banque entity, UUID newId) {
+    //     // TODO Auto-generated method stub
+    //     throw new UnsupportedOperationException("Unimplemented method 'setTrackingId'");
+    // }
 }

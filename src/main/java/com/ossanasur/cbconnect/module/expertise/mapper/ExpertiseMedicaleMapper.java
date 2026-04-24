@@ -12,10 +12,12 @@ public class ExpertiseMedicaleMapper {
         return new ExpertiseMedicaleResponse(
                 e.getExpertiseMedTrackingId(), e.getTypeExpertise(),
                 e.getDateDemande(), e.getDateRapport(), e.getDateConsolidation(),
-                e.getTauxIpp(), e.getDureeIttJours(), e.getDureeItpJours(), e.getPretiumDoloris(),
+                e.getTauxIpp(), e.getDureeIttJours(), e.getPretiumDoloris(),
                 e.getPrejudiceEsthetique(), e.isNecessiteTiercePersonne(), e.getHonoraires(),
-                e.getHonorairesContreExpertise(), e.getOssanGedDocumentId(),
+                e.getHonorairesContreExpertise(), e.getDureeItpJours(),
                 e.getExpert() != null ? e.getExpert().getNomComplet() : null,
-                e.getVictime() != null ? e.getVictime().getNom() + " " + e.getVictime().getPrenoms() : null);
+                e.getVictime() != null ? e.getVictime().getNom() + " " + e.getVictime().getPrenoms() : null,
+                e.getOssanGedDocumentId(),
+                e.getOssanGedDocumentId() != null);
     }
 }

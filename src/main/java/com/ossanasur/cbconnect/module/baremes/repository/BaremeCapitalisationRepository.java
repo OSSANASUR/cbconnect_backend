@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import java.util.List;
 import java.util.Optional;
 @Repository
 public interface BaremeCapitalisationRepository extends JpaRepository<BaremeCapitalisation, Integer> {
@@ -11,4 +12,6 @@ public interface BaremeCapitalisationRepository extends JpaRepository<BaremeCapi
     Optional<BaremeCapitalisation> findByTypeAndAge(@Param("type") String type, @Param("age") int age);
     @Query("SELECT b FROM BaremeCapitalisation b WHERE b.typeBareme=:type AND b.age<=:age AND b.actif=true ORDER BY b.age DESC LIMIT 1")
     Optional<BaremeCapitalisation> findByTypeAndAgeClose(@Param("type") String type, @Param("age") int age);
+    @Query("SELECT b FROM BaremeCapitalisation b ORDER BY b.typeBareme, b.age")
+    List<BaremeCapitalisation> findAllOrdered();
 }

@@ -670,7 +670,7 @@ public class MessagerieClientService {
     }
 
     private Utilisateur getUtilisateur(String login) {
-        return utilisateurRepo.findByUsernameAndActiveDataTrueAndDeletedDataFalse(login)
+        return utilisateurRepo.findActiveByUsername(login)
                 .orElseThrow(() -> new RessourceNotFoundException("Utilisateur introuvable"));
     }
 

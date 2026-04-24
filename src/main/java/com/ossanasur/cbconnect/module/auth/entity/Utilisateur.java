@@ -40,6 +40,9 @@ public class Utilisateur extends InternalHistorique {
     private String resetToken;
     private LocalDateTime resetTokenExpiresAt;
 
+    private LocalDateTime dateDeConnexion;
+    private LocalDateTime dateDeDeconnexion;
+
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "profil_id")
     private Profil profil;

@@ -29,13 +29,12 @@ public class UtilisateurController {
     private final UtilisateurService utilisateurService;
 
     @PostMapping
-    @Operation(summary = "Creer un utilisateur")
+    @Operation(summary = "Creer un utilisateur (envoie un mail d'activation)")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SE')")
     public ResponseEntity<DataResponse<UtilisateurResponse>> create(
             @Valid @RequestBody UtilisateurRequest request,
-            @RequestParam String password,
             @AuthenticationPrincipal UserDetails user) {
-        return ResponseEntity.ok(utilisateurService.creer(request, password, user.getUsername()));
+        return ResponseEntity.ok(utilisateurService.creer(request, user.getUsername()));
     }
 
     @GetMapping("/{trackingId}")
@@ -49,6 +48,13 @@ public class UtilisateurController {
     @PreAuthorize("hasRole('ADMIN') or hasRole('SE') or hasRole('CSS')")
     public ResponseEntity<DataResponse<List<UtilisateurResponse>>> getAll() {
         return ResponseEntity.ok(utilisateurService.getAll());
+    }
+
+    @GetMapping("/me")
+    @Operation(summary = "Profil de l'utilisateur connecté")
+    public ResponseEntity<DataResponse<UtilisateurResponse>> getMe(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(utilisateurService.getByUsername(userDetails.getUsername()));
     }
 
     @PutMapping("/{trackingId}")
@@ -77,5 +83,14 @@ public class UtilisateurController {
             @Valid @RequestBody ChangePasswordRequest request,
             @AuthenticationPrincipal UserDetails user) {
         return ResponseEntity.ok(utilisateurService.changerPassword(trackingId, request, user.getUsername()));
+    }
+
+    @PostMapping("/{trackingId}/resend-activation")
+    @Operation(summary = "Renvoyer le lien d'activation d'un compte inactif")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SE')")
+    public ResponseEntity<DataResponse<Void>> resendActivation(
+            @PathVariable UUID trackingId,
+            @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(utilisateurService.resendActivationLink(trackingId, user.getUsername()));
     }
 }

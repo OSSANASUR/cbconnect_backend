@@ -110,4 +110,12 @@ public class ParametreServiceImpl implements ParametreService {
                 .map(parametreMapper::toResponse);
         return PaginatedResponse.fromPage(history, "Historique parametre");
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getValeur(String cle, String defaut) {
+        return parametreRepository.findByCle(cle)
+                .map(Parametre::getValeur)
+                .orElse(defaut);
+    }
 }

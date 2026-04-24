@@ -71,6 +71,12 @@ public class GlobalExceptionHandler {
                 new DataResponse<>(new Date(), false, ex.getMessage(), 410, null));
     }
 
+    @ExceptionHandler(LinkExpiredException.class)
+    public ResponseEntity<DataResponse<Void>> handleLinkExpired(LinkExpiredException ex) {
+        return ResponseEntity.status(HttpStatus.GONE).body(
+                new DataResponse<>(new Date(), false, ex.getMessage(), 410, null));
+    }
+
     @ExceptionHandler(OtpInvalidCodeException.class)
     public ResponseEntity<DataResponse<java.util.Map<String, Object>>> handleOtpInvalid(OtpInvalidCodeException ex) {
         java.util.Map<String, Object> details = java.util.Map.of("attemptsRemaining", ex.getAttemptsRemaining());

@@ -1,9 +1,11 @@
 package com.ossanasur.cbconnect.module.auth.controller;
 
 import com.ossanasur.cbconnect.module.auth.service.UtilisateurService;
+import com.ossanasur.cbconnect.security.dto.request.ActivateAccountRequest;
 import com.ossanasur.cbconnect.security.dto.request.LoginRequest;
 import com.ossanasur.cbconnect.security.dto.request.OtpResendRequest;
 import com.ossanasur.cbconnect.security.dto.request.OtpVerifyRequest;
+import com.ossanasur.cbconnect.security.dto.response.ActivationInfoResponse;
 import com.ossanasur.cbconnect.security.dto.response.LoginResponse;
 import com.ossanasur.cbconnect.utils.DataResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -47,9 +49,16 @@ public class AuthController {
         return ResponseEntity.ok(utilisateurService.logout(token));
     }
 
-    @GetMapping("/activate/{code}")
-    @Operation(summary = "Activer un compte via code email")
-    public ResponseEntity<DataResponse<Void>> activateAccount(@PathVariable String code) {
-        return ResponseEntity.ok(utilisateurService.activerCompte(code));
+    @GetMapping("/activation/{token}")
+    @Operation(summary = "Valider un lien d'activation et obtenir les infos pre-remplies")
+    public ResponseEntity<DataResponse<ActivationInfoResponse>> getActivationInfo(@PathVariable String token) {
+        return ResponseEntity.ok(DataResponse.success(utilisateurService.validateActivationToken(token)));
+    }
+
+    @PostMapping("/activation")
+    @Operation(summary = "Definir le mot de passe et activer le compte")
+    public ResponseEntity<DataResponse<Void>> activate(
+            @Valid @RequestBody ActivateAccountRequest request) {
+        return ResponseEntity.ok(utilisateurService.activerCompte(request));
     }
 }

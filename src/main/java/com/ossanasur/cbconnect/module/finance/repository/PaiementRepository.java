@@ -1,10 +1,15 @@
 package com.ossanasur.cbconnect.module.finance.repository;
 
 import com.ossanasur.cbconnect.module.finance.entity.Paiement;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -477,5 +482,30 @@ public interface PaiementRepository extends JpaRepository<Paiement, Integer> {
             ORDER BY annee
             """, nativeQuery = true)
     List<Object[]> paiementsParAnnee(@Param("anneeDebut") int anneeDebut, @Param("anneeFin") int anneeFin);
+
+    @Query(value = """
+            SELECT p.*
+            FROM paiement p
+            JOIN sinistre s ON p.sinistre_id = s.historique_id
+            WHERE (:statut IS NULL OR p.statut = :statut)
+              AND (:dateDebut IS NULL OR p.date_emission >= :dateDebut)
+              AND (:dateFin IS NULL OR p.date_emission <= :dateFin)
+              AND (:sinistreTrackingId IS NULL OR s.sinistre_tracking_id = :sinistreTrackingId)
+            ORDER BY p.date_emission DESC
+            """, countQuery = """
+            SELECT COUNT(*)
+            FROM paiement p
+            JOIN sinistre s ON p.sinistre_id = s.historique_id
+            WHERE (:statut IS NULL OR p.statut = :statut)
+              AND (:dateDebut IS NULL OR p.date_emission >= :dateDebut)
+              AND (:dateFin IS NULL OR p.date_emission <= :dateFin)
+              AND (:sinistreTrackingId IS NULL OR s.sinistre_tracking_id = :sinistreTrackingId)
+            """, nativeQuery = true)
+    Page<Paiement> rechercherPaiements(
+            @Param("statut") String statut,
+            @Param("dateDebut") LocalDate dateDebut,
+            @Param("dateFin") LocalDate dateFin,
+            @Param("sinistreTrackingId") UUID sinistreTrackingId,
+            Pageable pageable);
 
 }

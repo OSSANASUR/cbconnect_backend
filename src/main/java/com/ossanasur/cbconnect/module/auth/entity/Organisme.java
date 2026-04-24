@@ -63,6 +63,10 @@ public class Organisme extends InternalHistorique {
     /** FK logique vers PAYS (Integer ID) */
     private Integer paysId;
 
+    private String adresse;
+    private String boitePostale;
+    private String ville;
+
     private LocalDate dateCreation;
     private String numeroAgrement;
     private String apiEndpointUrl;

@@ -11,7 +11,8 @@ import java.util.UUID;
 
 @Repository
 public interface UtilisateurRepository extends JpaRepository<Utilisateur, Integer> {
-    @Query("SELECT u FROM Utilisateur u WHERE (u.email = :login OR u.username = :login) AND u.activeData = true AND u.deletedData = false")
+
+    @Query("SELECT u FROM Utilisateur u WHERE (u.email = :login OR u.username = :login2) AND u.activeData = true AND u.deletedData = false")
     Optional<Utilisateur> findByEmailOrUsername(@Param("login") String login, @Param("login2") String login2);
 
     Optional<Utilisateur> findByEmailAndActiveDataTrueAndDeletedDataFalse(String email);
@@ -26,6 +27,17 @@ public interface UtilisateurRepository extends JpaRepository<Utilisateur, Intege
 
     boolean existsByEmailAndActiveDataTrueAndDeletedDataFalse(String email);
 
-    // findByUsername
-    Optional<Utilisateur> findByUsernameAndActiveDataTrueAndDeletedDataFalse(String username);
+    @Query(value = """
+                SELECT *
+                FROM utilisateur u
+                WHERE u.username = :username
+                  AND u.active_data = true
+                  AND u.deleted_data = false
+            """, nativeQuery = true)
+    Optional<Utilisateur> findActiveByUsername(@Param("username") String username);
+
+    @Query("SELECT u FROM Utilisateur u " +
+            "WHERE u.accountSetupToken = :token " +
+            "AND u.activeData = true AND u.deletedData = false")
+    Optional<Utilisateur> findByAccountSetupToken(@Param("token") String token);
 }

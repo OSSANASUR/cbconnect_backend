@@ -15,11 +15,15 @@ import java.util.UUID;
 @Entity
 @DiscriminatorValue("PASSWORDS")
 public class Passwords extends InternalHistorique {
+
     @Column(name = "passwords_tracking_id", unique = true)
     private UUID passwordsTrackingId;
+
     @Column(nullable = false)
     private String password;
+
     private boolean isTemporary;
+
     @ManyToOne
     @JoinColumn(name = "utilisateur_id", nullable = false)
     private Utilisateur utilisateur;

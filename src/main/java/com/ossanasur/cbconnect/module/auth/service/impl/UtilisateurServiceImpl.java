@@ -1,5 +1,6 @@
 package com.ossanasur.cbconnect.module.auth.service.impl;
 
+import com.ossanasur.cbconnect.common.enums.TypeTable;
 import com.ossanasur.cbconnect.exception.AlreadyExistException;
 import com.ossanasur.cbconnect.exception.BadRequestException;
 import com.ossanasur.cbconnect.exception.RessourceNotFoundException;
@@ -11,22 +12,34 @@ import com.ossanasur.cbconnect.module.auth.entity.Utilisateur;
 import com.ossanasur.cbconnect.module.auth.mapper.UtilisateurMapper;
 import com.ossanasur.cbconnect.module.auth.repository.ProfilRepository;
 import com.ossanasur.cbconnect.module.auth.repository.UtilisateurRepository;
+import com.ossanasur.cbconnect.module.auth.service.ParametreService;
 import com.ossanasur.cbconnect.module.auth.service.UtilisateurService;
+import com.ossanasur.cbconnect.exception.LinkExpiredException;
+import com.ossanasur.cbconnect.security.dto.request.ActivateAccountRequest;
 import com.ossanasur.cbconnect.security.dto.request.ChangePasswordRequest;
 import com.ossanasur.cbconnect.security.dto.request.LoginRequest;
+import com.ossanasur.cbconnect.security.dto.response.ActivationInfoResponse;
 import com.ossanasur.cbconnect.security.dto.response.LoginResponse;
 import com.ossanasur.cbconnect.security.dto.response.UserInfoResponse;
 import com.ossanasur.cbconnect.security.entity.Passwords;
 import com.ossanasur.cbconnect.security.repository.PasswordRepository;
+import com.ossanasur.cbconnect.security.service.EmailSenderService;
 import com.ossanasur.cbconnect.security.service.JwtService;
 import com.ossanasur.cbconnect.security.service.TwoFactorAuthService;
 import com.ossanasur.cbconnect.utils.DataResponse;
+
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -43,40 +56,71 @@ public class UtilisateurServiceImpl implements UtilisateurService {
     private final JwtService jwtService;
     private final TwoFactorAuthService twoFactorAuthService;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final EmailSenderService senderService;
+    private final ParametreService parametreService;
 
     @Override
     @Transactional
-    public DataResponse<UtilisateurResponse> creer(UtilisateurRequest r, String password, String loginAuteur) {
-        if (utilisateurRepository.existsByEmailAndActiveDataTrueAndDeletedDataFalse(r.email()))
-            throw new AlreadyExistException("L'email '" + r.email() + "' est deja utilise");
+    public DataResponse<UtilisateurResponse> creer(UtilisateurRequest request, String loginAuteur) {
+        if (utilisateurRepository.existsByEmailAndActiveDataTrueAndDeletedDataFalse(request.email()))
+            throw new AlreadyExistException("L'email '" + request.email() + "' est deja utilise");
 
         Profil profil = null;
-        if (r.profilTrackingId() != null) {
-            profil = profilRepository.findActiveByTrackingId(r.profilTrackingId())
+        if (request.profilTrackingId() != null) {
+            profil = profilRepository.findActiveByTrackingId(request.profilTrackingId())
                     .orElseThrow(() -> new RessourceNotFoundException("Profil introuvable"));
         }
 
-        Utilisateur u = Utilisateur.builder()
-                .utilisateurTrackingId(UUID.randomUUID())
-                .nom(r.nom()).prenoms(r.prenoms()).email(r.email())
-                .username(r.username() != null ? r.username() : r.email())
-                .telephone(r.telephone()).profil(profil)
-                .isActive(true).mustChangePassword(true)
-                .createdBy(loginAuteur).activeData(true).deletedData(false)
-                .fromTable(com.ossanasur.cbconnect.common.enums.TypeTable.UTILISATEUR)
-                .build();
-        Utilisateur saved = utilisateurRepository.save(u);
+        int ttlDays = Integer.parseInt(parametreService.getValeur("ACCOUNT_SETUP_TOKEN_TTL_DAYS", "7"));
+        String token = UUID.randomUUID().toString();
+        LocalDateTime expiresAt = LocalDateTime.now().plusDays(ttlDays);
 
-        Passwords pwd = Passwords.builder()
-                .passwordsTrackingId(UUID.randomUUID())
-                .password(passwordEncoder.encode(password))
-                .isTemporary(true).utilisateur(saved)
+        Utilisateur utilisateur = Utilisateur.builder()
+                .utilisateurTrackingId(UUID.randomUUID())
+                .nom(request.nom()).prenoms(request.prenoms()).email(request.email())
+                .username(request.username() != null ? request.username() : request.email())
+                .telephone(request.telephone()).profil(profil)
+                .isActive(false)
+                .mustChangePassword(false)
+                .accountSetupToken(token)
+                .accountSetupTokenExpiresAt(expiresAt)
                 .createdBy(loginAuteur).activeData(true).deletedData(false)
-                .fromTable(com.ossanasur.cbconnect.common.enums.TypeTable.UTILISATEUR)
+                .fromTable(TypeTable.UTILISATEUR)
                 .build();
-        passwordRepository.save(pwd);
+        Utilisateur saved = utilisateurRepository.save(utilisateur);
+
+        sendActivationEmail(saved, token, expiresAt, ttlDays);
 
         return DataResponse.created("Utilisateur cree avec succes", utilisateurMapper.toResponse(saved));
+    }
+
+    private void sendActivationEmail(Utilisateur u, String token, LocalDateTime expiresAt, int ttlDays) {
+        String frontUrl = parametreService.getValeur("MAIL_FRONTEND_BASE_URL", "http://localhost:3000");
+        String roleLabel = (u.getProfil() != null && u.getProfil().getOrganisme() != null)
+                ? u.getProfil().getProfilNom() + " — " + u.getProfil().getOrganisme().getRaisonSociale()
+                : "—";
+        String expirationLabel = expiresAt.format(
+                DateTimeFormatter.ofPattern("d MMMM uuuu 'à' HH:mm", Locale.FRENCH));
+
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("nomComplet", u.getNom() + " " + u.getPrenoms());
+        vars.put("emailUtilisateur", u.getEmail());
+        vars.put("roleLabel", roleLabel);
+        vars.put("expirationLabel", expirationLabel);
+        vars.put("activationUrl", frontUrl + "/activation/" + token);
+        vars.put("ttlDays", ttlDays);
+        vars.put("footerOrganisme", parametreService.getValeur("MAIL_FOOTER_ORGANISME", "Carte Brune CEDEAO"));
+        vars.put("footerAdresse", parametreService.getValeur("MAIL_FOOTER_ADRESSE", ""));
+        vars.put("footerBp", parametreService.getValeur("MAIL_FOOTER_BP", ""));
+        vars.put("footerTel", parametreService.getValeur("MAIL_FOOTER_TEL", ""));
+        vars.put("footerEmail", parametreService.getValeur("MAIL_FOOTER_EMAIL", "contact@cartebrune.org"));
+        vars.put("footerLogoUrl", parametreService.getValeur("MAIL_FOOTER_LOGO_URL", ""));
+        vars.put("supportEmail", parametreService.getValeur("MAIL_SUPPORT_EMAIL", "support@bncb-togo.com"));
+
+        senderService.sendTemplated(u.getEmail(),
+                "Activation de votre compte CBConnect",
+                "registration",
+                vars);
     }
 
     @Override
@@ -90,6 +134,12 @@ public class UtilisateurServiceImpl implements UtilisateurService {
     @Transactional(readOnly = true)
     public DataResponse<UtilisateurResponse> getByTrackingId(UUID id) {
         Utilisateur u = utilisateurRepository.findByUtilisateurTrackingIdAndActiveDataTrueAndDeletedDataFalse(id)
+                .orElseThrow(() -> new RessourceNotFoundException("Utilisateur introuvable"));
+        return DataResponse.success(utilisateurMapper.toResponse(u));
+    }
+
+    public DataResponse<UtilisateurResponse> getByUsername(String login) {
+        Utilisateur u = utilisateurRepository.findByEmailOrUsername(login, login)
                 .orElseThrow(() -> new RessourceNotFoundException("Utilisateur introuvable"));
         return DataResponse.success(utilisateurMapper.toResponse(u));
     }
@@ -110,62 +160,161 @@ public class UtilisateurServiceImpl implements UtilisateurService {
 
     @Override
     @Transactional
-    public DataResponse<Void> changerPassword(UUID id, ChangePasswordRequest r, String loginAuteur) {
-        Utilisateur u = utilisateurRepository.findByUtilisateurTrackingIdAndActiveDataTrueAndDeletedDataFalse(id)
+    public DataResponse<Void> changerPassword(UUID id, ChangePasswordRequest request, String loginAuteur) {
+
+        int nTop = 3;
+
+        Utilisateur oUtilisateur = utilisateurRepository
+                .findByUtilisateurTrackingIdAndActiveDataTrueAndDeletedDataFalse(id)
                 .orElseThrow(() -> new RessourceNotFoundException("Utilisateur introuvable"));
-        Passwords pwd = passwordRepository.findActiveByUtilisateurTrackingId(u.getUtilisateurTrackingId());
-        if (pwd == null || !passwordEncoder.matches(r.ancienPassword(), pwd.getPassword()))
+
+        Passwords pwd = passwordRepository.findActiveByUtilisateurTrackingId(oUtilisateur.getUtilisateurTrackingId());
+
+        if (pwd == null || !passwordEncoder.matches(request.ancienMotDePasse(), pwd.getPassword()))
             throw new BadRequestException("Ancien mot de passe incorrect");
+
+        List<Passwords> lastPasswords = passwordRepository.findNLastPasswords(
+                oUtilisateur.getHistoriqueId(), nTop);
+
+        for (Passwords oldPwd : lastPasswords) {
+            if (passwordEncoder.matches(request.nouveauMotDePasse(), oldPwd.getPassword())) {
+                throw new BadRequestException(
+                        "Le nouveau mot de passe ne doit pas être identique aux " + nTop + " derniers utilisés");
+            }
+        }
+
         pwd.setActiveData(false);
+
         passwordRepository.save(pwd);
+
         Passwords newPwd = Passwords.builder()
                 .passwordsTrackingId(UUID.randomUUID())
-                .password(passwordEncoder.encode(r.nouveauPassword()))
-                .isTemporary(false).utilisateur(u)
+                .password(passwordEncoder.encode(request.nouveauMotDePasse()))
+                .isTemporary(false).utilisateur(oUtilisateur)
                 .createdBy(loginAuteur).activeData(true).deletedData(false)
                 .fromTable(com.ossanasur.cbconnect.common.enums.TypeTable.UTILISATEUR)
                 .build();
+
         passwordRepository.save(newPwd);
-        u.setMustChangePassword(false);
-        utilisateurRepository.save(u);
+        oUtilisateur.setMustChangePassword(false);
+        utilisateurRepository.save(oUtilisateur);
         return DataResponse.success("Mot de passe modifie avec succes", null);
     }
 
     @Override
-    @Transactional
-    public DataResponse<Void> activerCompte(String verificationCode) {
-        throw new UnsupportedOperationException("TODO: implementer activation par code");
+    @Transactional(readOnly = true)
+    public ActivationInfoResponse validateActivationToken(String token) {
+        Utilisateur u = loadActiveTokenOrThrow(token);
+        String supportEmail = parametreService.getValeur("MAIL_SUPPORT_EMAIL", "support@bncb-togo.com");
+        return new ActivationInfoResponse(
+                u.getEmail(),
+                u.getNom() + " " + u.getPrenoms(),
+                u.getAccountSetupTokenExpiresAt(),
+                supportEmail);
     }
 
     @Override
     @Transactional
-    public DataResponse<LoginResponse> login(LoginRequest r) {
-        Utilisateur u = utilisateurRepository.findByEmailOrUsername(r.login(), r.login())
+    public DataResponse<Void> activerCompte(ActivateAccountRequest request) {
+        Utilisateur u = loadActiveTokenOrThrow(request.token());
+
+        Passwords pwd = Passwords.builder()
+                .passwordsTrackingId(UUID.randomUUID())
+                .password(passwordEncoder.encode(request.password()))
+                .isTemporary(false)
+                .utilisateur(u)
+                .createdBy(u.getEmail())
+                .activeData(true).deletedData(false)
+                .fromTable(com.ossanasur.cbconnect.common.enums.TypeTable.UTILISATEUR)
+                .build();
+        passwordRepository.save(pwd);
+
+        u.setActive(true);
+        u.setAccountSetupToken(null);
+        u.setAccountSetupTokenExpiresAt(null);
+        utilisateurRepository.save(u);
+
+        return DataResponse.success("Compte active avec succes", null);
+    }
+
+    @Override
+    @Transactional
+    public DataResponse<Void> resendActivationLink(UUID utilisateurTrackingId, String loginAuteur) {
+        Utilisateur u = utilisateurRepository
+                .findByUtilisateurTrackingIdAndActiveDataTrueAndDeletedDataFalse(utilisateurTrackingId)
+                .orElseThrow(() -> new RessourceNotFoundException("Utilisateur introuvable"));
+        if (u.isActive())
+            throw new AlreadyExistException("Ce compte est deja active");
+
+        int ttlDays = Integer.parseInt(parametreService.getValeur("ACCOUNT_SETUP_TOKEN_TTL_DAYS", "7"));
+        String token = UUID.randomUUID().toString();
+        LocalDateTime expiresAt = LocalDateTime.now().plusDays(ttlDays);
+
+        u.setAccountSetupToken(token);
+        u.setAccountSetupTokenExpiresAt(expiresAt);
+        u.setUpdatedBy(loginAuteur);
+        utilisateurRepository.save(u);
+
+        sendActivationEmail(u, token, expiresAt, ttlDays);
+        return DataResponse.success("Lien d'activation renvoye", null);
+    }
+
+    /**
+     * Recharge l'utilisateur via le token et applique les regles 404 / 410 / 409.
+     */
+    private Utilisateur loadActiveTokenOrThrow(String token) {
+        Utilisateur u = utilisateurRepository.findByAccountSetupToken(token)
+                .orElseThrow(() -> new RessourceNotFoundException("Lien d'activation invalide"));
+        if (u.isActive())
+            throw new AlreadyExistException("Ce compte est deja active");
+        if (u.getAccountSetupTokenExpiresAt() == null
+                || u.getAccountSetupTokenExpiresAt().isBefore(java.time.LocalDateTime.now()))
+            throw new LinkExpiredException("Ce lien d'activation a expire");
+        return u;
+    }
+
+    @Override
+    @Transactional
+    public DataResponse<LoginResponse> login(LoginRequest request) {
+
+        Utilisateur oUtilisateur = utilisateurRepository.findByEmailOrUsername(request.login(), request.login())
                 .orElseThrow(() -> new BadRequestException("Identifiants incorrects"));
-        if (!u.isActive()) throw new BadRequestException("Compte inactif");
-        Passwords pwd = passwordRepository.findActiveByUtilisateurTrackingId(u.getUtilisateurTrackingId());
-        if (pwd == null || !passwordEncoder.matches(r.password(), pwd.getPassword()))
+
+        // Enregistrement de l'heure de connexion
+        oUtilisateur.setDateDeConnexion(LocalDateTime.now());
+
+        utilisateurRepository.save(oUtilisateur);
+
+        if (!oUtilisateur.isActive())
+            throw new BadRequestException("Compte inactif");
+
+        Passwords pwd = passwordRepository.findActiveByUtilisateurTrackingId(oUtilisateur.getUtilisateurTrackingId());
+        if (pwd == null || !passwordEncoder.matches(request.password(), pwd.getPassword()))
             throw new BadRequestException("Identifiants incorrects");
 
-        boolean orgRequires2FA = u.getProfil() != null
-                && u.getProfil().getOrganisme() != null
-                && u.getProfil().getOrganisme().isTwoFactorEnabled();
+        boolean orgRequires2FA = oUtilisateur.getProfil() != null
+                && oUtilisateur.getProfil().getOrganisme() != null
+                && oUtilisateur.getProfil().getOrganisme().isTwoFactorEnabled();
 
         if (orgRequires2FA) {
-            var result = twoFactorAuthService.generateAndSendOtp(u);
+            var result = twoFactorAuthService.generateAndSendOtp(oUtilisateur);
             return DataResponse.success("Code OTP envoyé",
                     LoginResponse.requires2FA(result.otpTrackingId(), result.maskedEmail()));
         }
 
-        Map<String, Object> tokens = jwtService.generateTokens(u, r.isMobile());
-        return DataResponse.success("Connexion reussie", LoginResponse.direct(tokens, buildUserInfo(u)));
+        Map<String, Object> tokens = jwtService.generateTokens(oUtilisateur, request.isMobile());
+
+        return DataResponse.success("Connexion reussie", LoginResponse.direct(tokens, buildUserInfo(oUtilisateur)));
     }
 
     @Override
     @Transactional
     public DataResponse<LoginResponse> verifyOtpAndIssueTokens(UUID otpTrackingId, String code, boolean isMobile) {
+
         Utilisateur u = twoFactorAuthService.verifyOtp(otpTrackingId, code);
+
         Map<String, Object> tokens = jwtService.generateTokens(u, isMobile);
+
         return DataResponse.success("Authentification réussie", LoginResponse.direct(tokens, buildUserInfo(u)));
     }
 
@@ -186,13 +335,20 @@ public class UtilisateurServiceImpl implements UtilisateurService {
                 u.isMustChangePassword(),
                 orgTwoFactor,
                 org != null ? org.getOrganismeTrackingId() : null,
-                org != null ? org.getRaisonSociale() : null);
+                org != null ? org.getRaisonSociale() : null, u.getDateDeConnexion(), u.getDateDeConnexion());
     }
 
     @Override
     @Transactional
     public DataResponse<Void> logout(String token) {
-        jwtService.revokeToken(token);
+
+        Utilisateur oUser = jwtService.revokeToken(token);
+
+        // Enregistrement de l'heure de deconnexion
+        oUser.setDateDeDeconnexion(LocalDateTime.now());
+        utilisateurRepository.save(oUser);
+
         return DataResponse.success("Deconnexion reussie", null);
     }
+
 }

@@ -9,6 +9,9 @@ import com.ossanasur.cbconnect.module.sinistre.entity.Victime;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -54,7 +57,8 @@ public class DossierReclamation extends InternalHistorique {
      * Ex : BAP pour une victime, ATTENTE_OFFRE pour une autre.
      */
     @Enumerated(EnumType.STRING)
-    @Column(name = "statut_reclamation", length = 30)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "statut_reclamation", columnDefinition = "statut_reclamation_enum")
     @Builder.Default
     private StatutReclamation statutReclamation = StatutReclamation.AUTRES;
 }

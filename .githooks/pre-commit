@@ -1,0 +1,29 @@
+#!/bin/bash
+# Empêche l'ajout de migrations Flyway avec numérotation séquentielle courte.
+# Seul le format timestamp V2026MMDDXX__ est autorisé pour éviter les conflits
+# de version entre les branches (ex: main et sinistre_dev ont eu V26/V27/V28 différents).
+#
+# Installation : git config core.hooksPath .githooks
+
+MIGRATION_DIR="src/main/resources/db/migration"
+
+for file in $(git diff --cached --name-only --diff-filter=A | grep "$MIGRATION_DIR/V"); do
+    filename=$(basename "$file")
+    version=$(echo "$filename" | sed 's/^V//' | sed 's/__.*//')
+
+    # Rejette les versions purement séquentielles (1 à 4 chiffres)
+    if echo "$version" | grep -qE '^[0-9]{1,4}$'; then
+        echo ""
+        echo "  MIGRATION REJETÉE : $filename"
+        echo "  Version séquentielle V$version interdite sur cette branche."
+        echo ""
+        echo "  Utilisez le format timestamp :"
+        echo "    V$(date +%Y%m%d)01__$(echo "$filename" | sed 's/^V[0-9]*__//')"
+        echo ""
+        echo "  Ce format évite les conflits de version lors des merges avec main."
+        echo ""
+        exit 1
+    fi
+done
+
+exit 0

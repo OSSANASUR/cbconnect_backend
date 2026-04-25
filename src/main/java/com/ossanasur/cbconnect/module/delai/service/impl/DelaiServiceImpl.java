@@ -1,9 +1,11 @@
 package com.ossanasur.cbconnect.module.delai.service.impl;
+
 import com.ossanasur.cbconnect.common.enums.*;
 import com.ossanasur.cbconnect.exception.RessourceNotFoundException;
-import com.ossanasur.cbconnect.module.delai.dto.response.NotificationDelaiResponse;
-import com.ossanasur.cbconnect.module.delai.entity.NotificationDelai;
-import com.ossanasur.cbconnect.module.delai.entity.ParametreDelai;
+import com.ossanasur.cbconnect.module.delai.dto.request.ParametreDelaiUpdateRequest;
+import com.ossanasur.cbconnect.module.delai.dto.request.ParametreSystemeUpdateRequest;
+import com.ossanasur.cbconnect.module.delai.dto.response.*;
+import com.ossanasur.cbconnect.module.delai.entity.*;
 import com.ossanasur.cbconnect.module.delai.mapper.DelaiMapper;
 import com.ossanasur.cbconnect.module.delai.repository.*;
 import com.ossanasur.cbconnect.module.delai.service.DelaiService;
@@ -13,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -23,7 +26,9 @@ import java.util.stream.Collectors;
 
 @Slf4j @Service @RequiredArgsConstructor
 public class DelaiServiceImpl implements DelaiService {
+
     private final ParametreDelaiRepository parametreDelaiRepository;
+    private final ParametreSystemeRepository parametreSystemeRepository;
     private final NotificationDelaiRepository notificationRepository;
     private final SinistreRepository sinistreRepository;
     private final DelaiMapper delaiMapper;
@@ -43,7 +48,8 @@ public class DelaiServiceImpl implements DelaiService {
                 notificationRepository.save(notif);
             }
         }
-        log.info("Délais initialisés pour sinistre {} : {} suivis créés", sinistre.getNumeroSinistreLocal(), delais.size());
+        log.info("Délais initialisés pour sinistre {} : {} délais MAX suivis",
+            sinistre.getNumeroSinistreLocal(), delais.stream().filter(d -> TypeDelai.DELAI_MAX.equals(d.getTypeDelai())).count());
     }
 
     @Override @Transactional
@@ -82,23 +88,63 @@ public class DelaiServiceImpl implements DelaiService {
         return DataResponse.success("Délai marqué résolu", null);
     }
 
-    @Override @Transactional(readOnly=true)
+    @Override @Transactional(readOnly = true)
     public DataResponse<List<NotificationDelaiResponse>> getActiveBySinistre(UUID sinistreId) {
         return DataResponse.success(notificationRepository.findActiveBySinistre(sinistreId)
             .stream().map(delaiMapper::toResponse).collect(Collectors.toList()));
     }
 
-    @Override @Transactional(readOnly=true)
+    @Override @Transactional(readOnly = true)
     public DataResponse<List<NotificationDelaiResponse>> getMesAlertes(String loginEmail) {
-        // Find utilisateur by email then by tracking ID
-        return DataResponse.success(List.of()); // TODO: link to utilisateur
+        return DataResponse.success(List.of());
     }
 
-    @Override @Transactional(readOnly=true)
+    @Override @Transactional(readOnly = true)
     public DataResponse<List<NotificationDelaiResponse>> getUrgents() {
         return DataResponse.success(notificationRepository.findUrgents()
             .stream().map(delaiMapper::toResponse).collect(Collectors.toList()));
     }
+
+    // ─── Référentiel délais ───────────────────────────────────────────────────
+
+    @Override @Transactional(readOnly = true)
+    public DataResponse<List<ParametreDelaiResponse>> listParametres() {
+        return DataResponse.success(parametreDelaiRepository.findAllOrdered()
+            .stream().map(delaiMapper::toParametreResponse).toList());
+    }
+
+    @Override @Transactional
+    public DataResponse<ParametreDelaiResponse> updateParametre(Integer id, ParametreDelaiUpdateRequest r) {
+        ParametreDelai p = parametreDelaiRepository.findById(id)
+            .orElseThrow(() -> new RessourceNotFoundException("Paramètre délai introuvable : " + id));
+        if (!p.isModifiable())
+            throw new IllegalStateException("Ce délai n'est pas modifiable");
+        if (r.valeur() != null) p.setValeur(r.valeur());
+        if (r.seuilAlerte1Pct() != null) p.setSeuilAlerte1Pct(r.seuilAlerte1Pct());
+        if (r.seuilAlerte2Pct() != null) p.setSeuilAlerte2Pct(r.seuilAlerte2Pct());
+        if (r.tauxPenalitePct() != null) p.setTauxPenalitePct(r.tauxPenalitePct());
+        if (r.actif() != null) p.setActif(r.actif());
+        return DataResponse.success("Paramètre mis à jour", delaiMapper.toParametreResponse(parametreDelaiRepository.save(p)));
+    }
+
+    // ─── Paramètres système ───────────────────────────────────────────────────
+
+    @Override @Transactional(readOnly = true)
+    public DataResponse<List<ParametreSystemeResponse>> listParametresSysteme() {
+        return DataResponse.success(parametreSystemeRepository.findAllByActifTrueOrderByCle()
+            .stream().map(delaiMapper::toSystemeResponse).toList());
+    }
+
+    @Override @Transactional
+    public DataResponse<ParametreSystemeResponse> updateParametreSysteme(Integer id, ParametreSystemeUpdateRequest r) {
+        ParametreSysteme s = parametreSystemeRepository.findById(id)
+            .orElseThrow(() -> new RessourceNotFoundException("Paramètre système introuvable : " + id));
+        if (r.valeurDecimal() != null) s.setValeurDecimal(r.valeurDecimal());
+        if (r.actif() != null) s.setActif(r.actif());
+        return DataResponse.success("Paramètre mis à jour", delaiMapper.toSystemeResponse(parametreSystemeRepository.save(s)));
+    }
+
+    // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private LocalDate calculerEcheance(LocalDate debut, ParametreDelai delai) {
         BigDecimal valeur = delai.getValeur();
@@ -116,8 +162,8 @@ public class DelaiServiceImpl implements DelaiService {
         if (totalJours <= 0) return NiveauAlerteDelai.CRITIQUE;
         double pct = (double) joursEcoules / totalJours;
         ParametreDelai p = n.getParametreDelai();
-        double s1 = p.getSeuilAlerte1Pct() != null ? p.getSeuilAlerte1Pct().doubleValue() / 100.0 : 0.7;
-        double s2 = p.getSeuilAlerte2Pct() != null ? p.getSeuilAlerte2Pct().doubleValue() / 100.0 : 0.9;
+        double s1 = p.getSeuilAlerte1Pct() != null ? p.getSeuilAlerte1Pct().doubleValue() / 100.0 : 0.50;
+        double s2 = p.getSeuilAlerte2Pct() != null ? p.getSeuilAlerte2Pct().doubleValue() / 100.0 : 0.75;
         if (pct >= 1.0) return NiveauAlerteDelai.CRITIQUE;
         if (pct >= s2)  return NiveauAlerteDelai.URGENT;
         if (pct >= s1)  return NiveauAlerteDelai.ATTENTION;

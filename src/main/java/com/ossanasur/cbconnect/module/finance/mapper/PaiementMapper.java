@@ -21,6 +21,7 @@ import com.ossanasur.cbconnect.module.finance.entity.Paiement;
 import com.ossanasur.cbconnect.module.sinistre.entity.Sinistre;
 import com.ossanasur.cbconnect.module.sinistre.entity.Victime;
 
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -108,12 +109,12 @@ public class PaiementMapper {
                 .beneficiaireVictime(victime)
                 .beneficiaireOrganisme(organisme)
                 /* chèque */
-                .numeroChequeEmis(request.numeroChequeEmis())
-                .banqueCheque(request.banqueCheque())
-                .modePaiement(request.modePaiement())
+                // .numeroChequeEmis(request.numeroChequeEmis())
+                // .banqueCheque(request.banqueCheque())
+                // .modePaiement(request.modePaiement())
                 /* financier */
                 .montant(request.montant())
-                .dateEmission(request.dateEmission())
+                .dateEmission(LocalDate.now())
                 /* statut initial */
                 .statut(StatutPaiement.EMIS)
                 /* audit & historique */

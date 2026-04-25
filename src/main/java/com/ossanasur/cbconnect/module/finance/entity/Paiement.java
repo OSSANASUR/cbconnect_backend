@@ -38,7 +38,7 @@ public class Paiement extends InternalHistorique {
     @JoinColumn(name = "beneficiaire_organisme_id")
     private Organisme beneficiaireOrganisme;
 
-    @Column(nullable = false)
+    @Column
     private String numeroChequeEmis;
 
     private String banqueCheque;
@@ -46,13 +46,16 @@ public class Paiement extends InternalHistorique {
     @Column(nullable = false)
     private BigDecimal montant;
 
+    @Column
+    private LocalDate dateEmissionCheque;
+
     @Column(nullable = false)
     private LocalDate dateEmission;
 
     private LocalDate datePaiement;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     @Builder.Default
     private StatutPaiement statut = StatutPaiement.EMIS;
 

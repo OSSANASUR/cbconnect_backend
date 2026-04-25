@@ -46,14 +46,9 @@ public class ExpertiseMedicaleServiceImpl implements ExpertiseMedicaleService {
                 .honoraires(r.honoraires() != null ? r.honoraires() : java.math.BigDecimal.ZERO)
                 .honorairesContreExpertise(r.honorairesContreExpertise() != null ? r.honorairesContreExpertise()
                         : java.math.BigDecimal.ZERO)
+                .ossanGedDocumentId(r.ossanGedDocumentId())
                 .victime(victime).createdBy(loginAuteur).activeData(true).deletedData(false)
                 .fromTable(TypeTable.EXPERTISE_MEDICALE).build();
-
-        // Associe le document GED si fourni (rapport PDF uploadé depuis le frontend)
-        if (r.ossanGedDocumentId() != null) {
-            e.setOssanGedDocumentId(r.ossanGedDocumentId());
-        }
-        
         if (r.expertTrackingId() != null)
             expertRepository.findActiveByTrackingId(r.expertTrackingId()).ifPresent(e::setExpert);
         // Mise a jour statut victime

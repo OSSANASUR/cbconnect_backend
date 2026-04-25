@@ -12,6 +12,6 @@ public record ExpertiseMedicaleRequest(
         BigDecimal tauxIpp, Integer dureeIttJours, Integer dureeItpJours,
         QualificationPretium pretiumDoloris, QualificationPretium prejudiceEsthetique,
         Boolean necessiteTiercePersonne, BigDecimal honoraires, BigDecimal honorairesContreExpertise,
-        Integer ossanGedDocumentId,
-        @NotNull UUID victimeTrackingId, UUID expertTrackingId) {
+        @NotNull UUID victimeTrackingId, UUID expertTrackingId,
+        Integer ossanGedDocumentId) {
 }

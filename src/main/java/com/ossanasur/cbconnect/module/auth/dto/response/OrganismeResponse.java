@@ -7,12 +7,12 @@ import java.util.List;
 import java.util.UUID;
 
 public record OrganismeResponse(
-        UUID organismeTrackingId, TypeOrganisme typeOrganisme, String raisonSociale,
-        String code, String email, String responsable, List<String> contacts,
-        String codePays, String codePaysBCB, Integer paysId,
-        String adresse, String boitePostale, String ville,
-        LocalDate dateCreation, String numeroAgrement, String apiEndpointUrl,
-        boolean active, boolean twoFactorEnabled, LocalDateTime createdAt,
-        // Coordonnees (V30)
-        String telephonePrincipal, String fax, String siteWeb) {
+                UUID organismeTrackingId, TypeOrganisme typeOrganisme, String raisonSociale,
+                String code, String email, String responsable, List<String> contacts,
+                String codePays, String codePaysBCB, Integer paysId,
+                String adresse, String boitePostale, String ville,
+                LocalDate dateCreation, String numeroAgrement, String apiEndpointUrl,
+                boolean active, boolean twoFactorEnabled, LocalDateTime createdAt,
+                // Coordonnees (V30)
+                String telephonePrincipal, String fax, String siteWeb) {
 }

@@ -50,6 +50,10 @@ public class ExpertiseMedicaleVersioningService
             u.setNecessiteTiercePersonne(r.necessiteTiercePersonne());
         if (r.honoraires() != null)
             u.setHonoraires(r.honoraires());
+        if (r.honorairesContreExpertise() != null)
+            u.setHonorairesContreExpertise(r.honorairesContreExpertise());
+        if (r.ossanGedDocumentId() != null)
+            u.setOssanGedDocumentId(r.ossanGedDocumentId());
         if (r.expertTrackingId() != null)
             expertRepository.findActiveByTrackingId(r.expertTrackingId()).ifPresent(u::setExpert);
         return u;

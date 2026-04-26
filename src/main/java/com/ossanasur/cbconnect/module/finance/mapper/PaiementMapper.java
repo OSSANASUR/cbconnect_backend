@@ -115,6 +115,9 @@ public class PaiementMapper {
                 /* financier */
                 .montant(request.montant())
                 .dateEmission(LocalDate.now())
+                /* qualification du préjudice (V2026042601) */
+                .typePrejudice(request.typePrejudice())
+                .motifComplement(request.motifComplement())
                 /* statut initial */
                 .statut(StatutPaiement.EMIS)
                 /* audit & historique */

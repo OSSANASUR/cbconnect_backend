@@ -117,6 +117,9 @@ public class Sinistre extends InternalHistorique {
     @Column(name = "numero_police_assureur", length = 200)
     private String numeroPoliceAssureur;
 
+    @Column(name = "numero_sinistre_assureur", length = 100)
+    private String numeroSinistreAssureur;
+
     /* ═══════════════ Extension wizard V22 ═══════════════ */
 
     /* Accident — détails supplémentaires */

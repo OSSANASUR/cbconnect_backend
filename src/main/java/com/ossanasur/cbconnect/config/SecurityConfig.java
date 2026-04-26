@@ -3,6 +3,7 @@ package com.ossanasur.cbconnect.config;
 import com.ossanasur.cbconnect.security.filter.JwtAuthFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -38,6 +39,7 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(req -> req
+                .requestMatchers(HttpMethod.GET, "/v1/organismes/*/branding/*").permitAll()
                 .requestMatchers(WHITELIST).permitAll()
                 .anyRequest().authenticated()
             )

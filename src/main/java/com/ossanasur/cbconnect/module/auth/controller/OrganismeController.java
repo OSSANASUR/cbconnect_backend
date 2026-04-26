@@ -1,6 +1,7 @@
 package com.ossanasur.cbconnect.module.auth.controller;
 
 import com.ossanasur.cbconnect.common.enums.TypeOrganisme;
+import com.ossanasur.cbconnect.module.auth.dto.request.BrandingImageType;
 import com.ossanasur.cbconnect.module.auth.dto.request.OrganismeRequest;
 import com.ossanasur.cbconnect.module.auth.dto.response.OrganismeResponse;
 import com.ossanasur.cbconnect.module.auth.service.OrganismeService;
@@ -13,11 +14,14 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -101,5 +105,34 @@ public class OrganismeController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(organismeService.getHistory(trackingId, page, size));
+    }
+
+    @PostMapping(value = "/{trackingId}/branding/{type}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Téléverser une image de branding (logo / header / footer) pour l'organisme")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SE')")
+    public ResponseEntity<DataResponse<OrganismeResponse>> uploadBranding(
+            @PathVariable UUID trackingId,
+            @PathVariable BrandingImageType type,
+            @RequestPart("file") MultipartFile file,
+            @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(organismeService.uploadBrandingImage(trackingId, type, file, user.getUsername()));
+    }
+
+    @DeleteMapping("/{trackingId}/branding/{type}")
+    @Operation(summary = "Supprimer une image de branding pour l'organisme")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SE')")
+    public ResponseEntity<DataResponse<OrganismeResponse>> deleteBranding(
+            @PathVariable UUID trackingId,
+            @PathVariable BrandingImageType type,
+            @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(organismeService.deleteBrandingImage(trackingId, type, user.getUsername()));
+    }
+
+    @GetMapping("/{trackingId}/branding/{type}")
+    @Operation(summary = "Servir une image de branding (accès public — utilisé dans les documents imprimés)")
+    public ResponseEntity<Resource> downloadBranding(
+            @PathVariable UUID trackingId,
+            @PathVariable BrandingImageType type) {
+        return organismeService.downloadBrandingImage(trackingId, type);
     }
 }

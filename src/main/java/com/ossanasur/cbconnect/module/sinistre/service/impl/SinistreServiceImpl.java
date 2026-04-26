@@ -100,6 +100,7 @@ public class SinistreServiceImpl implements SinistreService {
                 .conducteurLieuDelivrance(r.conducteurLieuDelivrance())
                 .declarantNom(r.declarantNom()).declarantPrenom(r.declarantPrenom())
                 .declarantTelephone(r.declarantTelephone()).declarantQualite(r.declarantQualite())
+                .numeroSinistreAssureur(r.numeroSinistreAssureur())
                 .paysGestionnaire(paysG).assure(assure)
                 .createdBy(loginAuteur).activeData(true).deletedData(false).fromTable(TypeTable.SINISTRE)
                 .build();

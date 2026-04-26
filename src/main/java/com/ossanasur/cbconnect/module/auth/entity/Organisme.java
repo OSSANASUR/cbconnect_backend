@@ -68,7 +68,7 @@ public class Organisme extends InternalHistorique {
     private String apiEndpointUrl;
     private String logo;
 
-    // ── Coordonnees (V30) ─────────────────────────────────────────────────────
+    // Coordonnees (V30)
     private String adresse;
     @Column(name = "boite_postale", length = 50)
     private String boitePostale;
@@ -81,7 +81,7 @@ public class Organisme extends InternalHistorique {
     @Column(name = "site_web")
     private String siteWeb;
 
-    // ── Branding documents (V2026042601) ─────────────────────────────────────
+    // Branding documents (V2026042601) ─
     @Column(name = "header_image_url", length = 500)
     private String headerImageUrl;
 

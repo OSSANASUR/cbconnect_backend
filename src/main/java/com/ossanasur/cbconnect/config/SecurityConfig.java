@@ -35,20 +35,21 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .cors(Customizer.withDefaults())
-            .csrf(AbstractHttpConfigurer::disable)
-            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(req -> req
-                .requestMatchers(HttpMethod.GET, "/v1/organismes/*/branding/*").permitAll()
-                .requestMatchers(WHITELIST).permitAll()
-                .anyRequest().authenticated()
-            )
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .cors(Customizer.withDefaults())
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(req -> req
+                        .requestMatchers(HttpMethod.GET, "/v1/organismes/*/branding/*").permitAll()
+                        .requestMatchers(WHITELIST).permitAll()
+                        .anyRequest().authenticated())
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
     @Bean
-    public BCryptPasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
+    public BCryptPasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
 
     @Bean
     public AuthenticationProvider authenticationProvider() {
@@ -64,25 +65,25 @@ public class SecurityConfig {
     }
 
     private static final String[] WHITELIST = {
-        "/v1/auth/**",
-        // "/v1/organismes/**",
-        "/v1/otp/**",
-        "/swagger-ui/**",
-        "/v3/api-docs/**",
-        "/api-docs/**",
-        "/swagger-ui.html",
-        "/actuator/health",
-        "/v1/auth/refresh-token",
-        "/v1/auth/forgot-password",
-        "/v1/auth/reset-password/**",
-        // ── SSO OssanGED : /start, /exchange et /verify sont appelés sans
-        //    bearer CBConnect. Leur sécurité repose sur le ticket/cookie SSO
-        //    signé côté backend.
-        "/v1/ged/portail/exchange",
-        "/v1/ged/portail/start",
-        "/v1/ged/portail/verify",
-        "/v1/ged/portail/bridge",
-        // Arbre dossiers : appelé par OssanGED branding JS (sans bearer CBConnect)
-        "/v1/ged/dossiers/arbre"
+            "/v1/auth/**",
+            // "/v1/organismes/**",
+            "/v1/otp/**",
+            "/swagger-ui/**",
+            "/v3/api-docs/**",
+            "/api-docs/**",
+            "/swagger-ui.html",
+            "/actuator/health",
+            "/v1/auth/refresh-token",
+            "/v1/auth/forgot-password",
+            "/v1/auth/reset-password/**",
+            // SSO OssanGED : /start, /exchange et /verify sont appelés sans
+            // bearer CBConnect. Leur sécurité repose sur le ticket/cookie SSO
+            // signé côté backend.
+            "/v1/ged/portail/exchange",
+            "/v1/ged/portail/start",
+            "/v1/ged/portail/verify",
+            "/v1/ged/portail/bridge",
+            // Arbre dossiers : appelé par OssanGED branding JS (sans bearer CBConnect)
+            "/v1/ged/dossiers/arbre"
     };
 }

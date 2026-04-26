@@ -47,6 +47,11 @@ public class OrganismeServiceImpl implements OrganismeService {
                 .numeroAgrement(r.numeroAgrement()).apiEndpointUrl(r.apiEndpointUrl())
                 .adresse(r.adresse()).boitePostale(r.boitePostale()).ville(r.ville())
                 .telephonePrincipal(r.telephonePrincipal()).fax(r.fax()).siteWeb(r.siteWeb())
+                .logo(r.logo())
+                .headerImageUrl(r.headerImageUrl()).footerImageUrl(r.footerImageUrl())
+                .titreResponsable(r.titreResponsable())
+                .afficherDeuxSignatures(r.afficherDeuxSignatures())
+                .responsable2(r.responsable2()).titreResponsable2(r.titreResponsable2())
                 .active(r.active()).createdBy(loginAuteur).activeData(true).deletedData(false)
                 .fromTable(com.ossanasur.cbconnect.common.enums.TypeTable.ORGANISME)
                 .build();

@@ -3,6 +3,7 @@ package com.ossanasur.cbconnect.module.indemnisation.service.impl;
 import com.ossanasur.cbconnect.common.enums.TypeSinistre;
 import com.ossanasur.cbconnect.common.enums.TypeTable;
 import com.ossanasur.cbconnect.common.enums.LienParente;
+import com.ossanasur.cbconnect.module.indemnisation.dto.request.CalculRequest;
 import com.ossanasur.cbconnect.module.baremes.repository.BaremeCapitalisationRepository;
 import com.ossanasur.cbconnect.module.baremes.repository.BaremeValeurPointIpRepository;
 import com.ossanasur.cbconnect.module.expertise.repository.ExpertiseMedicaleRepository;
@@ -49,7 +50,7 @@ public class CalculCimaServiceImpl implements CalculCimaService {
 
     @Override
     @Transactional
-    public OffreIndemnisation calculerOffreBlesse(Victime victime, String loginAuteur) {
+    public OffreIndemnisation calculerOffreBlesse(Victime victime, CalculRequest params, String loginAuteur) {
         Sinistre sinistre = victime.getSinistre();
 
         // Determination du SMIG retenu : MAX(SMIG pays gestionnaire, SMIG pays
@@ -97,10 +98,14 @@ public class CalculCimaServiceImpl implements CalculCimaService {
                 : smigRetenu;
         BigDecimal revenuAnnuel = revenuMensuel.multiply(new BigDecimal("12"));
 
-        // Art. 258 – Frais médicaux
-        BigDecimal fraisMedicaux = dossierReclamationRepository
-                .findMontantRetenuByVictime(victime.getVictimeTrackingId())
-                .orElse(BigDecimal.ZERO);
+        // Art. 258 – Frais médicaux : override instructeur prioritaire, sinon dossiers
+        // réclamation
+        BigDecimal fraisMedicaux = (params.fraisMedicaux() != null
+                && params.fraisMedicaux().compareTo(BigDecimal.ZERO) > 0)
+                        ? params.fraisMedicaux()
+                        : dossierReclamationRepository
+                                .findMontantRetenuByVictime(victime.getVictimeTrackingId())
+                                .orElse(BigDecimal.ZERO);
 
         // Art. 259 – ITT (conditionnel : perte de revenu prouvée)
         BigDecimal itt = BigDecimal.ZERO;
@@ -178,8 +183,10 @@ public class CalculCimaServiceImpl implements CalculCimaService {
                 .add(prejMoral).add(tiercePersonneAmt).add(pretiumDoloris)
                 .add(prejEsthetique).add(prejCarriere).add(prejScolaire).add(prejLeses);
 
-        // Application du taux RC
-        BigDecimal tauxRc = sinistre.getTauxRc() != null ? sinistre.getTauxRc() : new BigDecimal("100");
+        // Application du taux RC : override instructeur > sinistre.tauxRc > 100%
+        BigDecimal tauxRc = params.tauxRcOverride() != null ? params.tauxRcOverride()
+                : sinistre.getTauxRc() != null ? sinistre.getTauxRc()
+                        : new BigDecimal("100");
         BigDecimal totalNet = totalBrut.multiply(tauxRc).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
 
         // Frais de gestion (5% si SURVENU_TOGO uniquement)
@@ -211,7 +218,7 @@ public class CalculCimaServiceImpl implements CalculCimaService {
 
     @Override
     @Transactional
-    public OffreIndemnisation calculerOffreDeces(Victime victime, String loginAuteur) {
+    public OffreIndemnisation calculerOffreDeces(Victime victime, CalculRequest params, String loginAuteur) {
         Sinistre sinistre = victime.getSinistre();
 
         // ── SMIG retenu ───────────────────────────────────────────────────────
@@ -229,8 +236,12 @@ public class CalculCimaServiceImpl implements CalculCimaService {
                 : smigRetenu;
         BigDecimal revenuAnnuel = revenuMensuel.multiply(new BigDecimal("12"));
 
-        // ── Art. 264 – Frais funéraires : 3 × SMIG mensuel retenu ────────────
-        BigDecimal fraisFuneraires = smigRetenu.multiply(new BigDecimal("3"));
+        // ── Art. 264 – Frais funéraires : override instructeur prioritaire, sinon 3 ×
+        // SMIG mensuel
+        BigDecimal fraisFuneraires = (params.fraisFuneraires() != null
+                && params.fraisFuneraires().compareTo(BigDecimal.ZERO) > 0)
+                        ? params.fraisFuneraires()
+                        : smigRetenu.multiply(new BigDecimal("3"));
 
         // ── Art. 265 – Préjudice économique des ayants droit ──────────────────
         List<AyantDroit> ayantsDroit = ayantDroitRepository.findByVictime(victime.getVictimeTrackingId());
@@ -368,7 +379,9 @@ public class CalculCimaServiceImpl implements CalculCimaService {
 
         // Totaux
         BigDecimal totalBrut = fraisFuneraires.add(totalPeFinal).add(totalPmGlobal);
-        BigDecimal tauxRc = sinistre.getTauxRc() != null ? sinistre.getTauxRc() : new BigDecimal("100");
+        BigDecimal tauxRc = params.tauxRcOverride() != null ? params.tauxRcOverride()
+                : sinistre.getTauxRc() != null ? sinistre.getTauxRc()
+                        : new BigDecimal("100");
         BigDecimal totalNet = totalBrut.multiply(tauxRc).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
         BigDecimal fraisGestion = BigDecimal.ZERO;
         if (TypeSinistre.SURVENU_TOGO.equals(sinistre.getTypeSinistre())) {

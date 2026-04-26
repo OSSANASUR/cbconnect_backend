@@ -14,5 +14,11 @@ public record OrganismeResponse(
                 LocalDate dateCreation, String numeroAgrement, String apiEndpointUrl,
                 boolean active, boolean twoFactorEnabled, LocalDateTime createdAt,
                 // Coordonnees (V30)
-                String telephonePrincipal, String fax, String siteWeb) {
+                String telephonePrincipal, String fax, String siteWeb,
+                // Branding documents (V2026042601)
+                String logo,
+                String headerImageUrl, String footerImageUrl,
+                String titreResponsable,
+                boolean afficherDeuxSignatures,
+                String responsable2, String titreResponsable2) {
 }

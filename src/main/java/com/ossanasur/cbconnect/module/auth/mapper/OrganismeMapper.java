@@ -16,6 +16,11 @@ public class OrganismeMapper {
                 o.getAdresse(), o.getBoitePostale(), o.getVille(),
                 o.getDateCreation(), o.getNumeroAgrement(), o.getApiEndpointUrl(),
                 o.isActive(), o.isTwoFactorEnabled(), o.getCreatedAt(), o.getTelephonePrincipal(), o.getFax(),
-                o.getSiteWeb());
+                o.getSiteWeb(),
+                o.getLogo(),
+                o.getHeaderImageUrl(), o.getFooterImageUrl(),
+                o.getTitreResponsable(),
+                o.isAfficherDeuxSignatures(),
+                o.getResponsable2(), o.getTitreResponsable2());
     }
 }

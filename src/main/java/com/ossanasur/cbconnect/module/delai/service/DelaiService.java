@@ -13,6 +13,7 @@ public interface DelaiService {
     void initialiserDelaisPourSinistre(UUID sinistreId, String loginAuteur);
     void recalculerAlertes();
     DataResponse<Void> resoudre(Integer notificationId, String motif, String loginAuteur);
+    DataResponse<Void> relancerManuellement(Integer notificationId);
     DataResponse<List<NotificationDelaiResponse>> getActiveBySinistre(UUID sinistreId);
     DataResponse<List<NotificationDelaiResponse>> getMesAlertes(String loginEmail);
     DataResponse<List<NotificationDelaiResponse>> getUrgents();

@@ -10,8 +10,8 @@ import java.util.List; import java.util.Optional;
 public interface ParametreDelaiRepository extends JpaRepository<ParametreDelai, Integer> {
     Optional<ParametreDelai> findByCodeDelaiAndActifTrue(String codeDelai);
     Optional<ParametreDelai> findByCodeDelai(String codeDelai);
-    @Query("SELECT p FROM ParametreDelai p WHERE (p.typeSinistre=:type OR p.typeSinistre='TOUS') AND p.actif=true ORDER BY p.categorie, p.codeDelai")
-    List<ParametreDelai> findAllActiveByType(@Param("type") TypeSinistre type);
+    @Query("SELECT p FROM ParametreDelai p WHERE p.typeSinistre IN :types AND p.actif=true ORDER BY p.categorie, p.codeDelai")
+    List<ParametreDelai> findAllActiveByType(@Param("types") java.util.List<TypeSinistre> types);
     @Query("SELECT p FROM ParametreDelai p ORDER BY p.categorie, p.codeDelai")
     List<ParametreDelai> findAllOrdered();
 }

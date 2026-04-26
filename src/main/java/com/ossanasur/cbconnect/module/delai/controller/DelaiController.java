@@ -59,6 +59,12 @@ public class DelaiController {
         return ResponseEntity.ok(delaiService.resoudre(id, motif, u.getUsername()));
     }
 
+    @PostMapping("/{id}/relancer") @PreAuthorize("hasAnyRole('SE','CSS','REDACTEUR')")
+    @Operation(summary = "Envoyer une relance manuelle par mail pour ce délai")
+    public ResponseEntity<DataResponse<Void>> relancer(@PathVariable Integer id) {
+        return ResponseEntity.ok(delaiService.relancerManuellement(id));
+    }
+
     // ─── Référentiel des paramètres délai ────────────────────────────────────
 
     @GetMapping("/parametres")

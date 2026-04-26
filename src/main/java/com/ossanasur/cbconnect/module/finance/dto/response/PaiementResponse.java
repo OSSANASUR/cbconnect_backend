@@ -29,7 +29,11 @@ public record PaiementResponse(
         LocalDateTime createdAt,
         String createdBy,
         LocalDateTime updatedAt,
-        String updatedBy
+        String updatedBy,
+        // V2026042601
+        java.time.LocalDate dateEmissionCheque,
+        com.ossanasur.cbconnect.common.enums.TypePrejudice typePrejudice,
+        String motifComplement
 
 ) {
 }

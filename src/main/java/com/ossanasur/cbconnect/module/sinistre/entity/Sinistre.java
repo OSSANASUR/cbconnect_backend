@@ -97,6 +97,7 @@ public class Sinistre extends InternalHistorique {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organisme_homologue_id")
+
     private Organisme organismeHomologue;
 
     @ManyToOne(fetch = FetchType.LAZY)

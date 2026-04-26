@@ -23,35 +23,50 @@ import java.util.UUID;
 @Entity
 @DiscriminatorValue("SINISTRE")
 public class Sinistre extends InternalHistorique {
+
     @Column(name = "sinistre_tracking_id", unique = true)
     private UUID sinistreTrackingId;
+
     @Column(unique = true, nullable = false, length = 30)
     private String numeroSinistreLocal;
+
     private String numeroSinistreManuel;
+
     private String numeroSinistreHomologue;
+
     private String numeroSinistreEcarteBrune;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private TypeSinistre typeSinistre;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
     private StatutSinistre statut = StatutSinistre.NOUVEAU;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private TypeDommage typeDommage;
+
     @Column(nullable = false)
     private LocalDate dateAccident;
+
     @Column(nullable = false)
     private LocalDate dateDeclaration;
+
     private String lieuAccident;
+
     private boolean agglomeration;
+
     private BigDecimal tauxRc;
-    /* Position RC au niveau du sinistre = agrégat calculé depuis les adversaires
-       (V27) : chaque adversaire (victime estAdversaire=true) porte sa propre
-       négociation RC. Ce champ est maintenu synchrone par le service :
-         - TRANCHEE si tous les adversaires sont TRANCHEE
-         - EN_NEGOCIATION / REJETEE / EN_ATTENTE selon le cas le plus avancé */
+    /*
+     * Position RC au niveau du sinistre = agrégat calculé depuis les adversaires
+     * (V27) : chaque adversaire (victime estAdversaire=true) porte sa propre
+     * négociation RC. Ce champ est maintenu synchrone par le service :
+     * - TRANCHEE si tous les adversaires sont TRANCHEE
+     * - EN_NEGOCIATION / REJETEE / EN_ATTENTE selon le cas le plus avancé
+     */
     @Enumerated(EnumType.STRING)
     private PositionRc positionRc;
 
@@ -156,7 +171,7 @@ public class Sinistre extends InternalHistorique {
     private String conducteurNumeroPermis;
 
     @Column(name = "conducteur_categories_permis", length = 150)
-    private String conducteurCategoriesPermis;  // CSV : "B,C"
+    private String conducteurCategoriesPermis; // CSV : "B,C"
 
     @Column(name = "conducteur_date_delivrance")
     private LocalDate conducteurDateDelivrance;
@@ -198,11 +213,7 @@ public class Sinistre extends InternalHistorique {
 
     /* Assureurs secondaires (remorque, co-assurance) */
     @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "sinistre_assureur_secondaire",
-        joinColumns = @JoinColumn(name = "sinistre_id"),
-        inverseJoinColumns = @JoinColumn(name = "organisme_id")
-    )
+    @JoinTable(name = "sinistre_assureur_secondaire", joinColumns = @JoinColumn(name = "sinistre_id"), inverseJoinColumns = @JoinColumn(name = "organisme_id"))
     @Builder.Default
     private Set<Organisme> assureursSecondaires = new HashSet<>();
 }

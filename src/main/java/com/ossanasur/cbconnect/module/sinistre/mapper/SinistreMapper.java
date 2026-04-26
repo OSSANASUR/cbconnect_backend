@@ -70,7 +70,11 @@ public class SinistreMapper {
             s.getDateConfirmationGarantie(),
             s.getObservationsGarantie(),
             s.getCourrierNonGarantieRef(),
-            s.getCourrierNonGarantieDate()
+            s.getCourrierNonGarantieDate(),
+            /* V2026042601 */
+            s.getAssureurDeclarant(),
+            s.getNumeroSinistreAssureur(),
+            s.getNumeroPoliceAssureur()
         );
     }
 }

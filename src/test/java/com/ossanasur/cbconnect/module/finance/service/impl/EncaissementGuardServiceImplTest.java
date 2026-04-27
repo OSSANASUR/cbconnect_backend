@@ -70,4 +70,50 @@ class EncaissementGuardServiceImplTest {
         assertThatThrownBy(() -> guard.verifierRegleB(SID))
                 .isInstanceOf(BadRequestException.class);
     }
+
+    // ---- Règle C ------------------------------------------------------------
+
+    @Test
+    void regleC_passe_quandCouvertureSuffisante() {
+        when(encaissementRepository.sumMontantEncaisseBySinistre(SID))
+                .thenReturn(new BigDecimal("500000"));
+        when(paiementRepository.sumMontantActifBySinistre(SID))
+                .thenReturn(new BigDecimal("300000"));
+
+        assertThatCode(() -> guard.verifierRegleC(SID, new BigDecimal("100000")))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void regleC_echoue_quandCouvertureInsuffisante() {
+        when(encaissementRepository.sumMontantEncaisseBySinistre(SID))
+                .thenReturn(new BigDecimal("100000"));
+        when(paiementRepository.sumMontantActifBySinistre(SID))
+                .thenReturn(new BigDecimal("80000"));
+
+        assertThatThrownBy(() -> guard.verifierRegleC(SID, new BigDecimal("50000")))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Couverture financière insuffisante")
+                .hasMessageContaining("30000");
+    }
+
+    @Test
+    void regleC_montantNouveauZero_validerComptable() {
+        when(encaissementRepository.sumMontantEncaisseBySinistre(SID))
+                .thenReturn(new BigDecimal("100000"));
+        when(paiementRepository.sumMontantActifBySinistre(SID))
+                .thenReturn(new BigDecimal("100000"));
+
+        assertThatCode(() -> guard.verifierRegleC(SID, BigDecimal.ZERO))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void regleC_geresLesNulls() {
+        when(encaissementRepository.sumMontantEncaisseBySinistre(SID)).thenReturn(null);
+        when(paiementRepository.sumMontantActifBySinistre(SID)).thenReturn(null);
+
+        assertThatThrownBy(() -> guard.verifierRegleC(SID, new BigDecimal("100000")))
+                .isInstanceOf(BadRequestException.class);
+    }
 }

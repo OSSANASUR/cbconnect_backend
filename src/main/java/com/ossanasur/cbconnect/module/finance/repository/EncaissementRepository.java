@@ -14,6 +14,12 @@ public interface EncaissementRepository extends JpaRepository<Encaissement, Inte
     @Query("SELECT e FROM Encaissement e WHERE e.encaissementTrackingId=:id AND e.activeData=true AND e.deletedData=false")
     Optional<Encaissement> findActiveByTrackingId(@Param("id") UUID id);
 
+    @Query("SELECT (COUNT(e) > 0) FROM Encaissement e " +
+           "WHERE e.sinistre.sinistreTrackingId = :sid " +
+           "AND e.statutCheque <> com.ossanasur.cbconnect.common.enums.StatutCheque.ANNULE " +
+           "AND e.activeData = true AND e.deletedData = false")
+    boolean existsNonAnnuleBySinistre(@Param("sid") UUID sinistreId);
+
     @Query("SELECT e FROM Encaissement e WHERE e.sinistre.sinistreTrackingId=:sid AND e.activeData=true AND e.deletedData=false ORDER BY e.dateReception DESC")
     List<Encaissement> findBySinistre(@Param("sid") UUID sinistreId);
 

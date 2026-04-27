@@ -464,6 +464,19 @@ public interface PaiementRepository extends JpaRepository<Paiement, Integer> {
             @Param("anneeN1") int anneeN1,
             @Param("mois") int mois);
 
+    @Query("SELECT COALESCE(SUM(p.montant), 0) FROM Paiement p " +
+           "WHERE p.sinistre.sinistreTrackingId = :sid " +
+           "AND p.parentCodeId IS NULL " +
+           "AND p.statut <> com.ossanasur.cbconnect.common.enums.StatutPaiement.ANNULE " +
+           "AND p.activeData = true AND p.deletedData = false " +
+           "AND NOT EXISTS (" +
+           "    SELECT 1 FROM Paiement child " +
+           "    WHERE child.parentCodeId = CAST(p.paiementTrackingId AS string) " +
+           "    AND child.statut = com.ossanasur.cbconnect.common.enums.StatutPaiement.ANNULE " +
+           "    AND child.activeData = true AND child.deletedData = false" +
+           ")")
+    java.math.BigDecimal sumMontantActifBySinistre(@Param("sid") java.util.UUID sinistreId);
+
     /**
      * Graphique pluriannuel — Paiements par année.
      * Colonnes : [0]=annee [1]=nb [2]=montant

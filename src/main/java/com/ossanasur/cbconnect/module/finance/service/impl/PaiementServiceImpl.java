@@ -135,6 +135,11 @@ public class PaiementServiceImpl implements PaiementService {
 
                 Paiement parent = findActiveOrThrow(paiementTrackingId);
 
+                // RÈGLE B — règlement legacy (reprise historique) bypassé
+                if (!parent.isRepriseHistorique()) {
+                        guardService.verifierRegleB(parent.getSinistre().getSinistreTrackingId());
+                }
+
                 if (parent.getStatut() != StatutPaiement.REGLEMENT_TECHNIQUE_VALIDE) {
                         throw new BadRequestException(
                                         "Le règlement comptable ne peut être saisi qu'après validation technique "

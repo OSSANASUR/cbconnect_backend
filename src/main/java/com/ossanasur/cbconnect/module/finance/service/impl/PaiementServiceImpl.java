@@ -23,6 +23,7 @@ import com.ossanasur.cbconnect.module.finance.entity.Paiement;
 import com.ossanasur.cbconnect.module.finance.mapper.PaiementMapper;
 import com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository;
 import com.ossanasur.cbconnect.module.finance.repository.PaiementRepository;
+import com.ossanasur.cbconnect.module.finance.service.EncaissementGuardService;
 import com.ossanasur.cbconnect.module.finance.service.PaiementService;
 import com.ossanasur.cbconnect.module.sinistre.entity.Sinistre;
 import com.ossanasur.cbconnect.module.sinistre.entity.Victime;
@@ -55,6 +56,7 @@ public class PaiementServiceImpl implements PaiementService {
         private final UtilisateurRepository utilisateurRepository;
         private final ComptabiliteService comptabiliteService;
         private final PaiementMapper mapper;
+        private final EncaissementGuardService guardService;
 
         /**
          * Crée le règlement technique : bénéficiaire + montant uniquement.
@@ -67,6 +69,9 @@ public class PaiementServiceImpl implements PaiementService {
 
                 Sinistre sinistre = sinistreRepository.findActiveByTrackingId(request.sinistreTrackingId())
                                 .orElseThrow(() -> new RessourceNotFoundException("Sinistre introuvable"));
+
+                // RÈGLE A — un encaissement non-annulé doit exister sur le sinistre
+                guardService.verifierRegleA(request.sinistreTrackingId());
 
                 Victime victime = request.beneficiaireVictimeTrackingId() == null ? null
                                 : victimeRepository.findActiveByTrackingId(request.beneficiaireVictimeTrackingId())

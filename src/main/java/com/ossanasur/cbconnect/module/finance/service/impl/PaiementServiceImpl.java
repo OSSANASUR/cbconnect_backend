@@ -202,6 +202,13 @@ public class PaiementServiceImpl implements PaiementService {
 
                 Paiement paiement = findActiveOrThrow(paiementTrackingId);
 
+                // RÈGLE C — règlement legacy bypassé. montant=ZERO car déjà compté dans Σ engagé.
+                if (!paiement.isRepriseHistorique()) {
+                        guardService.verifierRegleC(
+                                        paiement.getSinistre().getSinistreTrackingId(),
+                                        java.math.BigDecimal.ZERO);
+                }
+
                 if (paiement.getStatut() != StatutPaiement.REGLEMENT_COMPTABLE_VALIDE) {
                         throw new BadRequestException(
                                         "Seul un règlement en REGLEMENT_COMPTABLE_VALIDE peut être validé comptablement "

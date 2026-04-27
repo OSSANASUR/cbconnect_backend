@@ -1,0 +1,38 @@
+package com.ossanasur.cbconnect.module.finance.service.impl;
+
+import com.ossanasur.cbconnect.exception.BadRequestException;
+import com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository;
+import com.ossanasur.cbconnect.module.finance.repository.PaiementRepository;
+import com.ossanasur.cbconnect.module.finance.service.EncaissementGuardService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+public class EncaissementGuardServiceImpl implements EncaissementGuardService {
+
+    private final EncaissementRepository encaissementRepository;
+    private final PaiementRepository paiementRepository;
+
+    @Override
+    @Transactional(readOnly = true)
+    public void verifierRegleA(UUID sinistreTrackingId) {
+        throw new UnsupportedOperationException("À implémenter task 5");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void verifierRegleB(UUID sinistreTrackingId) {
+        throw new UnsupportedOperationException("À implémenter task 6");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void verifierRegleC(UUID sinistreTrackingId, BigDecimal montantNouveau) {
+        throw new UnsupportedOperationException("À implémenter task 7");
+    }
+}

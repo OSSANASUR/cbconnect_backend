@@ -4,6 +4,7 @@ import com.ossanasur.cbconnect.module.sinistre.dto.request.ConfirmationGarantieR
 import com.ossanasur.cbconnect.module.sinistre.dto.request.MiseEnArbitrageRequest;
 import com.ossanasur.cbconnect.module.sinistre.dto.request.MiseEnContentieuxRequest;
 import com.ossanasur.cbconnect.module.sinistre.dto.request.SinistreRequest;
+import com.ossanasur.cbconnect.module.sinistre.dto.response.EncaissementStatusResponse;
 import com.ossanasur.cbconnect.module.sinistre.dto.response.SinistreResponse;
 import com.ossanasur.cbconnect.utils.DataResponse;
 import com.ossanasur.cbconnect.utils.PaginatedResponse;
@@ -37,4 +38,6 @@ public interface SinistreService {
 
     /** Sort le dossier du contentieux/arbitrage et le bascule en BAP (prêt à payer). */
     DataResponse<SinistreResponse> sortirDuLitige(UUID id, String loginAuteur);
+
+    DataResponse<EncaissementStatusResponse> getEncaissementStatus(java.util.UUID sinistreTrackingId);
 }

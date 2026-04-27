@@ -30,7 +30,11 @@ public class EncaissementGuardServiceImpl implements EncaissementGuardService {
     @Override
     @Transactional(readOnly = true)
     public void verifierRegleB(UUID sinistreTrackingId) {
-        throw new UnsupportedOperationException("À implémenter task 6");
+        BigDecimal somme = encaissementRepository.sumMontantEncaisseBySinistre(sinistreTrackingId);
+        if (somme == null || somme.signum() <= 0) {
+            throw new BadRequestException(
+                    "Le règlement comptable est bloqué : aucun chèque d'encaissement n'a encore été crédité en banque.");
+        }
     }
 
     @Override

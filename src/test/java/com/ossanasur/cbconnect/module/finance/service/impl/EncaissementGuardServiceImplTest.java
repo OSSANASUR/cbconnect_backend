@@ -42,4 +42,32 @@ class EncaissementGuardServiceImplTest {
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("aucun encaissement");
     }
+
+    // ---- Règle B ------------------------------------------------------------
+
+    @Test
+    void regleB_passe_quandSommeEncaisseStrictementPositive() {
+        when(encaissementRepository.sumMontantEncaisseBySinistre(SID))
+                .thenReturn(new BigDecimal("100000.00"));
+
+        assertThatCode(() -> guard.verifierRegleB(SID)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void regleB_echoue_quandSommeEncaisseEstZero() {
+        when(encaissementRepository.sumMontantEncaisseBySinistre(SID))
+                .thenReturn(BigDecimal.ZERO);
+
+        assertThatThrownBy(() -> guard.verifierRegleB(SID))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("crédité en banque");
+    }
+
+    @Test
+    void regleB_echoue_quandSommeEncaisseEstNull() {
+        when(encaissementRepository.sumMontantEncaisseBySinistre(SID)).thenReturn(null);
+
+        assertThatThrownBy(() -> guard.verifierRegleB(SID))
+                .isInstanceOf(BadRequestException.class);
+    }
 }

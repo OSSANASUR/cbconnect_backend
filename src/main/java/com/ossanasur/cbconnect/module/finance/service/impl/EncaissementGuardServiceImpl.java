@@ -21,7 +21,10 @@ public class EncaissementGuardServiceImpl implements EncaissementGuardService {
     @Override
     @Transactional(readOnly = true)
     public void verifierRegleA(UUID sinistreTrackingId) {
-        throw new UnsupportedOperationException("À implémenter task 5");
+        if (!encaissementRepository.existsNonAnnuleBySinistre(sinistreTrackingId)) {
+            throw new BadRequestException(
+                    "Impossible d'enregistrer un règlement : aucun encaissement n'a été déclaré pour ce sinistre.");
+        }
     }
 
     @Override

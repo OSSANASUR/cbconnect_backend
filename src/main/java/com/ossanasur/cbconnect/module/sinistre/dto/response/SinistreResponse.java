@@ -45,7 +45,12 @@ public record SinistreResponse(
         LocalDate dateConfirmationGarantie,
         String observationsGarantie,
         String courrierNonGarantieRef,
-        LocalDate courrierNonGarantieDate) {
+        LocalDate courrierNonGarantieDate,
+
+        // V2026042601 — assureur déclarant + n° sinistre côté assureur étranger
+        String assureurDeclarant,
+        String numeroSinistreAssureur,
+        String numeroPoliceAssureur) {
     public record AssureurSecondaireInfo(UUID organismeTrackingId, String raisonSociale, String code) {
     }
 }

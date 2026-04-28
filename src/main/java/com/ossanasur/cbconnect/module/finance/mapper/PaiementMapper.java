@@ -49,7 +49,11 @@ public class PaiementMapper {
                 p.getCreatedAt(),
                 p.getCreatedBy(),
                 p.getUpdatedAt(),
-                p.getUpdatedBy());
+                p.getUpdatedBy(),
+                /* V2026042601 */
+                p.getDateEmissionCheque(),
+                p.getTypePrejudice(),
+                p.getMotifComplement());
     }
 
     @NonNull
@@ -88,7 +92,11 @@ public class PaiementMapper {
                 p.getUpdatedBy(),
                 p.getDeletedAt(),
                 p.getDeletedBy(),
-                p.getParentCodeId());
+                p.getParentCodeId(),
+                /* V2026042601 */
+                p.getDateEmissionCheque(),
+                p.getTypePrejudice(),
+                p.getMotifComplement());
     }
 
     @NonNull
@@ -115,6 +123,9 @@ public class PaiementMapper {
                 /* financier */
                 .montant(request.montant())
                 .dateEmission(LocalDate.now())
+                /* qualification du préjudice (V2026042601) */
+                .typePrejudice(request.typePrejudice())
+                .motifComplement(request.motifComplement())
                 /* statut initial */
                 .statut(StatutPaiement.EMIS)
                 /* audit & historique */

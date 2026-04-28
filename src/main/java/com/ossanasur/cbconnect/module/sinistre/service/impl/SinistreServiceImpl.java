@@ -12,6 +12,9 @@ import com.ossanasur.cbconnect.module.sinistre.dto.request.ConfirmationGarantieR
 import com.ossanasur.cbconnect.module.sinistre.dto.request.MiseEnArbitrageRequest;
 import com.ossanasur.cbconnect.module.sinistre.dto.request.MiseEnContentieuxRequest;
 import com.ossanasur.cbconnect.module.sinistre.dto.request.SinistreRequest;
+import com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository;
+import com.ossanasur.cbconnect.module.finance.repository.PaiementRepository;
+import com.ossanasur.cbconnect.module.sinistre.dto.response.EncaissementStatusResponse;
 import com.ossanasur.cbconnect.module.sinistre.dto.response.SinistreResponse;
 import com.ossanasur.cbconnect.module.sinistre.entity.*;
 import com.ossanasur.cbconnect.module.sinistre.mapper.SinistreMapper;
@@ -26,6 +29,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -42,6 +46,8 @@ public class SinistreServiceImpl implements SinistreService {
     private final SinistreVersioningService versioningService;
     private final SinistreMapper sinistreMapper;
     private final OssanGedClientService gedService;
+    private final EncaissementRepository encaissementRepository;
+    private final PaiementRepository paiementRepository;
 
     @Override
     @Transactional
@@ -100,6 +106,7 @@ public class SinistreServiceImpl implements SinistreService {
                 .conducteurLieuDelivrance(r.conducteurLieuDelivrance())
                 .declarantNom(r.declarantNom()).declarantPrenom(r.declarantPrenom())
                 .declarantTelephone(r.declarantTelephone()).declarantQualite(r.declarantQualite())
+                .numeroSinistreAssureur(r.numeroSinistreAssureur())
                 .paysGestionnaire(paysG).assure(assure)
                 .createdBy(loginAuteur).activeData(true).deletedData(false).fromTable(TypeTable.SINISTRE)
                 .build();
@@ -338,5 +345,42 @@ public class SinistreServiceImpl implements SinistreService {
         Sinistre saved = sinistreRepository.save(s);
         log.info("[WORKFLOW] Sinistre {} sort de litige → BAP", saved.getNumeroSinistreLocal());
         return DataResponse.success("Dossier sorti du litige – passé en BAP", sinistreMapper.toResponse(saved));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DataResponse<EncaissementStatusResponse> getEncaissementStatus(UUID sinistreTrackingId) {
+
+        sinistreRepository.findActiveByTrackingId(sinistreTrackingId)
+                .orElseThrow(() -> new RessourceNotFoundException("Sinistre introuvable"));
+
+        boolean hasAny = encaissementRepository.existsNonAnnuleBySinistre(sinistreTrackingId);
+        BigDecimal totalEncaisse = nz(encaissementRepository.sumMontantEncaisseBySinistre(sinistreTrackingId));
+        BigDecimal totalEngage = nz(paiementRepository.sumMontantActifBySinistre(sinistreTrackingId));
+        BigDecimal couverture = totalEncaisse.subtract(totalEngage);
+
+        boolean regleAOk = hasAny;
+        boolean regleBOk = totalEncaisse.signum() > 0;
+        boolean regleCOk = couverture.signum() >= 0;
+        boolean hasEncaisse = regleBOk;
+
+        String message = null;
+        if (!regleAOk) {
+            message = "Aucun encaissement enregistré pour ce sinistre. La création d'un règlement est bloquée.";
+        } else if (!regleBOk) {
+            message = "Aucun chèque encore crédité en banque. Le règlement comptable sera bloqué.";
+        } else if (!regleCOk) {
+            message = String.format(
+                    "Couverture insuffisante : encaissé %s FCFA, engagé %s FCFA. La validation comptable est bloquée.",
+                    totalEncaisse.toPlainString(), totalEngage.toPlainString());
+        }
+
+        return DataResponse.success(new EncaissementStatusResponse(
+                hasAny, hasEncaisse, totalEncaisse, totalEngage, couverture,
+                regleAOk, regleBOk, regleCOk, message));
+    }
+
+    private static BigDecimal nz(BigDecimal v) {
+        return v == null ? BigDecimal.ZERO : v;
     }
 }

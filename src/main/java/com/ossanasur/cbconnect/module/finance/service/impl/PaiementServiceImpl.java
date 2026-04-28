@@ -2,6 +2,7 @@ package com.ossanasur.cbconnect.module.finance.service.impl;
 
 import com.ossanasur.cbconnect.common.enums.StatutEcritureComptable;
 import com.ossanasur.cbconnect.common.enums.StatutPaiement;
+import com.ossanasur.cbconnect.common.enums.TypeTable;
 import com.ossanasur.cbconnect.common.enums.TypeTransactionComptable;
 import com.ossanasur.cbconnect.exception.BadRequestException;
 import com.ossanasur.cbconnect.exception.RessourceNotFoundException;
@@ -22,6 +23,7 @@ import com.ossanasur.cbconnect.module.finance.entity.Paiement;
 import com.ossanasur.cbconnect.module.finance.mapper.PaiementMapper;
 import com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository;
 import com.ossanasur.cbconnect.module.finance.repository.PaiementRepository;
+import com.ossanasur.cbconnect.module.finance.service.EncaissementGuardService;
 import com.ossanasur.cbconnect.module.finance.service.PaiementService;
 import com.ossanasur.cbconnect.module.sinistre.entity.Sinistre;
 import com.ossanasur.cbconnect.module.sinistre.entity.Victime;
@@ -36,6 +38,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -53,6 +56,7 @@ public class PaiementServiceImpl implements PaiementService {
         private final UtilisateurRepository utilisateurRepository;
         private final ComptabiliteService comptabiliteService;
         private final PaiementMapper mapper;
+        private final EncaissementGuardService guardService;
 
         /**
          * Crée le règlement technique : bénéficiaire + montant uniquement.
@@ -65,6 +69,9 @@ public class PaiementServiceImpl implements PaiementService {
 
                 Sinistre sinistre = sinistreRepository.findActiveByTrackingId(request.sinistreTrackingId())
                                 .orElseThrow(() -> new RessourceNotFoundException("Sinistre introuvable"));
+
+                // RÈGLE A — un encaissement non-annulé doit exister sur le sinistre
+                guardService.verifierRegleA(request.sinistreTrackingId());
 
                 Victime victime = request.beneficiaireVictimeTrackingId() == null ? null
                                 : victimeRepository.findActiveByTrackingId(request.beneficiaireVictimeTrackingId())
@@ -126,34 +133,59 @@ public class PaiementServiceImpl implements PaiementService {
         public DataResponse<PaiementDetailResponse> saisirReglementComptable(UUID paiementTrackingId,
                         ReglementComptableRequest request, String loginAuteur) {
 
-                Paiement paiement = findActiveOrThrow(paiementTrackingId);
+                Paiement parent = findActiveOrThrow(paiementTrackingId);
 
-                if (paiement.getStatut() != StatutPaiement.REGLEMENT_TECHNIQUE_VALIDE) {
-                        throw new BadRequestException(
-                                        "Le règlement comptable ne peut être saisi qu'après validation technique "
-                                                        + "(statut actuel : " + paiement.getStatut() + ")");
+                // RÈGLE B — règlement legacy (reprise historique) bypassé
+                if (!parent.isRepriseHistorique()) {
+                        guardService.verifierRegleB(parent.getSinistre().getSinistreTrackingId());
                 }
 
-                // Unicité du numéro de chèque (on exclut le paiement lui-même pour
-                // permettre une correction sur un RC encore non validé si besoin futur)
+                if (parent.getStatut() != StatutPaiement.REGLEMENT_TECHNIQUE_VALIDE) {
+                        throw new BadRequestException(
+                                        "Le règlement comptable ne peut être saisi qu'après validation technique "
+                                                        + "(statut actuel : " + parent.getStatut() + ")");
+                }
+
                 if (paiementRepository.existsByNumeroChequeEmisAndActiveDataTrueAndDeletedDataFalse(
                                 request.numeroChequeEmis())) {
                         throw new BadRequestException("Le chèque n° " + request.numeroChequeEmis()
                                         + " est déjà enregistré sur un autre règlement");
                 }
 
-                paiement.setNumeroChequeEmis(request.numeroChequeEmis());
-                paiement.setBanqueCheque(request.banqueCheque());
-                paiement.setDateEmission(request.dateEmissionReglement());
-                paiement.setDateEmissionCheque(request.dateEmissionCheque());
-                paiement.setModePaiement("CHEQUE");
-                paiement.setStatut(StatutPaiement.REGLEMENT_COMPTABLE_VALIDE);
-                paiement.setUpdatedBy(loginAuteur);
+                // Nouvelle ligne = copie du règlement technique + nouveaux champs comptables
+                // L'ancienne ligne reste inchangée (historique)
+                Paiement reglementComptable = Paiement.builder()
+                                .paiementTrackingId(UUID.randomUUID())
+                                // copie des champs du règlement technique parent
+                                .sinistre(parent.getSinistre())
+                                .beneficiaire(parent.getBeneficiaire())
+                                .beneficiaireVictime(parent.getBeneficiaireVictime())
+                                .beneficiaireOrganisme(parent.getBeneficiaireOrganisme())
+                                .montant(parent.getMontant())
+                                .dateEmission(parent.getDateEmission())
+                                .repriseHistorique(parent.isRepriseHistorique())
+                                // nouveaux champs comptables
+                                .banqueCheque(request.banqueCheque())
+                                .numeroChequeEmis(request.numeroChequeEmis())
+                                .dateEmission(request.dateEmissionReglement())
+                                .dateEmissionCheque(request.dateEmissionCheque())
+                                .modePaiement("CHEQUE")
+                                .statut(StatutPaiement.REGLEMENT_COMPTABLE_VALIDE)
+                                // lien vers le règlement technique parent
+                                .parentCodeId(parent.getPaiementTrackingId().toString())
+                                // audit
+                                .createdAt(LocalDateTime.now())
+                                .createdBy(loginAuteur)
+                                .activeData(true)
+                                .deletedData(false)
+                                .fromTable(TypeTable.PAIEMENT)
+                                .build();
 
-                Paiement saved = paiementRepository.save(paiement);
+                Paiement saved = paiementRepository.save(reglementComptable);
 
-                log.info("Règlement comptable saisi {} (chèque={}, banque={})",
-                                paiementTrackingId, request.numeroChequeEmis(), request.banqueCheque());
+                log.info("Règlement comptable créé {} (parent={}, chèque={}, banque={})",
+                                saved.getPaiementTrackingId(), paiementTrackingId,
+                                request.numeroChequeEmis(), request.banqueCheque());
 
                 return DataResponse.success("Règlement comptable enregistré", mapper.toDetailResponse(saved));
         }
@@ -169,6 +201,13 @@ public class PaiementServiceImpl implements PaiementService {
         public DataResponse<PaiementDetailResponse> validerComptable(UUID paiementTrackingId, String loginAuteur) {
 
                 Paiement paiement = findActiveOrThrow(paiementTrackingId);
+
+                // RÈGLE C — règlement legacy bypassé. montant=ZERO car déjà compté dans Σ engagé.
+                if (!paiement.isRepriseHistorique()) {
+                        guardService.verifierRegleC(
+                                        paiement.getSinistre().getSinistreTrackingId(),
+                                        java.math.BigDecimal.ZERO);
+                }
 
                 if (paiement.getStatut() != StatutPaiement.REGLEMENT_COMPTABLE_VALIDE) {
                         throw new BadRequestException(
@@ -215,38 +254,66 @@ public class PaiementServiceImpl implements PaiementService {
         public DataResponse<PaiementDetailResponse> annuler(UUID paiementTrackingId,
                         AnnulerPaiementRequest request, String loginAuteur) {
 
-                Paiement paiement = findActiveOrThrow(paiementTrackingId);
+                Paiement parent = findActiveOrThrow(paiementTrackingId);
 
-                if (paiement.getStatut() == StatutPaiement.ANNULE) {
+                if (parent.getStatut() == StatutPaiement.ANNULE) {
                         throw new BadRequestException("Ce règlement est déjà annulé");
                 }
-                if (paiement.getStatut() == StatutPaiement.PAYE) {
+                if (parent.getStatut() == StatutPaiement.PAYE) {
                         throw new BadRequestException(
                                         "Un règlement PAYÉ ne peut pas être annulé directement. "
                                                         + "Contactez le service comptable.");
                 }
 
-                // Contre-écriture si l'écriture comptable a déjà été générée et validée
-                EcritureComptable ecriture = paiement.getEcritureComptable();
+                // Contre-écriture si écriture comptable déjà générée et validée
+                EcritureComptable ecriture = parent.getEcritureComptable();
                 if (ecriture != null && ecriture.getStatut() == StatutEcritureComptable.VALIDEE) {
                         comptabiliteService.genererEcritureAuto(
                                         TypeTransactionComptable.CONTRA_ECRITURE,
-                                        paiement.getSinistre().getSinistreTrackingId(),
-                                        paiement.getMontant(),
-                                        "Annulation règlement " + paiement.getNumeroChequeEmis(),
+                                        parent.getSinistre().getSinistreTrackingId(),
+                                        parent.getMontant(),
+                                        "Annulation règlement " + parent.getNumeroChequeEmis(),
                                         loginAuteur);
                         ecriture.setStatut(StatutEcritureComptable.ANNULEE);
                         ecritureRepository.save(ecriture);
                 }
 
-                paiement.setStatut(StatutPaiement.ANNULE);
-                paiement.setMotifAnnulation(request.motifAnnulation());
-                paiement.setAnnulePar(resolveUtilisateur(loginAuteur));
-                paiement.setUpdatedBy(loginAuteur);
-                Paiement saved = paiementRepository.save(paiement);
+                // Nouvelle ligne = copie du règlement à annuler + statut ANNULE
+                // L'ancienne ligne reste inchangée (historique)
+                Paiement annulation = Paiement.builder()
+                                .paiementTrackingId(UUID.randomUUID())
+                                // copie de tous les champs métier du règlement parent
+                                .sinistre(parent.getSinistre())
+                                .beneficiaire(parent.getBeneficiaire())
+                                .beneficiaireVictime(parent.getBeneficiaireVictime())
+                                .beneficiaireOrganisme(parent.getBeneficiaireOrganisme())
+                                .montant(parent.getMontant())
+                                .modePaiement(parent.getModePaiement())
+                                .numeroChequeEmis(parent.getNumeroChequeEmis())
+                                .banqueCheque(parent.getBanqueCheque())
+                                .dateEmission(parent.getDateEmission())
+                                .dateEmissionCheque(parent.getDateEmissionCheque())
+                                .datePaiement(parent.getDatePaiement())
+                                .repriseHistorique(parent.isRepriseHistorique())
+                                // champs propres à l'annulation
+                                .statut(StatutPaiement.ANNULE)
+                                .motifAnnulation(request.motifAnnulation())
+                                .annulePar(resolveUtilisateur(loginAuteur))
+                                // lien vers le règlement annulé
+                                .parentCodeId(parent.getPaiementTrackingId().toString())
+                                // audit
+                                .createdAt(LocalDateTime.now())
+                                .createdBy(loginAuteur)
+                                .activeData(true)
+                                .deletedData(false)
+                                .fromTable(TypeTable.PAIEMENT)
+                                .build();
 
-                log.info("Règlement {} annulé par {} (motif={})",
-                                paiementTrackingId, loginAuteur, request.motifAnnulation());
+                Paiement saved = paiementRepository.save(annulation);
+
+                log.info("Règlement {} annulé par {} (motif={}, nouvelle ligne={})",
+                                paiementTrackingId, loginAuteur, request.motifAnnulation(),
+                                saved.getPaiementTrackingId());
 
                 return DataResponse.success("Règlement annulé", mapper.toDetailResponse(saved));
         }

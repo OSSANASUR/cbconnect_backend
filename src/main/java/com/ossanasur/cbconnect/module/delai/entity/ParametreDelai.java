@@ -18,5 +18,6 @@ public class ParametreDelai {
     private BigDecimal tauxPenalitePct;
     @Column(name="seuil_alerte1_pct") private BigDecimal seuilAlerte1Pct;
     @Column(name="seuil_alerte2_pct") private BigDecimal seuilAlerte2Pct;
+    @Builder.Default private boolean modifiable = true;
     @Builder.Default private boolean actif=true;
 }

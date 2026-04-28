@@ -140,6 +140,16 @@ public class AffectationExpertServiceImpl {
         return DataResponse.success("Statut mis à jour", toResponse(affectationRepo.save(aff)));
     }
 
+    @Transactional
+    public DataResponse<AffectationExpertResponse> marquerMailExpertEnvoye(
+            UUID affectationId, String loginAuteur) {
+        var aff = affectationRepo.findByTrackingId(affectationId)
+                .orElseThrow(() -> new RessourceNotFoundException("Affectation introuvable"));
+        aff.setMailExpertEnvoye(true);
+        aff.setUpdatedBy(loginAuteur);
+        return DataResponse.success("Mail expert marqué comme envoyé", toResponse(affectationRepo.save(aff)));
+    }
+
     // ── Génération corps courriers (HTML minimal imprimable) ──────
 
     private String genererCorpsNoteMission(

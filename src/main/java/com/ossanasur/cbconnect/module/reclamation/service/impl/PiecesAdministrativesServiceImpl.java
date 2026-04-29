@@ -3,6 +3,7 @@ package com.ossanasur.cbconnect.module.reclamation.service.impl;
 import com.ossanasur.cbconnect.common.enums.StatutPiece;
 import com.ossanasur.cbconnect.common.enums.StatutSinistre;
 import com.ossanasur.cbconnect.common.enums.TypeDommage;
+import com.ossanasur.cbconnect.common.enums.TypeVictime;
 import com.ossanasur.cbconnect.exception.RessourceNotFoundException;
 import com.ossanasur.cbconnect.module.ged.entity.OssanGedDocument;
 import com.ossanasur.cbconnect.module.ged.repository.OssanGedDocumentRepository;
@@ -97,7 +98,9 @@ public class PiecesAdministrativesServiceImpl implements PiecesAdministrativesSe
                 DossierReclamation dossier = dossierRepo.findActiveByTrackingId(dossierTrackingId)
                                 .orElseThrow(() -> new RessourceNotFoundException("Dossier introuvable"));
 
-                TypeDommage td = dossier.getSinistre().getTypeDommage();
+                TypeDommage td = resolveTypeDommage(
+                                dossier.getVictime().getTypeVictime(),
+                                dossier.getSinistre().getTypeDommage());
                 List<TypePieceAdministrative> types = typePieceRepo.findApplicablesPour(td);
 
                 for (TypePieceAdministrative type : types) {
@@ -117,6 +120,16 @@ public class PiecesAdministrativesServiceImpl implements PiecesAdministrativesSe
                         pieceDossierRepo.save(piece);
                 }
                 log.info("[PIECES] {} pièces initialisées pour dossier {}", types.size(), dossier.getNumeroDossier());
+        }
+
+        /**
+         * BLESSE → CORPOREL, DECEDE → CORPOREL, NEUTRE → type du sinistre (MATERIEL, MIXTE…)
+         */
+        private TypeDommage resolveTypeDommage(TypeVictime typeVictime, TypeDommage fallback) {
+                return switch (typeVictime) {
+                        case BLESSE, DECEDE -> TypeDommage.CORPOREL;
+                        case NEUTRE -> fallback;
+                };
         }
 
         @Override

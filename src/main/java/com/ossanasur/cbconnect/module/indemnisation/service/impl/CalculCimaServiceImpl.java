@@ -3,8 +3,11 @@ package com.ossanasur.cbconnect.module.indemnisation.service.impl;
 import com.ossanasur.cbconnect.common.enums.TypeSinistre;
 import com.ossanasur.cbconnect.common.enums.TypeTable;
 import com.ossanasur.cbconnect.common.enums.LienParente;
+import com.ossanasur.cbconnect.module.indemnisation.dto.request.CalculRequest;
 import com.ossanasur.cbconnect.module.baremes.repository.BaremeCapitalisationRepository;
 import com.ossanasur.cbconnect.module.baremes.repository.BaremeValeurPointIpRepository;
+import com.ossanasur.cbconnect.module.delai.repository.ParametreDelaiRepository;
+import com.ossanasur.cbconnect.module.delai.repository.ParametreSystemeRepository;
 import com.ossanasur.cbconnect.module.expertise.repository.ExpertiseMedicaleRepository;
 import com.ossanasur.cbconnect.module.indemnisation.entity.AyantDroit;
 import com.ossanasur.cbconnect.module.indemnisation.entity.OffreIndemnisation;
@@ -41,15 +44,36 @@ public class CalculCimaServiceImpl implements CalculCimaService {
     private final BaremeCapitalisationRepository baremeCapitalisationRepository;
     private final BaremeValeurPointIpRepository baremeValeurPointIpRepository;
     private final AyantDroitRepository ayantDroitRepository;
+    private final ParametreDelaiRepository parametreDelaiRepository;
+    private final ParametreSystemeRepository parametreSystemeRepository;
 
-    private static final BigDecimal PCT_FRAIS_GESTION = new BigDecimal("0.05");
-    private static final BigDecimal PCT_PENALITE_RETARD = new BigDecimal("0.05"); // 5% par mois
-    private static final int DELAI_MAX_OFFRE_BLESSE_MOIS = 12;
-    private static final int DELAI_MAX_OFFRE_DECES_MOIS = 8;
+    private BigDecimal getPctFraisGestion() {
+        return parametreSystemeRepository.findByCleAndActifTrue("PCT_FRAIS_GESTION")
+            .map(p -> p.getValeurDecimal().divide(new BigDecimal("100"), 4, java.math.RoundingMode.HALF_UP))
+            .orElse(new BigDecimal("0.05"));
+    }
+
+    private BigDecimal getPctPenaliteRetard() {
+        return parametreDelaiRepository.findByCodeDelaiAndActifTrue("DLI_PAI_004")
+            .map(p -> p.getTauxPenalitePct() != null
+                ? p.getTauxPenalitePct().divide(new BigDecimal("100"), 4, java.math.RoundingMode.HALF_UP)
+                : new BigDecimal("0.05"))
+            .orElse(new BigDecimal("0.05"));
+    }
+
+    private long getDelaiMaxOffreBlesseMois() {
+        return parametreDelaiRepository.findByCodeDelaiAndActifTrue("DLI_OFF_001")
+            .map(p -> p.getValeur().longValue()).orElse(6L);
+    }
+
+    private long getDelaiMaxOffreDecesMois() {
+        return parametreDelaiRepository.findByCodeDelaiAndActifTrue("DLI_OFF_003")
+            .map(p -> p.getValeur().longValue()).orElse(6L);
+    }
 
     @Override
     @Transactional
-    public OffreIndemnisation calculerOffreBlesse(Victime victime, String loginAuteur) {
+    public OffreIndemnisation calculerOffreBlesse(Victime victime, CalculRequest params, String loginAuteur) {
         Sinistre sinistre = victime.getSinistre();
 
         // Determination du SMIG retenu : MAX(SMIG pays gestionnaire, SMIG pays
@@ -97,10 +121,14 @@ public class CalculCimaServiceImpl implements CalculCimaService {
                 : smigRetenu;
         BigDecimal revenuAnnuel = revenuMensuel.multiply(new BigDecimal("12"));
 
-        // Art. 258 – Frais médicaux
-        BigDecimal fraisMedicaux = dossierReclamationRepository
-                .findMontantRetenuByVictime(victime.getVictimeTrackingId())
-                .orElse(BigDecimal.ZERO);
+        // Art. 258 – Frais médicaux : override instructeur prioritaire, sinon dossiers
+        // réclamation
+        BigDecimal fraisMedicaux = (params.fraisMedicaux() != null
+                && params.fraisMedicaux().compareTo(BigDecimal.ZERO) > 0)
+                        ? params.fraisMedicaux()
+                        : dossierReclamationRepository
+                                .findMontantRetenuByVictime(victime.getVictimeTrackingId())
+                                .orElse(BigDecimal.ZERO);
 
         // Art. 259 – ITT (conditionnel : perte de revenu prouvée)
         BigDecimal itt = BigDecimal.ZERO;
@@ -178,14 +206,16 @@ public class CalculCimaServiceImpl implements CalculCimaService {
                 .add(prejMoral).add(tiercePersonneAmt).add(pretiumDoloris)
                 .add(prejEsthetique).add(prejCarriere).add(prejScolaire).add(prejLeses);
 
-        // Application du taux RC
-        BigDecimal tauxRc = sinistre.getTauxRc() != null ? sinistre.getTauxRc() : new BigDecimal("100");
+        // Application du taux RC : override instructeur > sinistre.tauxRc > 100%
+        BigDecimal tauxRc = params.tauxRcOverride() != null ? params.tauxRcOverride()
+                : sinistre.getTauxRc() != null ? sinistre.getTauxRc()
+                        : new BigDecimal("100");
         BigDecimal totalNet = totalBrut.multiply(tauxRc).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
 
         // Frais de gestion (5% si SURVENU_TOGO uniquement)
         BigDecimal fraisGestion = BigDecimal.ZERO;
         if (TypeSinistre.SURVENU_TOGO.equals(sinistre.getTypeSinistre())) {
-            fraisGestion = totalNet.multiply(PCT_FRAIS_GESTION).setScale(2, RoundingMode.HALF_UP);
+            fraisGestion = totalNet.multiply(getPctFraisGestion()).setScale(2, RoundingMode.HALF_UP);
         }
 
         BigDecimal montantTotalOffre = totalNet.add(fraisGestion);
@@ -211,7 +241,7 @@ public class CalculCimaServiceImpl implements CalculCimaService {
 
     @Override
     @Transactional
-    public OffreIndemnisation calculerOffreDeces(Victime victime, String loginAuteur) {
+    public OffreIndemnisation calculerOffreDeces(Victime victime, CalculRequest params, String loginAuteur) {
         Sinistre sinistre = victime.getSinistre();
 
         // ── SMIG retenu ───────────────────────────────────────────────────────
@@ -229,8 +259,12 @@ public class CalculCimaServiceImpl implements CalculCimaService {
                 : smigRetenu;
         BigDecimal revenuAnnuel = revenuMensuel.multiply(new BigDecimal("12"));
 
-        // ── Art. 264 – Frais funéraires : 3 × SMIG mensuel retenu ────────────
-        BigDecimal fraisFuneraires = smigRetenu.multiply(new BigDecimal("3"));
+        // ── Art. 264 – Frais funéraires : override instructeur prioritaire, sinon 3 ×
+        // SMIG mensuel
+        BigDecimal fraisFuneraires = (params.fraisFuneraires() != null
+                && params.fraisFuneraires().compareTo(BigDecimal.ZERO) > 0)
+                        ? params.fraisFuneraires()
+                        : smigRetenu.multiply(new BigDecimal("3"));
 
         // ── Art. 265 – Préjudice économique des ayants droit ──────────────────
         List<AyantDroit> ayantsDroit = ayantDroitRepository.findByVictime(victime.getVictimeTrackingId());
@@ -368,11 +402,13 @@ public class CalculCimaServiceImpl implements CalculCimaService {
 
         // Totaux
         BigDecimal totalBrut = fraisFuneraires.add(totalPeFinal).add(totalPmGlobal);
-        BigDecimal tauxRc = sinistre.getTauxRc() != null ? sinistre.getTauxRc() : new BigDecimal("100");
+        BigDecimal tauxRc = params.tauxRcOverride() != null ? params.tauxRcOverride()
+                : sinistre.getTauxRc() != null ? sinistre.getTauxRc()
+                        : new BigDecimal("100");
         BigDecimal totalNet = totalBrut.multiply(tauxRc).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
         BigDecimal fraisGestion = BigDecimal.ZERO;
         if (TypeSinistre.SURVENU_TOGO.equals(sinistre.getTypeSinistre())) {
-            fraisGestion = totalNet.multiply(PCT_FRAIS_GESTION).setScale(2, RoundingMode.HALF_UP);
+            fraisGestion = totalNet.multiply(getPctFraisGestion()).setScale(2, RoundingMode.HALF_UP);
         }
         BigDecimal montantTotalOffre = totalNet.add(fraisGestion);
 
@@ -404,12 +440,12 @@ public class CalculCimaServiceImpl implements CalculCimaService {
         long moisEcoules = java.time.temporal.ChronoUnit.MONTHS.between(dateDeclaration, LocalDate.now());
         boolean estDeces = com.ossanasur.cbconnect.common.enums.TypeVictime.DECEDE
                 .equals(offre.getVictime().getTypeVictime());
-        long delaiMax = estDeces ? DELAI_MAX_OFFRE_DECES_MOIS : DELAI_MAX_OFFRE_BLESSE_MOIS;
+        long delaiMax = estDeces ? getDelaiMaxOffreDecesMois() : getDelaiMaxOffreBlesseMois();
         long moisRetard = Math.max(0, moisEcoules - delaiMax);
         if (moisRetard == 0)
             return BigDecimal.ZERO;
         return offre.getMontantTotalOffre()
-                .multiply(PCT_PENALITE_RETARD)
+                .multiply(getPctPenaliteRetard())
                 .multiply(BigDecimal.valueOf(moisRetard))
                 .setScale(2, RoundingMode.HALF_UP);
     }

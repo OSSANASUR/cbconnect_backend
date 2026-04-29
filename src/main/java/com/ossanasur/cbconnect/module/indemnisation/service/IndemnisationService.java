@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.UUID;
 
 public interface IndemnisationService {
-    DataResponse<OffreIndemnisationResponse> calculerOffreBlesse(UUID victimeId, String loginAuteur);
+    DataResponse<OffreIndemnisationResponse> calculerOffre(UUID victimeId, CalculRequest params, String loginAuteur);
 
     DataResponse<OffreIndemnisationResponse> getOffreByVictime(UUID victimeId);
 
@@ -19,4 +19,6 @@ public interface IndemnisationService {
     DataResponse<AyantDroitResponse> ajouterAyantDroit(AyantDroitRequest r, String loginAuteur);
 
     DataResponse<List<AyantDroitResponse>> getAyantsDroitByVictime(UUID victimeId);
+
+    DataResponse<Void> supprimerAyantDroit(UUID ayantDroitId, String loginAuteur);
 }

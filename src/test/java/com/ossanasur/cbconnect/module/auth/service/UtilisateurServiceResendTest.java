@@ -44,7 +44,6 @@ class UtilisateurServiceResendTest {
                 .thenReturn(Optional.of(u));
         when(utilisateurRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(parametreService.getValeur(eq("ACCOUNT_SETUP_TOKEN_TTL_DAYS"), anyString())).thenReturn("7");
-        when(parametreService.getValeur(eq("MAIL_FRONTEND_BASE_URL"), anyString())).thenReturn("http://localhost:3000");
         when(parametreService.getValeur(startsWith("MAIL_"), anyString())).thenReturn("x");
 
         DataResponse<Void> res = service.resendActivationLink(id, "admin@x");

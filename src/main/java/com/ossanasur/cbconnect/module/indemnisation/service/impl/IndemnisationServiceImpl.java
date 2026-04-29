@@ -1,6 +1,7 @@
 package com.ossanasur.cbconnect.module.indemnisation.service.impl;
 
 import com.ossanasur.cbconnect.common.enums.TypeTable;
+import com.ossanasur.cbconnect.common.enums.TypeVictime;
 import com.ossanasur.cbconnect.exception.RessourceNotFoundException;
 import com.ossanasur.cbconnect.module.auth.repository.UtilisateurRepository;
 import com.ossanasur.cbconnect.module.indemnisation.dto.request.*;
@@ -32,16 +33,15 @@ public class IndemnisationServiceImpl implements IndemnisationService {
 
     @Override
     @Transactional
-    public DataResponse<OffreIndemnisationResponse> calculerOffreBlesse(UUID victimeId, String loginAuteur) {
+    public DataResponse<OffreIndemnisationResponse> calculerOffre(UUID victimeId, CalculRequest params,
+            String loginAuteur) {
         var victime = victimeRepository.findActiveByTrackingId(victimeId)
                 .orElseThrow(() -> new RessourceNotFoundException("Victime introuvable"));
-        OffreIndemnisation offre;
-        if (com.ossanasur.cbconnect.common.enums.TypeVictime.DECEDE.equals(victime.getTypeVictime())) {
-            offre = calculCimaService.calculerOffreDeces(victime, loginAuteur);
-        } else {
-            offre = calculCimaService.calculerOffreBlesse(victime, loginAuteur);
-        }
-        return DataResponse.created("Offre calculee : " + offre.getMontantTotalOffre() + " FCFA",
+        CalculRequest p = params != null ? params : new CalculRequest(null, null, null);
+        OffreIndemnisation offre = TypeVictime.DECEDE.equals(victime.getTypeVictime())
+                ? calculCimaService.calculerOffreDeces(victime, p, loginAuteur)
+                : calculCimaService.calculerOffreBlesse(victime, p, loginAuteur);
+        return DataResponse.created("Offre calculée : " + offre.getMontantTotalOffre() + " FCFA",
                 mapper.toResponse(offre));
     }
 
@@ -62,7 +62,7 @@ public class IndemnisationServiceImpl implements IndemnisationService {
         offre.setDateValidation(LocalDateTime.now());
         offre.setValidePar(validateur);
         offre.setUpdatedBy(loginAuteur);
-        return DataResponse.success("Offre validee", mapper.toResponse(offreRepository.save(offre)));
+        return DataResponse.success("Offre validée", mapper.toResponse(offreRepository.save(offre)));
     }
 
     @Override
@@ -70,8 +70,7 @@ public class IndemnisationServiceImpl implements IndemnisationService {
     public DataResponse<BigDecimal> calculerPenalites(UUID offreId) {
         OffreIndemnisation offre = offreRepository.findActiveByTrackingId(offreId)
                 .orElseThrow(() -> new RessourceNotFoundException("Offre introuvable"));
-        BigDecimal penalites = calculCimaService.calculerPenalitesRetard(offre);
-        return DataResponse.success("Penalites calculees", penalites);
+        return DataResponse.success("Pénalités calculées", calculCimaService.calculerPenalitesRetard(offre));
     }
 
     @Override
@@ -85,7 +84,7 @@ public class IndemnisationServiceImpl implements IndemnisationService {
                 .montantPe(BigDecimal.ZERO).montantPm(BigDecimal.ZERO).montantTotal(BigDecimal.ZERO)
                 .victime(victime).createdBy(loginAuteur).activeData(true).deletedData(false)
                 .fromTable(TypeTable.AYANT_DROIT).build();
-        return DataResponse.created("Ayant droit ajoute", mapper.toAyantDroitResponse(ayantDroitRepository.save(a)));
+        return DataResponse.created("Ayant droit ajouté", mapper.toAyantDroitResponse(ayantDroitRepository.save(a)));
     }
 
     @Override
@@ -93,5 +92,17 @@ public class IndemnisationServiceImpl implements IndemnisationService {
     public DataResponse<List<AyantDroitResponse>> getAyantsDroitByVictime(UUID victimeId) {
         return DataResponse.success(ayantDroitRepository.findByVictime(victimeId).stream()
                 .map(mapper::toAyantDroitResponse).collect(Collectors.toList()));
+    }
+
+    @Override
+    @Transactional
+    public DataResponse<Void> supprimerAyantDroit(UUID ayantDroitId, String loginAuteur) {
+        AyantDroit a = ayantDroitRepository.findActiveByTrackingId(ayantDroitId)
+                .orElseThrow(() -> new RessourceNotFoundException("Ayant droit introuvable"));
+        a.setActiveData(false);
+        a.setDeletedData(true);
+        a.setUpdatedBy(loginAuteur);
+        ayantDroitRepository.save(a);
+        return DataResponse.success("Ayant droit supprimé", null);
     }
 }

@@ -2,6 +2,7 @@ package com.ossanasur.cbconnect.module.finance.service.impl;
 
 import com.ossanasur.cbconnect.common.enums.StatutEcritureComptable;
 import com.ossanasur.cbconnect.common.enums.StatutPaiement;
+import com.ossanasur.cbconnect.common.enums.TypeOperationFinanciere;
 import com.ossanasur.cbconnect.common.enums.TypeTable;
 import com.ossanasur.cbconnect.common.enums.TypeTransactionComptable;
 import com.ossanasur.cbconnect.exception.BadRequestException;
@@ -24,6 +25,7 @@ import com.ossanasur.cbconnect.module.finance.mapper.PaiementMapper;
 import com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository;
 import com.ossanasur.cbconnect.module.finance.repository.PaiementRepository;
 import com.ossanasur.cbconnect.module.finance.service.EncaissementGuardService;
+import com.ossanasur.cbconnect.module.finance.service.NumeroOperationGenerator;
 import com.ossanasur.cbconnect.module.finance.service.PaiementService;
 import com.ossanasur.cbconnect.module.sinistre.entity.Sinistre;
 import com.ossanasur.cbconnect.module.sinistre.entity.Victime;
@@ -33,6 +35,7 @@ import com.ossanasur.cbconnect.utils.DataResponse;
 import com.ossanasur.cbconnect.utils.PaginatedResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,6 +60,7 @@ public class PaiementServiceImpl implements PaiementService {
         private final ComptabiliteService comptabiliteService;
         private final PaiementMapper mapper;
         private final EncaissementGuardService guardService;
+        private final NumeroOperationGenerator numeroOperationGenerator;
 
         /**
          * Crée le règlement technique : bénéficiaire + montant uniquement.
@@ -85,7 +89,8 @@ public class PaiementServiceImpl implements PaiementService {
 
                 Paiement paiement = mapper.toNewEntity(request, sinistre, victime, organisme, loginAuteur);
                 // statut EMIS, numeroCheque null, ecritureComptable null
-                Paiement saved = paiementRepository.save(paiement);
+                Paiement saved = persisterPaiementAvecNumero(
+                                paiement, TypeOperationFinanciere.REGLEMENT_TECHNIQUE);
 
                 log.info("Règlement technique créé {} (sinistre={}, montant={}, bénéficiaire={})",
                                 saved.getPaiementTrackingId(), sinistre.getSinistreTrackingId(),
@@ -146,6 +151,15 @@ public class PaiementServiceImpl implements PaiementService {
                                                         + "(statut actuel : " + parent.getStatut() + ")");
                 }
 
+                // Garde-fou applicatif : un RT n'accepte qu'un seul RC actif
+                boolean hasActiveRc = paiementRepository.existsActiveRcForParent(
+                                parent.getPaiementTrackingId().toString());
+                if (hasActiveRc) {
+                        throw new BadRequestException(
+                                        "Un règlement comptable actif existe déjà pour ce règlement technique. "
+                                                        + "Annulez-le avant d'en saisir un nouveau.");
+                }
+
                 if (paiementRepository.existsByNumeroChequeEmisAndActiveDataTrueAndDeletedDataFalse(
                                 request.numeroChequeEmis())) {
                         throw new BadRequestException("Le chèque n° " + request.numeroChequeEmis()
@@ -181,7 +195,8 @@ public class PaiementServiceImpl implements PaiementService {
                                 .fromTable(TypeTable.PAIEMENT)
                                 .build();
 
-                Paiement saved = paiementRepository.save(reglementComptable);
+                Paiement saved = persisterPaiementAvecNumero(
+                                reglementComptable, TypeOperationFinanciere.REGLEMENT_COMPTABLE);
 
                 log.info("Règlement comptable créé {} (parent={}, chèque={}, banque={})",
                                 saved.getPaiementTrackingId(), paiementTrackingId,
@@ -256,6 +271,11 @@ public class PaiementServiceImpl implements PaiementService {
 
                 Paiement parent = findActiveOrThrow(paiementTrackingId);
 
+                // Garde-fou : un règlement déjà annulé (ligne AN existante pointant vers lui) ne peut pas l'être à nouveau
+                if (paiementRepository.existsActiveAnnulationFor(parent.getPaiementTrackingId().toString())) {
+                        throw new BadRequestException("Ce règlement a déjà été annulé.");
+                }
+
                 if (parent.getStatut() == StatutPaiement.ANNULE) {
                         throw new BadRequestException("Ce règlement est déjà annulé");
                 }
@@ -309,7 +329,8 @@ public class PaiementServiceImpl implements PaiementService {
                                 .fromTable(TypeTable.PAIEMENT)
                                 .build();
 
-                Paiement saved = paiementRepository.save(annulation);
+                Paiement saved = persisterPaiementAvecNumero(
+                                annulation, TypeOperationFinanciere.ANNULATION_REGLEMENT);
 
                 log.info("Règlement {} annulé par {} (motif={}, nouvelle ligne={})",
                                 paiementTrackingId, loginAuteur, request.motifAnnulation(),
@@ -396,5 +417,34 @@ public class PaiementServiceImpl implements PaiementService {
 
         private Utilisateur resolveUtilisateur(String login) {
                 return utilisateurRepository.findByEmailOrUsername(login, login).orElse(null);
+        }
+
+        /**
+         * Persiste un Paiement après lui avoir affecté un numéro d'opération unique.
+         * Retry applicatif sur DataIntegrityViolationException (collision de l'index
+         * unique sur numero_operation) — max 5 tentatives.
+         *
+         * Doit être appelé dans un contexte transactionnel actif (le caller porte la
+         * @Transactional). saveAndFlush force la violation à se déclencher dans la
+         * boucle de retry plutôt qu'au commit global.
+         */
+        private Paiement persisterPaiementAvecNumero(Paiement paiement,
+                        TypeOperationFinanciere type) {
+                final int maxRetries = 5;
+                DataIntegrityViolationException last = null;
+                for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                        try {
+                                String numero = numeroOperationGenerator.genererNumero(
+                                                type, paiement.getSinistre());
+                                paiement.setNumeroPaiement(numero);
+                                return paiementRepository.saveAndFlush(paiement);
+                        } catch (DataIntegrityViolationException e) {
+                                last = e;
+                                log.warn("Collision numero_operation (tentative {}/{}) sinistre={} type={}",
+                                                attempt, maxRetries,
+                                                paiement.getSinistre().getHistoriqueId(), type);
+                        }
+                }
+                throw last;
         }
 }

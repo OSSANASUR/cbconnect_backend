@@ -6,10 +6,14 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import com.ossanasur.cbconnect.common.enums.StatutPaiement;
+import com.ossanasur.cbconnect.common.enums.TypeOperationFinanciere;
 
 public record PaiementResponse(
 
         UUID paiementTrackingId,
+        String numeroPaiement,
+        TypeOperationFinanciere typeOperation,
+        String parentCodeId,
         UUID sinistreTrackingId,
         String sinistreReference,
 

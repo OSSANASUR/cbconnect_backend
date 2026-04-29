@@ -7,10 +7,13 @@ import java.util.UUID;
 import java.math.BigDecimal;
 
 import com.ossanasur.cbconnect.common.enums.StatutPaiement;
+import com.ossanasur.cbconnect.common.enums.TypeOperationFinanciere;
 
 public record PaiementDetailResponse(
 
                 UUID paiementTrackingId,
+                String numeroPaiement,
+                TypeOperationFinanciere typeOperation,
                 UUID sinistreTrackingId,
                 String sinistreReference,
 

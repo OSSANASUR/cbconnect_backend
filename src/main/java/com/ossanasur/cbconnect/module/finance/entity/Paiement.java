@@ -68,6 +68,9 @@ public class Paiement extends InternalHistorique {
     @Column(name = "motif_complement", length = 255)
     private String motifComplement;
 
+    @Column(name = "numero_operation", length = 30, nullable = false, unique = true, updatable = false)
+    private String numeroPaiement;
+
     private String motifAnnulation;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sinistre_id", nullable = false)

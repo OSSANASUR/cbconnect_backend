@@ -6,8 +6,11 @@ import com.ossanasur.cbconnect.module.auth.repository.OrganismeRepository;
 import com.ossanasur.cbconnect.module.finance.dto.request.EncaissementRequest;
 import com.ossanasur.cbconnect.module.finance.dto.response.EncaissementResponse;
 import com.ossanasur.cbconnect.module.finance.entity.Encaissement;
+import com.ossanasur.cbconnect.module.finance.entity.Paiement;
+import com.ossanasur.cbconnect.module.finance.exception.ReglementsLiesNonAnnulesException;
 import com.ossanasur.cbconnect.module.finance.mapper.EncaissementMapper;
 import com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository;
+import com.ossanasur.cbconnect.module.finance.repository.PaiementRepository;
 import com.ossanasur.cbconnect.module.finance.service.EncaissementService;
 import com.ossanasur.cbconnect.module.sinistre.repository.SinistreRepository;
 import com.ossanasur.cbconnect.utils.DataResponse;
@@ -27,6 +30,7 @@ public class EncaissementServiceImpl implements EncaissementService {
         private final SinistreRepository sinistreRepository;
         private final OrganismeRepository organismeRepository;
         private final EncaissementMapper mapper;
+        private final PaiementRepository paiementRepository;
 
         @Override
         @Transactional
@@ -91,10 +95,20 @@ public class EncaissementServiceImpl implements EncaissementService {
         public DataResponse<Void> annuler(UUID id, String motif, String loginAuteur) {
                 Encaissement e = encaissementRepository.findActiveByTrackingId(id)
                                 .orElseThrow(() -> new RessourceNotFoundException("Encaissement introuvable"));
+
+                if (e.getStatutCheque() == StatutCheque.ANNULE) {
+                        throw new BadRequestException("Cet encaissement est déjà annulé");
+                }
+
+                List<Paiement> bloquants = paiementRepository.findReglementsLiesNonAnnules(id);
+                if (!bloquants.isEmpty()) {
+                        throw new ReglementsLiesNonAnnulesException(bloquants);
+                }
+
                 e.setStatutCheque(StatutCheque.ANNULE);
                 e.setMotifAnnulation(motif);
                 e.setUpdatedBy(loginAuteur);
                 encaissementRepository.save(e);
-                return DataResponse.success("Encaissement annule", null);
+                return DataResponse.success("Encaissement annulé", null);
         }
 }

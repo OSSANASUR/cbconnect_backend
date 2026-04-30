@@ -16,6 +16,7 @@ public class EtatSinistreDto {
     private int annee;
     private List<LigneSinistre> lignes;
     private LigneSinistre total;
+    private List<LigneEvolution> evolution;
 
     // ── Constructeur / getters ────────────────────────────────────────
     public EtatSinistreDto() {
@@ -37,6 +38,14 @@ public class EtatSinistreDto {
 
     public LigneSinistre getTotal() {
         return total;
+    }
+
+    public List<LigneEvolution> getEvolution() {
+        return evolution;
+    }
+
+    public void setEvolution(List<LigneEvolution> evolution) {
+        this.evolution = evolution;
     }
 
     private static LigneSinistre calculerTotal(List<LigneSinistre> lignes) {
@@ -95,5 +104,24 @@ public class EtatSinistreDto {
         private static double round(double v) {
             return BigDecimal.valueOf(v).setScale(1, RoundingMode.HALF_UP).doubleValue();
         }
+    }
+
+    public static class LigneEvolution {
+        private int annee;
+        private long total;
+        private long et;
+        private long te;
+
+        public LigneEvolution(int annee, long total, long et, long te) {
+            this.annee = annee;
+            this.total = total;
+            this.et    = et;
+            this.te    = te;
+        }
+
+        public int getAnnee()  { return annee; }
+        public long getTotal() { return total; }
+        public long getEt()    { return et; }
+        public long getTe()    { return te; }
     }
 }

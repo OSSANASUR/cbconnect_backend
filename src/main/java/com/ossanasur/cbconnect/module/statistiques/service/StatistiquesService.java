@@ -12,6 +12,7 @@ import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto.LigneEnc
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto.LignePaiement;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatReclamationDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatSinistreDto.LigneSinistre;
+import com.ossanasur.cbconnect.module.statistiques.dto.EtatSinistreDto.LigneEvolution;
 import com.ossanasur.cbconnect.module.statistiques.dto.GraphiqueEncPaiDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.GraphiqueEncPaiDto.LigneAnnuelle;
 import com.ossanasur.cbconnect.module.statistiques.dto.ReportingEncaissementDto;
@@ -47,6 +48,8 @@ public class StatistiquesService {
 
     public EtatSinistreDto etatSinistres(int annee) {
         int n1 = annee - 1;
+
+        // ── Tableau : répartition par pays partenaire (hors Togo) ──
         List<Object[]> rows = sinistreRepository.statSinistreParPays(annee, n1);
 
         List<LigneSinistre> lignes = rows.stream().map(r -> {
@@ -57,11 +60,23 @@ public class StatistiquesService {
             return new LigneSinistre(bureau, codePays, nbN1, nbN);
         }).toList();
 
-        // Calculer les % par rapport au total N
         long totalN = lignes.stream().mapToLong(LigneSinistre::getNbN).sum();
         lignes.forEach(l -> l.setPourcentage(totalN));
 
-        return new EtatSinistreDto(annee, lignes);
+        EtatSinistreDto dto = new EtatSinistreDto(annee, lignes);
+
+        // ── Évolution sur 10 ans (total / ET / TE) ──
+        int anneeDebut = annee - 9;
+        List<Object[]> evolRows = sinistreRepository.evolutionSinistresParAnnee(anneeDebut, annee);
+        List<LigneEvolution> evolution = evolRows.stream().map(r -> new LigneEvolution(
+                ((Number) r[0]).intValue(),
+                toLong(r[1]),
+                toLong(r[2]),
+                toLong(r[3])
+        )).toList();
+        dto.setEvolution(evolution);
+
+        return dto;
     }
 
     // ─── État II : Encaissements + Paiements ─────────────────────────

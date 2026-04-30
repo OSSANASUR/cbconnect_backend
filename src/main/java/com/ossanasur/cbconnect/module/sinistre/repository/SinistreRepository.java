@@ -69,7 +69,10 @@ public interface SinistreRepository extends JpaRepository<Sinistre, Integer> {
       @Param("reprise") boolean reprise);
 
   /**
-   * État I — Sinistres déclarés par pays émetteur, comparaison N-1 vs N.
+   * État I — Sinistres déclarés par pays partenaire (hors Togo), comparaison N-1 vs N.
+   * ET (SURVENU_TOGO)     → pays partenaire = pays_emetteur    (véhicule étranger entré au Togo)
+   * TE (SURVENU_ETRANGER) → pays partenaire = pays_gestionnaire (sinistre togolais à l'étranger)
+   * Le Togo (code_carte_brune = 'TG') est exclu des lignes.
    * Colonnes retournées : [0]=bureau, [1]=codePays, [2]=nbN1, [3]=nbN
    */
   @Query(value = """
@@ -79,14 +82,38 @@ public interface SinistreRepository extends JpaRepository<Sinistre, Integer> {
           COUNT(s.historique_id) FILTER (WHERE EXTRACT(YEAR FROM s.date_declaration) = :anneeN1) AS nb_n1,
           COUNT(s.historique_id) FILTER (WHERE EXTRACT(YEAR FROM s.date_declaration) = :anneeN)  AS nb_n
       FROM sinistre s
-      JOIN pays p ON p.historique_id = s.pays_emetteur_id
+      JOIN pays p ON p.historique_id = CASE
+          WHEN s.type_sinistre = 'SURVENU_TOGO'     THEN s.pays_emetteur_id
+          WHEN s.type_sinistre = 'SURVENU_ETRANGER' THEN s.pays_gestionnaire_id
+          ELSE s.pays_emetteur_id
+      END
       WHERE s.deleted_data = FALSE
         AND s.active_data  = TRUE
+        AND p.code_carte_brune <> 'TG'
         AND EXTRACT(YEAR FROM s.date_declaration) IN (:anneeN1, :anneeN)
       GROUP BY p.libelle, p.code_carte_brune
-      ORDER BY p.libelle
+      ORDER BY nb_n DESC, nb_n1 DESC
       """, nativeQuery = true)
   List<Object[]> statSinistreParPays(@Param("anneeN") int anneeN, @Param("anneeN1") int anneeN1);
+
+  /**
+   * Évolution pluriannuelle — total, ET et TE par année civile.
+   * Colonnes retournées : [0]=annee, [1]=total, [2]=et, [3]=te
+   */
+  @Query(value = """
+      SELECT
+          EXTRACT(YEAR FROM s.date_declaration)::INTEGER                            AS annee,
+          COUNT(s.historique_id)                                                    AS total,
+          COUNT(s.historique_id) FILTER (WHERE s.type_sinistre = 'SURVENU_TOGO')   AS et,
+          COUNT(s.historique_id) FILTER (WHERE s.type_sinistre = 'SURVENU_ETRANGER') AS te
+      FROM sinistre s
+      WHERE s.deleted_data = FALSE
+        AND s.active_data  = TRUE
+        AND EXTRACT(YEAR FROM s.date_declaration) BETWEEN :anneeDebut AND :anneeFin
+      GROUP BY 1
+      ORDER BY 1
+      """, nativeQuery = true)
+  List<Object[]> evolutionSinistresParAnnee(@Param("anneeDebut") int anneeDebut, @Param("anneeFin") int anneeFin);
 
   /**
    * Cherche un sinistre actif par son numéro manuel (ET ou TE).

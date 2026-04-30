@@ -1,11 +1,13 @@
 package com.ossanasur.cbconnect.module.finance.entity;
 
 import com.ossanasur.cbconnect.common.entity.InternalHistorique;
+import com.ossanasur.cbconnect.common.enums.CategorieReglement;
 import com.ossanasur.cbconnect.common.enums.StatutPaiement;
 import com.ossanasur.cbconnect.common.enums.TypePrejudice;
 import com.ossanasur.cbconnect.module.auth.entity.Organisme;
 import com.ossanasur.cbconnect.module.auth.entity.Utilisateur;
 import com.ossanasur.cbconnect.module.comptabilite.entity.EcritureComptable;
+import com.ossanasur.cbconnect.module.expertise.entity.Expert;
 import com.ossanasur.cbconnect.module.sinistre.entity.Sinistre;
 import com.ossanasur.cbconnect.module.sinistre.entity.Victime;
 import jakarta.persistence.*;
@@ -68,6 +70,13 @@ public class Paiement extends InternalHistorique {
     @Column(name = "motif_complement", length = 255)
     private String motifComplement;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private CategorieReglement categorie;
+
+    @Column(nullable = false, length = 150)
+    private String motif;
+
     @Column(name = "numero_operation", length = 30, nullable = false, unique = true, updatable = false)
     private String numeroPaiement;
 
@@ -96,4 +105,22 @@ public class Paiement extends InternalHistorique {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ecriture_comptable_id")
     private EcritureComptable ecritureComptable;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "beneficiaire_expert_id")
+    private Expert beneficiaireExpert;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "lot_reglement_id")
+    private LotReglement lotReglement;
+
+    @Column(name = "montant_ttc", precision = 15, scale = 2)
+    private BigDecimal montantTtc;
+
+    @Column(name = "montant_tva", precision = 15, scale = 2)
+    private BigDecimal montantTva;
+
+    @Column(name = "montant_taxe", precision = 15, scale = 2)
+    private BigDecimal montantTaxe;
+
 }

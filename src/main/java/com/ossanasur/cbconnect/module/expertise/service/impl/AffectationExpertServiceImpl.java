@@ -188,7 +188,7 @@ public class AffectationExpertServiceImpl {
                 sinistre.getNumeroSinistreLocal(),
                 sinistre.getDateAccident().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")),
                 limite,
-                expert.getTauxRetenue() != null ? expert.getTauxRetenue().toPlainString() : "0");
+                expert.getTauxRetenue() != null ? expert.getTauxRetenue().getValeur().toPlainString() : "0");
     }
 
     private String genererCorpsLettreVictime(

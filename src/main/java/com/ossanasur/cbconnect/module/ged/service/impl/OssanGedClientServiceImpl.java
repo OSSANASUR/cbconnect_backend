@@ -22,6 +22,7 @@ import com.ossanasur.cbconnect.module.ged.repository.OssanGedDossierRepository;
 import com.ossanasur.cbconnect.module.ged.service.OssanGedClientService;
 import com.ossanasur.cbconnect.module.reclamation.entity.DossierReclamation;
 import com.ossanasur.cbconnect.module.reclamation.repository.DossierReclamationRepository;
+import com.ossanasur.cbconnect.module.reclamation.service.PiecesAdministrativesService;
 import com.ossanasur.cbconnect.module.sinistre.entity.Sinistre;
 import com.ossanasur.cbconnect.module.sinistre.entity.Victime;
 import com.ossanasur.cbconnect.module.sinistre.repository.SinistreRepository;
@@ -72,6 +73,7 @@ public class OssanGedClientServiceImpl implements OssanGedClientService {
     private final UtilisateurRepository utilisateurRepository;
     private final DossierReclamationRepository dossierReclamationRepository;
     private final GedMapper gedMapper;
+    private final PiecesAdministrativesService piecesService;
 
     @Value("${ossanged.upload-task-wait-seconds:240}")
     private long uploadTaskWaitSeconds;
@@ -201,6 +203,22 @@ public class OssanGedClientServiceImpl implements OssanGedClientService {
                     .fromTable(TypeTable.OSSAN_GED_DOCUMENT)
                     .build();
             DocumentGedResponse saved = gedMapper.toDocumentResponse(documentRepository.save(doc));
+
+            // Auto-association dès l'upload (qu'OCR soit résolu ou en cours).
+            // L'OssanGedDocument existe en DB avec son trackingId : la pièce peut être
+            // marquée RECUE immédiatement ; ossanGedDocumentId sera renseigné
+            // ultérieurement par resoudreDocument() quand l'OCR Paperless termine.
+            if (dr != null) {
+                log.info("[AUTO-ASSOC] Déclenchement upload — dossier={} typeDoc={} victimeId={}",
+                        dr.getDossierTrackingId(), r.typeDocument(), r.victimeTrackingId());
+                piecesService.autoAssocierParTypeDocument(
+                        dr.getDossierTrackingId(), r.typeDocument(),
+                        doc.getOssanGedDocumentTrackingId(), loginAuteur);
+            } else {
+                log.warn("[AUTO-ASSOC] Ignoré — dr null (victimeTrackingId={}). "
+                        + "Sélectionner une victime dans le GedUploader pour activer l'auto-association.",
+                        r.victimeTrackingId());
+            }
 
             if (upload.documentId() != null) {
                 log.info("Document indexe dans OssanGED : id={}, titre={}", upload.documentId(), r.titre());

@@ -1,5 +1,6 @@
 package com.ossanasur.cbconnect.module.reclamation.dto.request;
 
+import com.ossanasur.cbconnect.common.enums.TypeDocumentOssanGed;
 import com.ossanasur.cbconnect.common.enums.TypeDommage;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -13,5 +14,8 @@ public record TypePieceRequest(
 
         boolean obligatoire,
         int ordre,
-        boolean actif) {
+        boolean actif,
+
+        /** null = pas d'auto-association GED pour cette pièce */
+        TypeDocumentOssanGed typeDocumentGed) {
 }

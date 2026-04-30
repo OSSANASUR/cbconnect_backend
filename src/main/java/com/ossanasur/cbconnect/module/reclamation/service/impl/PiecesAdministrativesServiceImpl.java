@@ -2,6 +2,7 @@ package com.ossanasur.cbconnect.module.reclamation.service.impl;
 
 import com.ossanasur.cbconnect.common.enums.StatutPiece;
 import com.ossanasur.cbconnect.common.enums.StatutSinistre;
+import com.ossanasur.cbconnect.common.enums.TypeDocumentOssanGed;
 import com.ossanasur.cbconnect.common.enums.TypeDommage;
 import com.ossanasur.cbconnect.common.enums.TypeVictime;
 import com.ossanasur.cbconnect.exception.RessourceNotFoundException;
@@ -61,6 +62,7 @@ public class PiecesAdministrativesServiceImpl implements PiecesAdministrativesSe
                                 .obligatoire(req.obligatoire())
                                 .ordre(req.ordre())
                                 .actif(req.actif())
+                                .typeDocumentGed(req.typeDocumentGed())
                                 .createdBy(loginAuteur)
                                 .activeData(true).deletedData(false)
                                 .build();
@@ -77,6 +79,7 @@ public class PiecesAdministrativesServiceImpl implements PiecesAdministrativesSe
                 t.setObligatoire(req.obligatoire());
                 t.setOrdre(req.ordre());
                 t.setActif(req.actif());
+                t.setTypeDocumentGed(req.typeDocumentGed());
                 t.setUpdatedBy(loginAuteur);
                 return DataResponse.success("Type de pièce modifié", toTypePieceResponse(typePieceRepo.save(t)));
         }
@@ -257,6 +260,78 @@ public class PiecesAdministrativesServiceImpl implements PiecesAdministrativesSe
                                 sinistre.getSinistreTrackingId());
         }
 
+        @Override
+        public void autoAssocierParTypeDocument(UUID dossierTrackingId, TypeDocumentOssanGed typeDocumentGed,
+                        UUID ossanGedDocumentTrackingId, String loginAuteur) {
+                if (dossierTrackingId == null || typeDocumentGed == null || ossanGedDocumentTrackingId == null) {
+                        log.debug("[AUTO-ASSOC] Ignoré — paramètres incomplets dossier={} type={} doc={}",
+                                        dossierTrackingId, typeDocumentGed, ossanGedDocumentTrackingId);
+                        return;
+                }
+                try {
+                        DossierReclamation dossier = dossierRepo.findActiveByTrackingId(dossierTrackingId)
+                                        .orElse(null);
+                        if (dossier == null) {
+                                log.warn("[AUTO-ASSOC] Dossier introuvable : {}", dossierTrackingId);
+                                return;
+                        }
+
+                        var doc = ossanGedDocRepo.findByOssanGedDocumentTrackingId(ossanGedDocumentTrackingId)
+                                        .orElse(null);
+                        if (doc == null) {
+                                log.warn("[AUTO-ASSOC] OssanGedDocument introuvable : {}", ossanGedDocumentTrackingId);
+                                return;
+                        }
+
+                        List<PieceDossierReclamation> candidates = pieceDossierRepo
+                                        .findAttendusByDossierAndTypeGed(dossier.getHistoriqueId(), typeDocumentGed);
+
+                        if (candidates.isEmpty()) {
+                                // Si aucune pièce n'existe du tout, le dossier n'a jamais été initialisé
+                                // (dossier antérieur à la feature, ou init échouée) — on initialise à la volée
+                                List<PieceDossierReclamation> toutesLesPieces = pieceDossierRepo
+                                                .findByDossier(dossier.getHistoriqueId());
+                                if (toutesLesPieces.isEmpty()) {
+                                        log.info("[AUTO-ASSOC] Dossier {} sans checklist — initialisation à la volée",
+                                                        dossier.getNumeroDossier());
+                                        initialiserPiecesDossier(dossierTrackingId, loginAuteur);
+                                        candidates = pieceDossierRepo
+                                                        .findAttendusByDossierAndTypeGed(dossier.getHistoriqueId(),
+                                                                        typeDocumentGed);
+                                        toutesLesPieces = pieceDossierRepo.findByDossier(dossier.getHistoriqueId());
+                                }
+                                if (candidates.isEmpty()) {
+                                        String typesConfigures = toutesLesPieces.stream()
+                                                        .map(p -> p.getTypePiece().getLibelle()
+                                                                        + "→" + p.getTypePiece().getTypeDocumentGed()
+                                                                        + "(" + p.getStatut() + ")")
+                                                        .collect(java.util.stream.Collectors.joining(", "));
+                                        log.warn("[AUTO-ASSOC] Aucune pièce ATTENDUE avec typeDocumentGed={} "
+                                                        + "pour dossier {} ({}). Pièces du dossier : [{}]. "
+                                                        + "→ Vérifier que type_document_ged est configuré dans "
+                                                        + "/parametres/pieces et que V2026042902 a été appliquée.",
+                                                        typeDocumentGed, dossier.getNumeroDossier(),
+                                                        dossierTrackingId, typesConfigures);
+                                        return;
+                                }
+                        }
+
+                        PieceDossierReclamation piece = candidates.get(0);
+                        piece.setOssanGedDocument(doc);
+                        piece.setStatut(StatutPiece.RECUE);
+                        piece.setDateReception(java.time.LocalDate.now());
+                        piece.setUpdatedBy(loginAuteur);
+                        pieceDossierRepo.save(piece);
+
+                        autoTransitionVersMur(dossier, loginAuteur);
+                        log.info("[AUTO-ASSOC] ✓ Pièce '{}' du dossier {} → RECUE via type GED {}",
+                                        piece.getTypePiece().getLibelle(), dossier.getNumeroDossier(), typeDocumentGed);
+                } catch (Exception e) {
+                        log.warn("[AUTO-ASSOC] Exception (dossier={}, type={}): {}",
+                                        dossierTrackingId, typeDocumentGed, e.getMessage(), e);
+                }
+        }
+
         // ── Mappers privés ────────────────────────────────────────────
 
         private TypePieceResponse toTypePieceResponse(TypePieceAdministrative t) {
@@ -267,7 +342,8 @@ public class PiecesAdministrativesServiceImpl implements PiecesAdministrativesSe
                                         case MIXTE -> "Mixte";
                                 };
                 return new TypePieceResponse(t.getTrackingId(), t.getLibelle(),
-                                t.getTypeDommage(), label, t.isObligatoire(), t.getOrdre(), t.isActif());
+                                t.getTypeDommage(), label, t.isObligatoire(), t.getOrdre(), t.isActif(),
+                                t.getTypeDocumentGed());
         }
 
         private PieceDossierResponse toPieceDossierResponse(PieceDossierReclamation p) {
@@ -279,6 +355,7 @@ public class PiecesAdministrativesServiceImpl implements PiecesAdministrativesSe
                                 p.getTypePiece().getTypeDommage(),
                                 p.getTypePiece().isObligatoire(),
                                 p.getTypePiece().getOrdre(),
+                                p.getTypePiece().getTypeDocumentGed(),
                                 p.getStatut(),
                                 p.getDateReception(),
                                 p.getNotes(),

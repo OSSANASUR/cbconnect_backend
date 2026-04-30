@@ -1,5 +1,6 @@
 package com.ossanasur.cbconnect.module.reclamation.dto.response;
 
+import com.ossanasur.cbconnect.common.enums.TypeDocumentOssanGed;
 import com.ossanasur.cbconnect.common.enums.TypeDommage;
 
 import java.util.UUID;
@@ -11,5 +12,6 @@ public record TypePieceResponse(
         String typeDommageLabel, // "Commun" | "Corporel" | "Matériel" | "Mixte"
         boolean obligatoire,
         int ordre,
-        boolean actif) {
+        boolean actif,
+        TypeDocumentOssanGed typeDocumentGed) { // null = pas d'auto-association
 }

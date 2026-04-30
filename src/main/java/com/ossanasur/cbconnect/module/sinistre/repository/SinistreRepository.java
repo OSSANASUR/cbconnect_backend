@@ -276,4 +276,46 @@ public interface SinistreRepository extends JpaRepository<Sinistre, Integer> {
       """, nativeQuery = true)
   List<Object[]> sinistresDeclaresParCompagnie(@Param("anneeMin") int anneeMin);
 
+  /**
+   * Renvoie les sinistres pour lesquels un expert donné est éligible au
+   * paiement d'honoraires, c'est-à-dire :
+   * 1. Une affectation VALIDE lie l'expert au sinistre.
+   * 2. Au moins un rapport d'expertise (médicale ou matérielle) a été déposé
+   *    (dateRapport IS NOT NULL) par cet expert pour ce sinistre.
+   * 3. Au moins un encaissement actif (statut_cheque != ANNULE) est rattaché
+   *    au sinistre.
+   *
+   * Note technique — ExpertiseMedicale n'a pas de FK directe vers sinistre :
+   * la jointure passe par la table victime (em.victime_id → v.historique_id,
+   * v.sinistre_id = s.historique_id).
+   */
+  @Query(nativeQuery = true, value = """
+      SELECT s.* FROM sinistre s
+      WHERE EXISTS (
+              SELECT 1 FROM affectation_expert a
+              WHERE a.sinistre_id = s.historique_id
+                AND a.expert_id = :expertId
+                AND a.statut = 'VALIDE'
+                AND a.active_data = TRUE AND a.deleted_data = FALSE)
+        AND (
+              EXISTS (SELECT 1 FROM expertise_medicale em
+                      JOIN victime v ON v.historique_id = em.victime_id
+                      WHERE v.sinistre_id = s.historique_id
+                        AND em.expert_id = :expertId
+                        AND em.date_rapport IS NOT NULL
+                        AND em.active_data = TRUE AND em.deleted_data = FALSE)
+           OR EXISTS (SELECT 1 FROM expertise_materielle ema
+                      WHERE ema.sinistre_id = s.historique_id
+                        AND ema.expert_id = :expertId
+                        AND ema.date_rapport IS NOT NULL
+                        AND ema.active_data = TRUE AND ema.deleted_data = FALSE)
+            )
+        AND EXISTS (SELECT 1 FROM encaissement e
+                    WHERE e.sinistre_id = s.historique_id
+                      AND e.statut_cheque <> 'ANNULE'
+                      AND e.active_data = TRUE AND e.deleted_data = FALSE)
+        AND s.active_data = TRUE AND s.deleted_data = FALSE
+      """)
+  List<Sinistre> findPayablesForExpert(@Param("expertId") Integer expertId);
+
 }

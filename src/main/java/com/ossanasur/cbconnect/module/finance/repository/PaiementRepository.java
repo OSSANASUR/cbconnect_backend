@@ -585,4 +585,21 @@ public interface PaiementRepository extends JpaRepository<Paiement, Integer> {
            "WHERE p.numeroPaiement LIKE :prefixPattern")
     long countSeqForTypeOnPaiement(@Param("prefixPattern") String prefixPattern);
 
+    /**
+     * Vrai si un paiement d'honoraires actif (statut != ANNULE) existe déjà
+     * pour ce couple (expert, sinistre). Utilisé comme guard avant création
+     * d'un règlement honoraires pour éviter le doublon.
+     */
+    @Query("""
+        SELECT COUNT(p) > 0 FROM Paiement p
+        WHERE p.sinistre.sinistreTrackingId = :sinistreTrackingId
+          AND p.beneficiaireExpert.expertTrackingId = :expertTrackingId
+          AND p.categorie = com.ossanasur.cbconnect.common.enums.CategorieReglement.HONORAIRES
+          AND p.statut <> com.ossanasur.cbconnect.common.enums.StatutPaiement.ANNULE
+          AND p.activeData = true AND p.deletedData = false
+        """)
+    boolean existsHonorairesActifByExpertAndSinistre(
+            @Param("expertTrackingId") java.util.UUID expertTrackingId,
+            @Param("sinistreTrackingId") java.util.UUID sinistreTrackingId);
+
 }

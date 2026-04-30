@@ -54,7 +54,12 @@ public record PaiementDetailResponse(
                 CategorieReglement categorie,
                 String motif,
                 String beneficiaireExpertNom,
-                UUID beneficiaireExpertTrackingId
+                UUID beneficiaireExpertTrackingId,
+
+                BigDecimal montantTtc,
+                BigDecimal montantTva,
+                BigDecimal montantTaxe,
+                UUID lotReglementTrackingId
 
 ) {
 

@@ -60,7 +60,11 @@ public class PaiementMapper {
                 p.getTypePrejudice(),
                 p.getMotifComplement(),
                 p.getCategorie(),
-                p.getMotif());
+                p.getMotif(),
+                p.getMontantTtc(),
+                p.getMontantTva(),
+                p.getMontantTaxe(),
+                p.getLotReglement() != null ? p.getLotReglement().getLotTrackingId() : null);
     }
 
     @NonNull
@@ -109,7 +113,11 @@ public class PaiementMapper {
                 p.getCategorie(),
                 p.getMotif(),
                 p.getBeneficiaireExpert() != null ? p.getBeneficiaireExpert().getNomComplet() : null,
-                p.getBeneficiaireExpert() != null ? p.getBeneficiaireExpert().getExpertTrackingId() : null);
+                p.getBeneficiaireExpert() != null ? p.getBeneficiaireExpert().getExpertTrackingId() : null,
+                p.getMontantTtc(),
+                p.getMontantTva(),
+                p.getMontantTaxe(),
+                p.getLotReglement() != null ? p.getLotReglement().getLotTrackingId() : null);
     }
 
     @NonNull
@@ -121,8 +129,6 @@ public class PaiementMapper {
             @Nullable Expert expert,
             @NonNull String motifLibelle,
             @Nullable String createdBy) {
-
-        validateBeneficiaireXOR(victime, organisme);
 
         return Paiement.builder()
                 .paiementTrackingId(UUID.randomUUID())
@@ -161,7 +167,7 @@ public class PaiementMapper {
         if (p.getBeneficiaireOrganisme() != null)
             return toBeneficiaireOrganisme(p.getBeneficiaireOrganisme());
         if (p.getBeneficiaireExpert() != null)
-            return toBeneficiaireExpert(p.getBeneficiaireExpert()); // NOUVEAU
+            return toBeneficiaireExpert(p.getBeneficiaireExpert());
         return null;
     }
 
@@ -169,28 +175,10 @@ public class PaiementMapper {
         return BeneficiaireInfo.ofExpert(expert.getExpertTrackingId(), expert.getNomComplet());
     }
 
-    /**
-     * Victime → {@link BeneficiaireInfo}.
-     *
-     * <p>
-     * Le nom de la victime est lu via {@code Victime#getLibelle()} (champ
-     * hérité de {@code InternalHistorique} qui stocke le libellé d'affichage).
-     *
-     * <p>
-     * <strong>TODO :</strong> adapter si {@code Victime} expose un champ dédié
-     * (ex. {@code nom + prenom}).
-     */
     private BeneficiaireInfo toBeneficiaireVictime(@NonNull Victime v) {
         return BeneficiaireInfo.ofVictime(v.getVictimeTrackingId(), v.getLibelle());
     }
 
-    /**
-     * Organisme → {@link BeneficiaireInfo}.
-     *
-     * <p>
-     * {@code typeOrganisme} est converti en texte via {@code name()}
-     * pour éviter une dépendance de l'énumération dans la couche DTO.
-     */
     private BeneficiaireInfo toBeneficiaireOrganisme(@NonNull Organisme o) {
         return BeneficiaireInfo.ofOrganisme(
                 o.getOrganismeTrackingId(),
@@ -244,16 +232,6 @@ public class PaiementMapper {
         return u.getUsername() != null ? u.getUsername() : u.getEmail();
     }
 
-    private void validateBeneficiaireXOR(@Nullable Victime victime,
-            @Nullable Organisme organisme) {
-        boolean hasVictime = victime != null;
-        boolean hasOrganisme = organisme != null;
-        if (hasVictime == hasOrganisme) { // les deux true OU les deux false
-            throw new IllegalArgumentException(
-                    "Exactement un bénéficiaire doit être fourni : " +
-                            "victime=" + hasVictime + ", organisme=" + hasOrganisme);
-        }
-    }
 
     /**
      * Dérive le type d'opération financière à partir du contexte d'une ligne

@@ -11,6 +11,11 @@ import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto.LigneCom
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto.LigneEncaissement;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto.LignePaiement;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatReclamationDto;
+import com.ossanasur.cbconnect.module.statistiques.dto.ReclamationTogoDto;
+import com.ossanasur.cbconnect.module.statistiques.dto.ReclamationTogoDto.BlocCompagnie;
+import com.ossanasur.cbconnect.module.statistiques.dto.ReclamationTogoDto.BlocPays;
+import com.ossanasur.cbconnect.module.statistiques.dto.ReclamationTogoDto.LigneDossier;
+import com.ossanasur.cbconnect.module.statistiques.dto.ReclamationTogoDto.LigneRecap;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatSinistreDto.LigneSinistre;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatSinistreDto.LigneEvolution;
 import com.ossanasur.cbconnect.module.statistiques.dto.GraphiqueEncPaiDto;
@@ -699,6 +704,74 @@ public class StatistiquesService {
     private <T> long sumL(List<T> list,
             java.util.function.ToLongFunction<T> fn) {
         return list.stream().mapToLong(fn).sum();
+    }
+
+    // ─── R6 : Réclamations Togo vers homologues ──────────────────────
+
+    public ReclamationTogoDto reclamationTogo(String codePays) {
+        String cp = (codePays == null || codePays.isBlank()) ? null : codePays.toUpperCase();
+
+        List<Object[]> rows = dossierRepo.detailReclamationTogoVersHomologues(cp);
+
+        // Group: pays → compagnie → dossiers (LinkedHashMap preserves order)
+        Map<String, String>                              paysCodeMap = new LinkedHashMap<>();
+        Map<String, Map<String, List<LigneDossier>>>     grouped     = new LinkedHashMap<>();
+
+        for (Object[] r : rows) {
+            String pays      = (String) r[0];
+            String code      = (String) r[1];
+            String compagnie = (String) r[2];
+
+            String     numeroDossier = (String) r[3];
+            String     dateAccident  = r[4] != null ? r[4].toString() : null;
+            String     sinTg         = (String) r[5];
+            String     sinPart       = (String) r[6];
+            String     sinAss        = (String) r[7];
+            String     assure        = (String) r[8];
+            String     victime       = (String) r[9];
+            BigDecimal montantReclame = toBd(r[10]);
+            BigDecimal montantRetenu  = toBd(r[11]);
+            String     statut        = (String) r[12];
+            String     obs           = (String) r[13];
+            String     assureurTg    = (String) r[14];
+
+            paysCodeMap.putIfAbsent(pays, code);
+            grouped.computeIfAbsent(pays, k -> new LinkedHashMap<>())
+                   .computeIfAbsent(compagnie, k -> new ArrayList<>())
+                   .add(new LigneDossier(0, numeroDossier, dateAccident,
+                           sinTg, sinPart, sinAss, assure, victime,
+                           montantReclame, montantRetenu, statut, obs, assureurTg));
+        }
+
+        List<BlocPays>   blocs  = new ArrayList<>();
+        List<LigneRecap> recap  = new ArrayList<>();
+
+        for (Map.Entry<String, Map<String, List<LigneDossier>>> paysEntry : grouped.entrySet()) {
+            String pays = paysEntry.getKey();
+            String code = paysCodeMap.get(pays);
+            List<BlocCompagnie> compagnies = new ArrayList<>();
+
+            for (Map.Entry<String, List<LigneDossier>> compEntry : paysEntry.getValue().entrySet()) {
+                List<LigneDossier> dossiers = compEntry.getValue();
+                for (int i = 0; i < dossiers.size(); i++) {
+                    dossiers.get(i).setNumero(i + 1);
+                }
+                BlocCompagnie bloc = new BlocCompagnie(compEntry.getKey(), dossiers);
+                compagnies.add(bloc);
+                recap.add(new LigneRecap(pays, code, compEntry.getKey(),
+                        bloc.getNbDossiers(), bloc.getMontantReclame(), bloc.getMontantRetenu()));
+            }
+            blocs.add(new BlocPays(pays, code, compagnies));
+        }
+
+        long       totalNb     = recap.stream().mapToLong(LigneRecap::getNbDossiers).sum();
+        BigDecimal totalMt     = recap.stream().map(LigneRecap::getMontantReclame)
+                                       .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalRetenu = recap.stream().map(LigneRecap::getMontantRetenu)
+                                       .reduce(BigDecimal.ZERO, BigDecimal::add);
+        recap.forEach(r -> r.calcPct(totalNb, totalMt));
+
+        return new ReclamationTogoDto(blocs, recap, totalNb, totalMt, totalRetenu);
     }
 
     // ─── Helpers ────────────────────────────────────────────────────

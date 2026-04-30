@@ -602,4 +602,18 @@ public interface PaiementRepository extends JpaRepository<Paiement, Integer> {
             @Param("expertTrackingId") java.util.UUID expertTrackingId,
             @Param("sinistreTrackingId") java.util.UUID sinistreTrackingId);
 
+    /**
+     * Renvoie tous les paiements actifs rattachés à un lot de règlement.
+     * Utilisé par LotReglementServiceImpl pour itérer sur les lignes d'un lot.
+     */
+    List<Paiement> findByLotReglement(com.ossanasur.cbconnect.module.finance.entity.LotReglement lot);
+
+    /**
+     * Renvoie les paiements d'un lot filtrés par statut.
+     * Utilisé lors de la validation comptable pour ne traiter que les RC.
+     */
+    List<Paiement> findByLotReglementAndStatut(
+            com.ossanasur.cbconnect.module.finance.entity.LotReglement lot,
+            com.ossanasur.cbconnect.common.enums.StatutPaiement statut);
+
 }

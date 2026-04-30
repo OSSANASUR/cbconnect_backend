@@ -14,6 +14,8 @@ import com.ossanasur.cbconnect.module.auth.repository.UtilisateurRepository;
 import com.ossanasur.cbconnect.module.comptabilite.entity.EcritureComptable;
 import com.ossanasur.cbconnect.module.comptabilite.repository.EcritureComptableRepository;
 import com.ossanasur.cbconnect.module.comptabilite.service.ComptabiliteService;
+import com.ossanasur.cbconnect.common.enums.TypeMotif;
+import com.ossanasur.cbconnect.module.expertise.entity.Expert;
 import com.ossanasur.cbconnect.module.expertise.repository.ExpertRepository;
 import com.ossanasur.cbconnect.module.finance.dto.request.AnnulerPaiementRequest;
 import com.ossanasur.cbconnect.module.finance.dto.request.PaiementCreateRequest;
@@ -92,7 +94,18 @@ public class PaiementServiceImpl implements PaiementService {
                                                 .orElseThrow(() -> new RessourceNotFoundException(
                                                                 "Organisme bénéficiaire introuvable"));
 
-                Paiement paiement = mapper.toNewEntity(request, sinistre, victime, organisme, null, null, loginAuteur);
+                Expert expert = request.beneficiaireExpertTrackingId() == null ? null
+                                : expertRepository.findActiveByTrackingId(request.beneficiaireExpertTrackingId())
+                                                .orElseThrow(() -> new RessourceNotFoundException(
+                                                                "Expert bénéficiaire introuvable"));
+
+                beneficiaireValidator.valider(request.categorie(), sinistre, victime, organisme, expert);
+
+                String motifLibelle = paramMotifService.resolveLibelleForSnapshot(
+                                request.paramMotifTrackingId(), TypeMotif.REGLEMENT);
+
+                Paiement paiement = mapper.toNewEntity(request, sinistre, victime, organisme, expert, motifLibelle,
+                                loginAuteur);
                 // statut EMIS, numeroCheque null, ecritureComptable null
                 Paiement saved = persisterPaiementAvecNumero(
                                 paiement, TypeOperationFinanciere.REGLEMENT_TECHNIQUE);
@@ -190,6 +203,9 @@ public class PaiementServiceImpl implements PaiementService {
                                 .dateEmissionCheque(request.dateEmissionCheque())
                                 .modePaiement("CHEQUE")
                                 .statut(StatutPaiement.REGLEMENT_COMPTABLE_VALIDE)
+                                .categorie(parent.getCategorie())
+                                .motif(parent.getMotif())
+                                .beneficiaireExpert(parent.getBeneficiaireExpert())
                                 // lien vers le règlement technique parent
                                 .parentCodeId(parent.getPaiementTrackingId().toString())
                                 // audit
@@ -277,6 +293,9 @@ public class PaiementServiceImpl implements PaiementService {
 
                 Paiement parent = findActiveOrThrow(paiementTrackingId);
 
+                String motifLibelle = paramMotifService.resolveLibelleForSnapshot(
+                                request.paramMotifTrackingId(), TypeMotif.ANNULATION);
+
                 // Garde-fou : un règlement déjà annulé (ligne AN existante pointant vers lui)
                 // ne peut pas l'être à nouveau
                 if (paiementRepository.existsActiveAnnulationFor(parent.getPaiementTrackingId().toString())) {
@@ -323,8 +342,11 @@ public class PaiementServiceImpl implements PaiementService {
                                 .datePaiement(parent.getDatePaiement())
                                 .repriseHistorique(parent.isRepriseHistorique())
                                 // champs propres à l'annulation
+                                .categorie(parent.getCategorie())
+                                .motif(motifLibelle)
                                 .statut(StatutPaiement.ANNULE)
                                 .motifAnnulation(request.motifAnnulation())
+                                .beneficiaireExpert(parent.getBeneficiaireExpert())
                                 .annulePar(resolveUtilisateur(loginAuteur))
                                 // lien vers le règlement annulé
                                 .parentCodeId(parent.getPaiementTrackingId().toString())
@@ -436,7 +458,7 @@ public class PaiementServiceImpl implements PaiementService {
          * @Transactional). saveAndFlush force la violation à se déclencher dans la
          *                  boucle de retry plutôt qu'au commit global.
          */
-        private Paiement persisterPaiementAvecNumero(Paiement paiement,
+        Paiement persisterPaiementAvecNumero(Paiement paiement,
                         TypeOperationFinanciere type) {
                 final int maxRetries = 5;
                 DataIntegrityViolationException last = null;

@@ -1,5 +1,6 @@
 package com.ossanasur.cbconnect.module.expertise.dto.request;
 
+import com.ossanasur.cbconnect.common.enums.TauxRetenue;
 import com.ossanasur.cbconnect.common.enums.TypeExpert;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -13,7 +14,8 @@ public record ExpertRequest(
         String nif,
         String email, // NOUVEAU
         String telephone, // NOUVEAU
-        BigDecimal tauxRetenue,
+        TauxRetenue tauxRetenue,
+        BigDecimal montExpertise,
         boolean actif,
         UUID paysTrackingId) {
 }

@@ -30,7 +30,7 @@ public class ExpertServiceImpl implements ExpertService {
     public DataResponse<ExpertResponse> create(ExpertRequest r, String loginAuteur) {
         Expert e = Expert.builder().expertTrackingId(UUID.randomUUID())
                 .typeExpert(r.typeExpert()).nomComplet(r.nomComplet())
-                .specialite(r.specialite()).nif(r.nif()).tauxRetenue(r.tauxRetenue()).actif(r.actif())
+                .specialite(r.specialite()).nif(r.nif()).tauxRetenue(r.tauxRetenue()).montExpertise(r.montExpertise()).actif(r.actif())
                 .createdBy(loginAuteur).activeData(true).deletedData(false).fromTable(TypeTable.EXPERT)
                 .build();
         if (r.paysTrackingId() != null)

@@ -43,6 +43,8 @@ public class ExpertVersioningService extends AbstractVersioningService<Expert, E
             u.setNif(r.nif());
         if (r.tauxRetenue() != null)
             u.setTauxRetenue(r.tauxRetenue());
+        if (r.montExpertise() != null)
+            u.setMontExpertise(r.montExpertise());
         u.setActif(r.actif());
         if (r.paysTrackingId() != null)
             paysRepository.findActiveByTrackingId(r.paysTrackingId()).ifPresent(u::setPays);

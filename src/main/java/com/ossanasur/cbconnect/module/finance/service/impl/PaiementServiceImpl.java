@@ -1,10 +1,13 @@
 package com.ossanasur.cbconnect.module.finance.service.impl;
 
 import com.ossanasur.cbconnect.common.enums.StatutEcritureComptable;
+import com.ossanasur.cbconnect.common.enums.StatutLotReglement;
 import com.ossanasur.cbconnect.common.enums.StatutPaiement;
 import com.ossanasur.cbconnect.common.enums.TypeOperationFinanciere;
 import com.ossanasur.cbconnect.common.enums.TypeTable;
 import com.ossanasur.cbconnect.common.enums.TypeTransactionComptable;
+import com.ossanasur.cbconnect.module.finance.entity.LotReglement;
+import com.ossanasur.cbconnect.module.finance.repository.LotReglementRepository;
 import com.ossanasur.cbconnect.exception.BadRequestException;
 import com.ossanasur.cbconnect.exception.RessourceNotFoundException;
 import com.ossanasur.cbconnect.module.auth.entity.Organisme;
@@ -64,6 +67,8 @@ public class PaiementServiceImpl implements PaiementService {
         private final PaiementMapper mapper;
         private final EncaissementGuardService guardService;
         private final NumeroOperationGenerator numeroOperationGenerator;
+
+        private final LotReglementRepository lotReglementRepository;
 
         private final ParamMotifServiceImpl paramMotifService;
         private final ExpertRepository expertRepository;
@@ -364,6 +369,15 @@ public class PaiementServiceImpl implements PaiementService {
                 log.info("Règlement {} annulé par {} (motif={}, nouvelle ligne={})",
                                 paiementTrackingId, loginAuteur, request.motifAnnulation(),
                                 saved.getPaiementTrackingId());
+
+                LotReglement lot = parent.getLotReglement();
+                if (lot != null && lot.getStatut() != StatutLotReglement.PARTIELLEMENT_ANNULE) {
+                        lot.setStatut(StatutLotReglement.PARTIELLEMENT_ANNULE);
+                        lot.setUpdatedBy(loginAuteur);
+                        lotReglementRepository.save(lot);
+                        log.info("Lot {} basculé en PARTIELLEMENT_ANNULE suite à annulation de {}",
+                                        lot.getLotTrackingId(), parent.getNumeroPaiement());
+                }
 
                 return DataResponse.success("Règlement annulé", mapper.toDetailResponse(saved));
         }

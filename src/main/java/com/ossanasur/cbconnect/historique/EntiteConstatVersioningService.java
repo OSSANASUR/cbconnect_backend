@@ -46,7 +46,6 @@ public class EntiteConstatVersioningService extends AbstractVersioningService<En
 
     @Override
     protected void setTrackingId(EntiteConstat entity, UUID newId) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'setTrackingId'");
+        entity.setEntiteConstatTrackingId(newId);
     }
 }

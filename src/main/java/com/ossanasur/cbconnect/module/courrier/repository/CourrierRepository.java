@@ -25,4 +25,31 @@ public interface CourrierRepository extends JpaRepository<Courrier, Integer> {
     @Query("SELECT c FROM Courrier c WHERE c.typeCourrier = 'SORTANT' AND c.envoyeParMail = true " +
             "AND c.activeData = true AND c.deletedData = false ORDER BY c.dateEnvoi DESC")
     List<Courrier> findSortantsEnvoyesParMail();
+
+    /** Courriers SORTANTS physiques prêts à embarquer (pas encore attachés à un bordereau). */
+    @Query("SELECT c FROM Courrier c WHERE c.typeCourrier = 'SORTANT' " +
+            "AND c.canal = 'PHYSIQUE' AND c.bordereau IS NULL " +
+            "AND c.activeData = true AND c.deletedData = false " +
+            "ORDER BY c.dateCourrier ASC")
+    List<Courrier> findSortantsPretsAEmbarquer();
+
+    /** Courriers SORTANTS physiques prêts pour un destinataire homologue précis. */
+    @Query("SELECT c FROM Courrier c WHERE c.typeCourrier = 'SORTANT' AND c.canal = 'PHYSIQUE' " +
+            "AND c.bordereau IS NULL " +
+            "AND c.destinataireOrganisme.organismeTrackingId = :destId " +
+            "AND c.activeData = true AND c.deletedData = false " +
+            "ORDER BY c.dateCourrier ASC")
+    List<Courrier> findSortantsPretsPourDestinataire(@Param("destId") UUID destinataireOrganismeId);
+
+    /** Courriers rattachés à un bordereau, dans l'ordre d'impression. */
+    @Query("SELECT c FROM Courrier c WHERE c.bordereau.bordereauTrackingId = :bid " +
+            "AND c.activeData = true AND c.deletedData = false " +
+            "ORDER BY c.ordreDansBordereau ASC")
+    List<Courrier> findByBordereau(@Param("bid") UUID bordereauTrackingId);
+
+    /** Courriers d'un registre journalier (ARRIVEE ou DEPART). */
+    @Query("SELECT c FROM Courrier c WHERE c.registreJour.registreTrackingId = :rid " +
+            "AND c.activeData = true AND c.deletedData = false " +
+            "ORDER BY c.createdAt ASC")
+    List<Courrier> findByRegistre(@Param("rid") UUID registreTrackingId);
 }

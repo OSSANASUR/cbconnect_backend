@@ -2,6 +2,7 @@ package com.ossanasur.cbconnect.module.courrier.entity;
 
 import com.ossanasur.cbconnect.common.entity.InternalHistorique;
 import com.ossanasur.cbconnect.common.enums.*;
+import com.ossanasur.cbconnect.module.auth.entity.Organisme;
 import com.ossanasur.cbconnect.module.auth.entity.Utilisateur;
 import com.ossanasur.cbconnect.module.messagerie.entity.TemplateMail;
 import com.ossanasur.cbconnect.module.sinistre.entity.Sinistre;
@@ -10,6 +11,8 @@ import lombok.*;
 import lombok.experimental.SuperBuilder;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @RequiredArgsConstructor
@@ -95,4 +98,39 @@ public class Courrier extends InternalHistorique {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "template_id")
     private TemplateMail template;
+
+    // ══════ Flux physique — bordereau coursier ══════════════════════════════
+
+    /** Bordereau de transmission auquel ce courrier est rattaché (SORTANT PHYSIQUE). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "bordereau_id")
+    private BordereauCoursier bordereau;
+
+    /** Ordre de la ligne dans le bordereau imprimé. */
+    @Column(name = "ordre_dans_bordereau")
+    private Integer ordreDansBordereau;
+
+    /** N° sinistre côté homologue (colonne « N° SIN VOTRE REF » du bordereau). */
+    @Column(name = "numero_sinistre_homologue_ref", length = 60)
+    private String numeroSinistreHomologueRef;
+
+    /** Destinataire structuré : bureau homologue (optionnel, sinon `destinataire` libre). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "destinataire_organisme_id")
+    private Organisme destinataireOrganisme;
+
+    // ══════ Registre journalier — secrétaire ═══════════════════════════════
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "registre_jour_id")
+    private RegistreJour registreJour;
+
+    /** Service destinataire interne BNCB (saisie libre, ex: "Rédaction"). */
+    @Column(name = "service_destinataire_interne", length = 100)
+    private String serviceDestinataireInterne;
+
+    /** Destinataires internes multiples (dispatch par la secrétaire). */
+    @OneToMany(mappedBy = "courrier", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<CourrierDestinataireInterne> destinatairesInternes = new ArrayList<>();
 }

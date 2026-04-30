@@ -1,6 +1,6 @@
 package com.ossanasur.cbconnect.module.delai.mapper;
-import com.ossanasur.cbconnect.module.delai.dto.response.NotificationDelaiResponse;
-import com.ossanasur.cbconnect.module.delai.entity.NotificationDelai;
+import com.ossanasur.cbconnect.module.delai.dto.response.*;
+import com.ossanasur.cbconnect.module.delai.entity.*;
 import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -19,6 +19,25 @@ public class DelaiMapper {
             n.getResponsable()!=null?n.getResponsable().getNom()+" "+n.getResponsable().getPrenoms():null,
             n.getDateDebut(), n.getDateEcheance(), joursRestants,
             n.getStatut(), n.getNiveauAlerte(), n.getNombreAlertes()
+        );
+    }
+
+    public ParametreDelaiResponse toParametreResponse(ParametreDelai p) {
+        if(p==null) return null;
+        return new ParametreDelaiResponse(
+            p.getId(), p.getCodeDelai(), p.getLibelle(),
+            p.getTypeDelai(), p.getCategorie(), p.getTypeSinistre(),
+            p.getValeur(), p.getUnite(), p.getReferenceJuridique(),
+            p.getTauxPenalitePct(), p.getSeuilAlerte1Pct(), p.getSeuilAlerte2Pct(),
+            p.isModifiable(), p.isActif()
+        );
+    }
+
+    public ParametreSystemeResponse toSystemeResponse(ParametreSysteme s) {
+        if(s==null) return null;
+        return new ParametreSystemeResponse(
+            s.getId(), s.getCle(), s.getLibelle(),
+            s.getValeurDecimal(), s.getDescription(), s.isActif()
         );
     }
 }

@@ -1,5 +1,6 @@
 package com.ossanasur.cbconnect.module.reclamation.service;
 
+import com.ossanasur.cbconnect.common.enums.TypeDocumentOssanGed;
 import com.ossanasur.cbconnect.module.reclamation.dto.request.AssocierDocumentRequest;
 import com.ossanasur.cbconnect.module.reclamation.dto.request.TypePieceRequest;
 import com.ossanasur.cbconnect.module.reclamation.dto.response.MaturiteDossierResponse;
@@ -52,5 +53,17 @@ public interface PiecesAdministrativesService {
     /** Désassocie le doc GED → statut repasse à ATTENDUE */
     DataResponse<PieceDossierResponse> retirerDocument(
             UUID pieceDossierTrackingId,
+            String loginAuteur);
+
+    /**
+     * Auto-association déclenchée après un upload GED.
+     * Si le dossier possède une pièce ATTENDUE dont typeDocumentGed correspond
+     * au type du document uploadé, elle est automatiquement marquée RECUE.
+     * Idempotent et silencieux (ne lève pas d'exception).
+     */
+    void autoAssocierParTypeDocument(
+            UUID dossierTrackingId,
+            TypeDocumentOssanGed typeDocumentGed,
+            UUID ossanGedDocumentTrackingId,
             String loginAuteur);
 }

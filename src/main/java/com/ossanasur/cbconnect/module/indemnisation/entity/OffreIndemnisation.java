@@ -6,6 +6,8 @@ import com.ossanasur.cbconnect.module.sinistre.entity.Victime;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -58,7 +60,8 @@ public class OffreIndemnisation extends InternalHistorique {
     private BigDecimal fraisGestion = BigDecimal.ZERO;
     @Column(nullable = false)
     private BigDecimal montantTotalOffre;
-    @Column(columnDefinition = "JSONB")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "detail_calcul_json", columnDefinition = "jsonb")
     private String detailCalculJson;
     private LocalDateTime dateValidation;
     @ManyToOne(fetch = FetchType.LAZY)

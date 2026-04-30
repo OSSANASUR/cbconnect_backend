@@ -20,37 +20,53 @@ import java.util.UUID;
 @Entity
 @DiscriminatorValue("ENCAISSEMENT")
 public class Encaissement extends InternalHistorique {
+
     @Column(name = "encaissement_tracking_id", unique = true)
     private UUID encaissementTrackingId;
+
     @Column(nullable = false)
     private String numeroCheque;
+
     @Column(nullable = false)
     private BigDecimal montantCheque;
+
     @Column(nullable = false)
     private BigDecimal montantTheorique;
+
     @Builder.Default
     private BigDecimal produitFraisGestion = BigDecimal.ZERO;
+
     @Column(nullable = false)
     private LocalDate dateEmission;
+
     private LocalDate dateReception;
+
     private LocalDate dateEncaissement;
+
     private String banqueEmettrice;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
     private StatutCheque statutCheque = StatutCheque.RECU;
+
     private String motifAnnulation;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organisme_emetteur_id", nullable = false)
     private Organisme organismeEmetteur;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sinistre_id", nullable = false)
     private Sinistre sinistre;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "annule_par_id")
     private Utilisateur annulePar;
+
     @Column(name = "mode_paiement", length = 20)
     private String modePaiement;
+
     @Column(name = "reprise_historique")
     @Builder.Default
     private boolean repriseHistorique = false;

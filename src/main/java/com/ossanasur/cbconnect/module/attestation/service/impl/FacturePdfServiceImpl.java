@@ -40,53 +40,58 @@ public class FacturePdfServiceImpl implements FacturePdfService {
     private final ParametreRepository parametreRepository;
     private final OrganismeRepository organismeRepository;
 
-    // ── Charte graphique CBConnect ─────────────────────────────────────────────
-    private static final Color VERT_BNCB     = new Color(26, 107, 60);     // #1a6b3c
-    private static final Color VERT_FONCE    = new Color(20, 83, 45);      // #14532d
-    private static final Color VERT_CLAIR    = new Color(240, 253, 244);   // #f0fdf4
-    private static final Color GRIS_BORDURE  = new Color(229, 231, 235);   // #e5e7eb
-    private static final Color GRIS_FOND     = new Color(249, 250, 251);   // #f9fafb
-    private static final Color GRIS_TEXTE    = new Color(107, 114, 128);   // #6b7280
-    private static final Color GRIS_LABEL    = new Color(75, 85, 99);      // #4b5563
-    private static final Color BLANC         = Color.WHITE;
-    private static final Color NOIR_TITRE    = new Color(17, 24, 39);      // #111827
+    // Charte graphique CBConnect
+    private static final Color VERT_BNCB = new Color(26, 107, 60); // #1a6b3c
+    private static final Color VERT_FONCE = new Color(20, 83, 45); // #14532d
+    private static final Color VERT_CLAIR = new Color(240, 253, 244); // #f0fdf4
+    private static final Color GRIS_BORDURE = new Color(229, 231, 235); // #e5e7eb
+    private static final Color GRIS_FOND = new Color(249, 250, 251); // #f9fafb
+    private static final Color GRIS_TEXTE = new Color(107, 114, 128); // #6b7280
+    private static final Color GRIS_LABEL = new Color(75, 85, 99); // #4b5563
+    private static final Color BLANC = Color.WHITE;
+    private static final Color NOIR_TITRE = new Color(17, 24, 39); // #111827
 
     // Polices
-    private static final Font F_TITLE_HUGE   = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 22, NOIR_TITRE);
-    private static final Font F_TITLE_NUM    = FontFactory.getFont(FontFactory.HELVETICA, 12, GRIS_TEXTE);
+    private static final Font F_TITLE_HUGE = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 22, NOIR_TITRE);
+    private static final Font F_TITLE_NUM = FontFactory.getFont(FontFactory.HELVETICA, 12, GRIS_TEXTE);
     private static final Font F_HEADER_WHITE = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 14, BLANC);
-    private static final Font F_HEADER_LINE  = FontFactory.getFont(FontFactory.HELVETICA, 9, BLANC);
-    private static final Font F_LABEL_SMALL  = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8, GRIS_LABEL);
-    private static final Font F_NORMAL       = FontFactory.getFont(FontFactory.HELVETICA, 10, NOIR_TITRE);
+    private static final Font F_HEADER_LINE = FontFactory.getFont(FontFactory.HELVETICA, 9, BLANC);
+    private static final Font F_LABEL_SMALL = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8, GRIS_LABEL);
+    private static final Font F_NORMAL = FontFactory.getFont(FontFactory.HELVETICA, 10, NOIR_TITRE);
     private static final Font F_NORMAL_SMALL = FontFactory.getFont(FontFactory.HELVETICA, 9, NOIR_TITRE);
-    private static final Font F_BOLD         = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, NOIR_TITRE);
-    private static final Font F_BOLD_SMALL   = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, NOIR_TITRE);
-    private static final Font F_TABLE_HEAD   = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, BLANC);
-    private static final Font F_TABLE_CELL   = FontFactory.getFont(FontFactory.HELVETICA, 10, NOIR_TITRE);
-    private static final Font F_TOTAL        = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, VERT_FONCE);
-    private static final Font F_LETTRES      = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, VERT_FONCE);
-    private static final Font F_SIGNATURE    = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11, NOIR_TITRE);
-    private static final Font F_FOOTER       = FontFactory.getFont(FontFactory.HELVETICA, 8, GRIS_TEXTE);
+    private static final Font F_BOLD = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, NOIR_TITRE);
+    private static final Font F_BOLD_SMALL = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, NOIR_TITRE);
+    private static final Font F_TABLE_HEAD = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, BLANC);
+    private static final Font F_TABLE_CELL = FontFactory.getFont(FontFactory.HELVETICA, 10, NOIR_TITRE);
+    private static final Font F_TOTAL = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, VERT_FONCE);
+    private static final Font F_LETTRES = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, VERT_FONCE);
+    private static final Font F_SIGNATURE = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11, NOIR_TITRE);
+    private static final Font F_FOOTER = FontFactory.getFont(FontFactory.HELVETICA, 8, GRIS_TEXTE);
 
     private final DecimalFormat NUM = new DecimalFormat("#,##0",
-        DecimalFormatSymbols.getInstance(Locale.FRANCE));
+            DecimalFormatSymbols.getInstance(Locale.FRANCE));
     private final DateTimeFormatter DATE_FR = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRENCH);
 
-    // ────────────────────────────────────────────────────────────────────────────
+    //
 
     private String param(String cle, String defaut) {
         return parametreRepository.findByCle(cle).map(p -> p.getValeur()).orElse(defaut);
     }
 
-    /** Tente de retrouver l'organisme BNCB pour exposer ses coordonnees physiques (adresse, BP...). */
+    /**
+     * Tente de retrouver l'organisme BNCB pour exposer ses coordonnees physiques
+     * (adresse, BP...).
+     */
     private Optional<Organisme> chercherBureauNational() {
         var raisonAttendue = param("BNCB_RAISON_SOCIALE", null);
         var bureaux = organismeRepository.findAllActiveByType(TypeOrganisme.BUREAU_NATIONAL);
-        if (bureaux.isEmpty()) return Optional.empty();
+        if (bureaux.isEmpty())
+            return Optional.empty();
         if (raisonAttendue != null) {
             var match = bureaux.stream()
-                .filter(o -> raisonAttendue.equalsIgnoreCase(o.getRaisonSociale())).findFirst();
-            if (match.isPresent()) return match;
+                    .filter(o -> raisonAttendue.equalsIgnoreCase(o.getRaisonSociale())).findFirst();
+            if (match.isPresent())
+                return match;
         }
         return Optional.of(bureaux.get(0));
     }
@@ -94,7 +99,7 @@ public class FacturePdfServiceImpl implements FacturePdfService {
     @Override
     public String nomFichier(UUID factureTrackingId) {
         var f = factureRepository.findActiveByTrackingId(factureTrackingId)
-            .orElseThrow(() -> new RessourceNotFoundException("Facture introuvable"));
+                .orElseThrow(() -> new RessourceNotFoundException("Facture introuvable"));
         String prefix = TypeFactureAttestation.PROFORMA.equals(f.getTypeFacture()) ? "Proforma" : "Facture";
         return prefix + "_" + f.getNumeroFacture().replace('/', '-') + ".pdf";
     }
@@ -103,9 +108,10 @@ public class FacturePdfServiceImpl implements FacturePdfService {
     @Transactional(readOnly = true)
     public byte[] genererPdf(UUID factureTrackingId) {
         FactureAttestation f = factureRepository.findActiveByTrackingId(factureTrackingId)
-            .orElseThrow(() -> new RessourceNotFoundException("Facture introuvable"));
+                .orElseThrow(() -> new RessourceNotFoundException("Facture introuvable"));
         var commande = f.getCommande();
-        if (commande == null) throw new RessourceNotFoundException("Commande de la facture introuvable");
+        if (commande == null)
+            throw new RessourceNotFoundException("Commande de la facture introuvable");
         var destinataire = commande.getOrganisme();
         var bnOpt = chercherBureauNational();
         boolean proforma = TypeFactureAttestation.PROFORMA.equals(f.getTypeFacture());
@@ -132,13 +138,14 @@ public class FacturePdfServiceImpl implements FacturePdfService {
         return baos.toByteArray();
     }
 
-    // ── 1. Bandeau d'en-tete vert avec identite BNCB ──────────────────────────
+    // 1. Bandeau d'en-tete vert avec identite BNCB
     private void ajouterEnTete(Document doc, Optional<Organisme> bnOpt) throws DocumentException {
         String raison = param("BNCB_RAISON_SOCIALE", "BUREAU NATIONAL TOGOLAIS CARTE BRUNE CEDEAO");
         String ville = param("BNCB_VILLE", "Lomé");
         String pays = param("BNCB_PAYS", "TOGO");
 
-        // Coordonnees venant de l'entite Organisme BNCB si presente, sinon parametres BNCB_*.
+        // Coordonnees venant de l'entite Organisme BNCB si presente, sinon parametres
+        // BNCB_*.
         String adresse = bnOpt.map(Organisme::getAdresse).orElseGet(() -> param("BNCB_ADRESSE", null));
         String bp = bnOpt.map(Organisme::getBoitePostale).orElseGet(() -> param("BNCB_BP", null));
         String tel = bnOpt.map(Organisme::getTelephonePrincipal).orElseGet(() -> param("BNCB_TELEPHONE", null));
@@ -157,16 +164,21 @@ public class FacturePdfServiceImpl implements FacturePdfService {
         cell.addElement(titre);
 
         StringBuilder lignes = new StringBuilder();
-        if (notBlank(adresse)) lignes.append(adresse).append("  •  ");
-        if (notBlank(bp))      lignes.append(bp).append("  •  ");
+        if (notBlank(adresse))
+            lignes.append(adresse).append("  •  ");
+        if (notBlank(bp))
+            lignes.append(bp).append("  •  ");
         lignes.append(ville).append(", ").append(pays);
         cell.addElement(new Paragraph(lignes.toString(), F_HEADER_LINE));
 
         if (notBlank(tel) || notBlank(email)) {
             StringBuilder contact = new StringBuilder();
-            if (notBlank(tel))   contact.append("Tél : ").append(tel);
-            if (notBlank(tel) && notBlank(email)) contact.append("   |   ");
-            if (notBlank(email)) contact.append("Email : ").append(email);
+            if (notBlank(tel))
+                contact.append("Tél : ").append(tel);
+            if (notBlank(tel) && notBlank(email))
+                contact.append("   |   ");
+            if (notBlank(email))
+                contact.append("Email : ").append(email);
             Paragraph p = new Paragraph(contact.toString(), F_HEADER_LINE);
             p.setSpacingBefore(2);
             cell.addElement(p);
@@ -175,7 +187,7 @@ public class FacturePdfServiceImpl implements FacturePdfService {
         doc.add(header);
     }
 
-    // ── 2. Titre central : type de facture + numero ───────────────────────────
+    // 2. Titre central : type de facture + numero ─
     private void ajouterTitre(Document doc, boolean proforma, FactureAttestation f) throws DocumentException {
         Paragraph type = new Paragraph(proforma ? "FACTURE PROFORMA" : "FACTURE", F_TITLE_HUGE);
         type.setAlignment(Element.ALIGN_CENTER);
@@ -189,9 +201,9 @@ public class FacturePdfServiceImpl implements FacturePdfService {
         doc.add(num);
     }
 
-    // ── 3. Deux blocs cote a cote : Emetteur / Destinataire ───────────────────
+    // 3. Deux blocs cote a cote : Emetteur / Destinataire ─
     private void ajouterBlocsParties(Document doc, Optional<Organisme> bnOpt,
-                                     Organisme destinataire, FactureAttestation f, CommandeAttestation commande) throws DocumentException {
+            Organisme destinataire, FactureAttestation f, CommandeAttestation commande) throws DocumentException {
         PdfPTable blocs = new PdfPTable(2);
         blocs.setWidthPercentage(100);
         blocs.setWidths(new float[] { 1f, 1f });
@@ -203,9 +215,11 @@ public class FacturePdfServiceImpl implements FacturePdfService {
         String nom = param("BNCB_RAISON_SOCIALE", "BUREAU NATIONAL");
         emetteur.addElement(textLine(nom, F_BOLD));
         bnOpt.ifPresent(bn -> {
-            if (notBlank(bn.getAdresse())) emetteur.addElement(textLine(bn.getAdresse(), F_NORMAL_SMALL));
+            if (notBlank(bn.getAdresse()))
+                emetteur.addElement(textLine(bn.getAdresse(), F_NORMAL_SMALL));
             String l2 = joinSep(bn.getBoitePostale(), bn.getVille());
-            if (notBlank(l2)) emetteur.addElement(textLine(l2, F_NORMAL_SMALL));
+            if (notBlank(l2))
+                emetteur.addElement(textLine(l2, F_NORMAL_SMALL));
         });
         emetteur.addElement(textLine(param("BNCB_VILLE", "Lomé") + ", " + param("BNCB_PAYS", "TOGO"), F_NORMAL_SMALL));
 
@@ -217,7 +231,8 @@ public class FacturePdfServiceImpl implements FacturePdfService {
             if (notBlank(destinataire.getAdresse()))
                 dest.addElement(textLine(destinataire.getAdresse(), F_NORMAL_SMALL));
             String l2 = joinSep(destinataire.getBoitePostale(), destinataire.getVille());
-            if (notBlank(l2)) dest.addElement(textLine(l2, F_NORMAL_SMALL));
+            if (notBlank(l2))
+                dest.addElement(textLine(l2, F_NORMAL_SMALL));
             if (notBlank(destinataire.getTelephonePrincipal()))
                 dest.addElement(textLine("Tél : " + destinataire.getTelephonePrincipal(), F_NORMAL_SMALL));
             if (notBlank(destinataire.getEmail()))
@@ -237,12 +252,13 @@ public class FacturePdfServiceImpl implements FacturePdfService {
         LocalDate dateRef = f.getDateFacture() != null ? f.getDateFacture() : LocalDate.now();
         infos.addCell(infoCell("Date d'émission", DATE_FR.format(dateRef)));
         infos.addCell(infoCell("Référence commande",
-            commande != null ? commande.getNumeroCommande() : "—"));
+                commande != null ? commande.getNumeroCommande() : "—"));
         doc.add(infos);
     }
 
-    // ── 4. Tableau des prestations ────────────────────────────────────────────
-    private void ajouterTableau(Document doc, CommandeAttestation commande, FactureAttestation f) throws DocumentException {
+    // 4. Tableau des prestations
+    private void ajouterTableau(Document doc, CommandeAttestation commande, FactureAttestation f)
+            throws DocumentException {
         PdfPTable t = new PdfPTable(4);
         t.setWidthPercentage(100);
         t.setWidths(new float[] { 3.4f, 1.2f, 1.6f, 1.8f });
@@ -280,21 +296,26 @@ public class FacturePdfServiceImpl implements FacturePdfService {
         totLib.setVerticalAlignment(Element.ALIGN_MIDDLE);
         totLib.setBackgroundColor(VERT_CLAIR);
         totLib.setBorderColor(VERT_BNCB);
-        totLib.setPaddingTop(10); totLib.setPaddingBottom(10); totLib.setPaddingRight(12);
+        totLib.setPaddingTop(10);
+        totLib.setPaddingBottom(10);
+        totLib.setPaddingRight(12);
         t.addCell(totLib);
         PdfPCell totVal = new PdfPCell(new Phrase(NUM.format(f.getMontantTotal()) + "  FCFA", F_TOTAL));
         totVal.setHorizontalAlignment(Element.ALIGN_RIGHT);
         totVal.setVerticalAlignment(Element.ALIGN_MIDDLE);
         totVal.setBackgroundColor(VERT_CLAIR);
         totVal.setBorderColor(VERT_BNCB);
-        totVal.setPaddingTop(10); totVal.setPaddingBottom(10); totVal.setPaddingRight(8);
+        totVal.setPaddingTop(10);
+        totVal.setPaddingBottom(10);
+        totVal.setPaddingRight(8);
         t.addCell(totVal);
 
         doc.add(t);
     }
 
-    // ── 5. Encart "Arretee a la somme de : ..." ───────────────────────────────
-    private void ajouterMontantEnLettres(Document doc, boolean proforma, FactureAttestation f) throws DocumentException {
+    // 5. Encart "Arretee a la somme de : ..." ─
+    private void ajouterMontantEnLettres(Document doc, boolean proforma, FactureAttestation f)
+            throws DocumentException {
         PdfPTable wrap = new PdfPTable(1);
         wrap.setWidthPercentage(100);
         wrap.setSpacingBefore(6);
@@ -306,16 +327,17 @@ public class FacturePdfServiceImpl implements FacturePdfService {
         c.setPadding(10);
 
         c.addElement(labelLine(proforma
-            ? "ARRÊTÉE LA PRÉSENTE PROFORMA À LA SOMME DE"
-            : "ARRÊTÉE LA PRÉSENTE FACTURE À LA SOMME DE"));
+                ? "ARRÊTÉE LA PRÉSENTE PROFORMA À LA SOMME DE"
+                : "ARRÊTÉE LA PRÉSENTE FACTURE À LA SOMME DE"));
         String enLettres = MontantEnLettresFr.convertir(f.getMontantTotal()).toUpperCase(Locale.FRENCH) + ".";
         c.addElement(new Paragraph(enLettres, F_LETTRES));
         wrap.addCell(c);
         doc.add(wrap);
     }
 
-    // ── 6. Encart final : instructions cheque (proforma) OU plage serie ──────
-    private void ajouterEncartFinal(Document doc, boolean proforma, CommandeAttestation commande, FactureAttestation f) throws DocumentException {
+    // 6. Encart final : instructions cheque (proforma) OU plage serie
+    private void ajouterEncartFinal(Document doc, boolean proforma, CommandeAttestation commande, FactureAttestation f)
+            throws DocumentException {
         PdfPTable wrap = new PdfPTable(1);
         wrap.setWidthPercentage(100);
         wrap.setSpacingAfter(20);
@@ -328,36 +350,42 @@ public class FacturePdfServiceImpl implements FacturePdfService {
         if (proforma) {
             String benef;
             String nb = commande != null ? commande.getNomBeneficiaireCheque() : null;
-            if (notBlank(nb)) benef = nb;
-            else if (notBlank(f.getInstructionCheque())) benef = f.getInstructionCheque();
-            else benef = param("BNCB_BENEFICIAIRE_CHEQUE", "BUREAU NATIONAL TOGOLAIS CARTE BRUNE CEDEAO");
+            if (notBlank(nb))
+                benef = nb;
+            else if (notBlank(f.getInstructionCheque()))
+                benef = f.getInstructionCheque();
+            else
+                benef = param("BNCB_BENEFICIAIRE_CHEQUE", "BUREAU NATIONAL TOGOLAIS CARTE BRUNE CEDEAO");
 
             c.addElement(labelLine("BÉNÉFICIAIRE DU CHÈQUE"));
             c.addElement(new Paragraph(benef, F_BOLD));
-            Paragraph note = new Paragraph("Prière d'établir le chèque à l'ordre exclusif du bénéficiaire ci-dessus.", F_NORMAL_SMALL);
+            Paragraph note = new Paragraph("Prière d'établir le chèque à l'ordre exclusif du bénéficiaire ci-dessus.",
+                    F_NORMAL_SMALL);
             note.setSpacingBefore(4);
             c.addElement(note);
             wrap.addCell(c);
             doc.add(wrap);
         } else if (commande != null) {
-            List<TrancheLivraisonAttestation> tranches = trancheRepository.findByCommande(commande.getCommandeTrackingId());
+            List<TrancheLivraisonAttestation> tranches = trancheRepository
+                    .findByCommande(commande.getCommandeTrackingId());
             if (!tranches.isEmpty()) {
                 String debut = tranches.stream().map(TrancheLivraisonAttestation::getNumeroDebutSerie)
-                    .min(Comparator.naturalOrder()).orElse("—");
+                        .min(Comparator.naturalOrder()).orElse("—");
                 String fin = tranches.stream().map(TrancheLivraisonAttestation::getNumeroFinSerie)
-                    .max(Comparator.naturalOrder()).orElse("—");
-                int totalLivre = tranches.stream().mapToInt(t -> t.getQuantiteLivree() == null ? 0 : t.getQuantiteLivree()).sum();
+                        .max(Comparator.naturalOrder()).orElse("—");
+                int totalLivre = tranches.stream()
+                        .mapToInt(t -> t.getQuantiteLivree() == null ? 0 : t.getQuantiteLivree()).sum();
                 c.addElement(labelLine("PLAGE ATTRIBUÉE"));
                 c.addElement(new Paragraph(
-                    "Du N° " + debut + " au N° " + fin + "  —  " + NUM.format(totalLivre) + " attestations",
-                    F_BOLD));
+                        "Du N° " + debut + " au N° " + fin + "  —  " + NUM.format(totalLivre) + " attestations",
+                        F_BOLD));
                 wrap.addCell(c);
                 doc.add(wrap);
             }
         }
     }
 
-    // ── 7. Signature : ville + date + "POUR LE BUREAU NATIONAL" + signataire ──
+    // 7. Signature : ville + date + "POUR LE BUREAU NATIONAL" + signataire
     private void ajouterSignature(Document doc, FactureAttestation f) throws DocumentException {
         String ville = param("BNCB_VILLE", "Lomé");
         LocalDate dateRef = f.getDateFacture() != null ? f.getDateFacture() : LocalDate.now();
@@ -382,9 +410,9 @@ public class FacturePdfServiceImpl implements FacturePdfService {
         doc.add(signataire);
     }
 
-    // ────────────────────────────────────────────────────────────────────────────
+    //
     // Helpers cellules
-    // ────────────────────────────────────────────────────────────────────────────
+    //
 
     private PdfPCell boxCell() {
         PdfPCell c = new PdfPCell();
@@ -421,7 +449,10 @@ public class FacturePdfServiceImpl implements FacturePdfService {
         c.setBorderColor(VERT_BNCB);
         c.setHorizontalAlignment(align);
         c.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        c.setPaddingTop(8); c.setPaddingBottom(8); c.setPaddingLeft(8); c.setPaddingRight(8);
+        c.setPaddingTop(8);
+        c.setPaddingBottom(8);
+        c.setPaddingLeft(8);
+        c.setPaddingRight(8);
         t.addCell(c);
     }
 
@@ -429,10 +460,14 @@ public class FacturePdfServiceImpl implements FacturePdfService {
         PdfPCell c = new PdfPCell(new Phrase(txt, F_TABLE_CELL));
         c.setHorizontalAlignment(align);
         c.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        c.setPaddingTop(8); c.setPaddingBottom(8); c.setPaddingLeft(8); c.setPaddingRight(8);
+        c.setPaddingTop(8);
+        c.setPaddingBottom(8);
+        c.setPaddingLeft(8);
+        c.setPaddingRight(8);
         c.setBorderColor(GRIS_BORDURE);
         c.setBorderWidth(0.5f);
-        if (zebra) c.setBackgroundColor(GRIS_FOND);
+        if (zebra)
+            c.setBackgroundColor(GRIS_FOND);
         return c;
     }
 
@@ -440,18 +475,24 @@ public class FacturePdfServiceImpl implements FacturePdfService {
         t.addCell(bodyCell(txt, align, zebra));
     }
 
-    private static boolean notBlank(String s) { return s != null && !s.isBlank(); }
+    private static boolean notBlank(String s) {
+        return s != null && !s.isBlank();
+    }
+
     private static String joinSep(String a, String b) {
         boolean aOk = notBlank(a), bOk = notBlank(b);
-        if (aOk && bOk) return a + " — " + b;
-        if (aOk) return a;
-        if (bOk) return b;
+        if (aOk && bOk)
+            return a + " — " + b;
+        if (aOk)
+            return a;
+        if (bOk)
+            return b;
         return "";
     }
 
-    // ────────────────────────────────────────────────────────────────────────────
+    //
     // Pied de page (numero / mention legale)
-    // ────────────────────────────────────────────────────────────────────────────
+    //
     private class FooterEvent extends PdfPageEventHelper {
         @Override
         public void onEndPage(PdfWriter writer, Document document) {
@@ -467,11 +508,12 @@ public class FacturePdfServiceImpl implements FacturePdfService {
                 String nomBureau = param("BNCB_RAISON_SOCIALE", "Bureau National Carte Brune");
                 Phrase left = new Phrase(nomBureau, F_FOOTER);
                 Phrase right = new Phrase("Page " + writer.getPageNumber(), F_FOOTER);
-                ColumnText.showTextAligned(cb, Element.ALIGN_LEFT,  left,
-                    36, 24, 0);
+                ColumnText.showTextAligned(cb, Element.ALIGN_LEFT, left,
+                        36, 24, 0);
                 ColumnText.showTextAligned(cb, Element.ALIGN_RIGHT, right,
-                    document.getPageSize().getWidth() - 36, 24, 0);
-            } catch (Exception ignored) {}
+                        document.getPageSize().getWidth() - 36, 24, 0);
+            } catch (Exception ignored) {
+            }
         }
     }
 }

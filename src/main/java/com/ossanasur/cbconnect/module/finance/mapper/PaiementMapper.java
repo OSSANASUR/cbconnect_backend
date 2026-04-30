@@ -5,6 +5,7 @@ import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 import com.ossanasur.cbconnect.common.enums.StatutPaiement;
+import com.ossanasur.cbconnect.common.enums.TypeOperationFinanciere;
 import com.ossanasur.cbconnect.common.enums.TypeTable;
 import com.ossanasur.cbconnect.module.finance.dto.response.PaiementResponse;
 import com.ossanasur.cbconnect.module.finance.dto.request.PaiementCreateRequest;
@@ -35,6 +36,9 @@ public class PaiementMapper {
         Sinistre s = p.getSinistre();
         return new PaiementResponse(
                 p.getPaiementTrackingId(),
+                p.getNumeroPaiement(),
+                deriveType(p),
+                p.getParentCodeId(),
                 s != null ? s.getSinistreTrackingId() : null,
                 s != null ? s.getLibelle() : null,
                 p.getBeneficiaire(),
@@ -49,7 +53,11 @@ public class PaiementMapper {
                 p.getCreatedAt(),
                 p.getCreatedBy(),
                 p.getUpdatedAt(),
-                p.getUpdatedBy());
+                p.getUpdatedBy(),
+                /* V2026042601 */
+                p.getDateEmissionCheque(),
+                p.getTypePrejudice(),
+                p.getMotifComplement());
     }
 
     @NonNull
@@ -58,6 +66,8 @@ public class PaiementMapper {
         return new PaiementDetailResponse(
                 /* identifiants */
                 p.getPaiementTrackingId(),
+                p.getNumeroPaiement(),
+                deriveType(p),
                 s != null ? s.getSinistreTrackingId() : null,
                 s != null ? s.getLibelle() : null,
                 /* bénéficiaire */
@@ -88,7 +98,11 @@ public class PaiementMapper {
                 p.getUpdatedBy(),
                 p.getDeletedAt(),
                 p.getDeletedBy(),
-                p.getParentCodeId());
+                p.getParentCodeId(),
+                /* V2026042601 */
+                p.getDateEmissionCheque(),
+                p.getTypePrejudice(),
+                p.getMotifComplement());
     }
 
     @NonNull
@@ -115,6 +129,9 @@ public class PaiementMapper {
                 /* financier */
                 .montant(request.montant())
                 .dateEmission(LocalDate.now())
+                /* qualification du préjudice (V2026042601) */
+                .typePrejudice(request.typePrejudice())
+                .motifComplement(request.motifComplement())
                 /* statut initial */
                 .statut(StatutPaiement.EMIS)
                 /* audit & historique */
@@ -220,5 +237,23 @@ public class PaiementMapper {
                     "Exactement un bénéficiaire doit être fourni : " +
                             "victime=" + hasVictime + ", organisme=" + hasOrganisme);
         }
+    }
+
+    /**
+     * Dérive le type d'opération financière à partir du contexte d'une ligne Paiement.
+     * Cohérent avec la convention de génération du numero_operation et le SQL
+     * de backfill (cf. spec 2026-04-28, invariant § DTOs).
+     */
+    @NonNull
+    private TypeOperationFinanciere deriveType(@NonNull Paiement p) {
+        StatutPaiement statut = p.getStatut();
+        if (statut == StatutPaiement.ANNULE) {
+            return TypeOperationFinanciere.ANNULATION_REGLEMENT;
+        }
+        if (statut == StatutPaiement.REGLEMENT_COMPTABLE_VALIDE
+                || statut == StatutPaiement.PAYE) {
+            return TypeOperationFinanciere.REGLEMENT_COMPTABLE;
+        }
+        return TypeOperationFinanciere.REGLEMENT_TECHNIQUE;
     }
 }

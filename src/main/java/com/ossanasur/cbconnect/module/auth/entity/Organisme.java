@@ -68,7 +68,7 @@ public class Organisme extends InternalHistorique {
     private String apiEndpointUrl;
     private String logo;
 
-    // ── Coordonnees (V30) ─────────────────────────────────────────────────────
+    // Coordonnees (V30)
     private String adresse;
     @Column(name = "boite_postale", length = 50)
     private String boitePostale;
@@ -80,6 +80,26 @@ public class Organisme extends InternalHistorique {
     private String fax;
     @Column(name = "site_web")
     private String siteWeb;
+
+    // Branding documents (V2026042601) ─
+    @Column(name = "header_image_url", length = 500)
+    private String headerImageUrl;
+
+    @Column(name = "footer_image_url", length = 500)
+    private String footerImageUrl;
+
+    @Column(name = "titre_responsable", length = 150)
+    private String titreResponsable;
+
+    @Column(name = "afficher_deux_signatures", nullable = false)
+    @Builder.Default
+    private boolean afficherDeuxSignatures = false;
+
+    @Column(length = 200)
+    private String responsable2;
+
+    @Column(name = "titre_responsable2", length = 150)
+    private String titreResponsable2;
 
     @Builder.Default
     private boolean active = true;

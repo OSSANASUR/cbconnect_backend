@@ -41,6 +41,9 @@ public record SinistreRequest(
 
         /* Déclarant (flat) */
         String declarantNom, String declarantPrenom,
-        String declarantTelephone, String declarantQualite
+        String declarantTelephone, String declarantQualite,
+
+        /* V2026042601 — n° sinistre côté assureur étranger */
+        String numeroSinistreAssureur
 ) {
 }

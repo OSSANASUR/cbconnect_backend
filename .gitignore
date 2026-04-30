@@ -29,3 +29,6 @@ Thumbs.db
 .DS_Store
 **/.DS_Store
 .DS_Store
+
+uploads/organismes/**
+uploads/pv/**

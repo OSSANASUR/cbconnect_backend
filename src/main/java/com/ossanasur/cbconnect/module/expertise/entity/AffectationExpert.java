@@ -16,13 +16,13 @@ import java.util.UUID;
  * Affectation d'un expert à une victime pour un type d'expertise.
  *
  * Règles métier :
- *   - Un expert peut être affecté à plusieurs victimes d'un même sinistre.
- *   - Une victime peut avoir plusieurs expertises (par TypeExpertise).
- *   - Contrainte UNIQUE (expert_id, victime_id, type_expertise).
- *   - La création génère automatiquement 2 courriers :
- *       * Note de mission → expert
- *       * Lettre de prévenance → victime
- *   - Si email connu → envoi mail optionnel en plus de l'impression physique.
+ * - Un expert peut être affecté à plusieurs victimes d'un même sinistre.
+ * - Une victime peut avoir plusieurs expertises (par TypeExpertise).
+ * - Contrainte UNIQUE (expert_id, victime_id, type_expertise).
+ * - La création génère automatiquement 2 courriers :
+ * * Note de mission → expert
+ * * Lettre de prévenance → victime
+ * - Si email connu → envoi mail optionnel en plus de l'impression physique.
  */
 @RequiredArgsConstructor
 @AllArgsConstructor
@@ -31,8 +31,8 @@ import java.util.UUID;
 @SuperBuilder
 @Entity
 @DiscriminatorValue("AFFECTATION_EXPERT")
-@Table(name = "affectation_expert",
-       uniqueConstraints = @UniqueConstraint(columnNames = {"expert_id","victime_id","type_expertise"}))
+@Table(name = "affectation_expert", uniqueConstraints = @UniqueConstraint(columnNames = { "expert_id", "victime_id",
+        "type_expertise" }))
 public class AffectationExpert extends InternalHistorique {
 
     @Column(name = "affectation_tracking_id", unique = true)
@@ -65,14 +65,14 @@ public class AffectationExpert extends InternalHistorique {
     @Builder.Default
     private String statut = "EN_ATTENTE";
 
-    // ── Courriers générés ──────────────────────────────────────────
+    // Courriers générés
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "courrier_mission_id")
-    private Courrier courrierMission;   // Note de mission → expert
+    private Courrier courrierMission; // Note de mission → expert
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "courrier_victime_id")
-    private Courrier courrierVictime;   // Lettre de prévenance → victime
+    private Courrier courrierVictime; // Lettre de prévenance → victime
 
     @Column(name = "mail_expert_envoye")
     @Builder.Default

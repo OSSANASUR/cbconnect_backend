@@ -2,6 +2,7 @@ package com.ossanasur.cbconnect.module.finance.entity;
 
 import com.ossanasur.cbconnect.common.entity.InternalHistorique;
 import com.ossanasur.cbconnect.common.enums.StatutPaiement;
+import com.ossanasur.cbconnect.common.enums.TypePrejudice;
 import com.ossanasur.cbconnect.module.auth.entity.Organisme;
 import com.ossanasur.cbconnect.module.auth.entity.Utilisateur;
 import com.ossanasur.cbconnect.module.comptabilite.entity.EcritureComptable;
@@ -58,6 +59,17 @@ public class Paiement extends InternalHistorique {
     @Column(nullable = false, length = 50)
     @Builder.Default
     private StatutPaiement statut = StatutPaiement.EMIS;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type_prejudice", nullable = false, length = 20)
+    @Builder.Default
+    private TypePrejudice typePrejudice = TypePrejudice.MATERIEL;
+
+    @Column(name = "motif_complement", length = 255)
+    private String motifComplement;
+
+    @Column(name = "numero_operation", length = 30, nullable = false, unique = true, updatable = false)
+    private String numeroPaiement;
 
     private String motifAnnulation;
     @ManyToOne(fetch = FetchType.LAZY)

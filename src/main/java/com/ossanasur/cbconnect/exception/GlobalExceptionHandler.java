@@ -1,5 +1,7 @@
 package com.ossanasur.cbconnect.exception;
 
+import com.ossanasur.cbconnect.module.finance.dto.response.ReglementBloquantInfo;
+import com.ossanasur.cbconnect.module.finance.exception.ReglementsLiesNonAnnulesException;
 import com.ossanasur.cbconnect.utils.DataResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -14,7 +16,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.sql.SQLException;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -31,6 +35,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<DataResponse<Void>> handleBadRequest(BadRequestException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                 new DataResponse<>(new Date(), false, "Erreur de demande : " + ex.getMessage(), 400, null));
+    }
+
+    @ExceptionHandler(ReglementsLiesNonAnnulesException.class)
+    public ResponseEntity<DataResponse<Map<String, Object>>> handleReglementsLies(
+            ReglementsLiesNonAnnulesException ex) {
+        List<ReglementBloquantInfo> liste = ex.getReglementsBloquants().stream()
+                .map(ReglementBloquantInfo::fromPaiement)
+                .toList();
+        Map<String, Object> details = Map.of("reglementsBloquants", liste);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                new DataResponse<>(new Date(), false, ex.getMessage(), 400, details));
     }
 
     @ExceptionHandler(AlreadyExistException.class)

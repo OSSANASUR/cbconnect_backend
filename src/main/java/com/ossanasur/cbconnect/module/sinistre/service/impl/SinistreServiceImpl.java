@@ -12,6 +12,9 @@ import com.ossanasur.cbconnect.module.sinistre.dto.request.ConfirmationGarantieR
 import com.ossanasur.cbconnect.module.sinistre.dto.request.MiseEnArbitrageRequest;
 import com.ossanasur.cbconnect.module.sinistre.dto.request.MiseEnContentieuxRequest;
 import com.ossanasur.cbconnect.module.sinistre.dto.request.SinistreRequest;
+import com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository;
+import com.ossanasur.cbconnect.module.finance.repository.PaiementRepository;
+import com.ossanasur.cbconnect.module.sinistre.dto.response.EncaissementStatusResponse;
 import com.ossanasur.cbconnect.module.sinistre.dto.response.SinistreResponse;
 import com.ossanasur.cbconnect.module.sinistre.entity.*;
 import com.ossanasur.cbconnect.module.sinistre.mapper.SinistreMapper;
@@ -26,6 +29,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -42,6 +46,8 @@ public class SinistreServiceImpl implements SinistreService {
     private final SinistreVersioningService versioningService;
     private final SinistreMapper sinistreMapper;
     private final OssanGedClientService gedService;
+    private final EncaissementRepository encaissementRepository;
+    private final PaiementRepository paiementRepository;
 
     @Override
     @Transactional
@@ -100,6 +106,7 @@ public class SinistreServiceImpl implements SinistreService {
                 .conducteurLieuDelivrance(r.conducteurLieuDelivrance())
                 .declarantNom(r.declarantNom()).declarantPrenom(r.declarantPrenom())
                 .declarantTelephone(r.declarantTelephone()).declarantQualite(r.declarantQualite())
+                .numeroSinistreAssureur(r.numeroSinistreAssureur())
                 .paysGestionnaire(paysG).assure(assure)
                 .createdBy(loginAuteur).activeData(true).deletedData(false).fromTable(TypeTable.SINISTRE)
                 .build();
@@ -150,9 +157,8 @@ public class SinistreServiceImpl implements SinistreService {
         StatutSinistre st = existing.getStatut();
         if (st != StatutSinistre.NOUVEAU && st != StatutSinistre.VALIDE) {
             throw new BadRequestException(
-                "Modification interdite : le dossier est au statut " + st +
-                ". Seuls les statuts NOUVEAU et VALIDE autorisent l'édition de la déclaration."
-            );
+                    "Modification interdite : le dossier est au statut " + st +
+                            ". Seuls les statuts NOUVEAU et VALIDE autorisent l'édition de la déclaration.");
         }
         Sinistre updated = versioningService.createVersion(id, r, loginAuteur);
         return DataResponse.success("Sinistre mis a jour", sinistreMapper.toResponse(updated));
@@ -182,7 +188,7 @@ public class SinistreServiceImpl implements SinistreService {
         }
         return PaginatedResponse.fromPage(
                 sinistreRepository.search(query.trim(),
-                                PageRequest.of(page, Math.min(Math.max(size, 1), 50)))
+                        PageRequest.of(page, Math.min(Math.max(size, 1), 50)))
                         .map(sinistreMapper::toResponse),
                 "Résultats recherche sinistre");
     }
@@ -223,59 +229,68 @@ public class SinistreServiceImpl implements SinistreService {
         return DataResponse.success("Sinistre supprime", null);
     }
 
-    /* V27 : la gestion de la position RC est portée par VictimeService#executerActionRc,
-       adversaire par adversaire. L'ancienne méthode changerPositionRc sur sinistre est
-       remplacée par une erreur métier explicite pour guider les éventuels clients résiduels. */
+    /*
+     * V27 : la gestion de la position RC est portée par
+     * VictimeService#executerActionRc,
+     * adversaire par adversaire. L'ancienne méthode changerPositionRc sur sinistre
+     * est
+     * remplacée par une erreur métier explicite pour guider les éventuels clients
+     * résiduels.
+     */
     @Override
     @Transactional
     public DataResponse<SinistreResponse> changerPositionRc(UUID id, String positionRc, String loginAuteur) {
         throw new BadRequestException(
-            "La position RC se gere desormais par adversaire : " +
-            "PATCH /v1/victimes/{adversaireId}/position-rc avec body {action, pourcentage, motifRejet}.");
+                "La position RC se gere desormais par adversaire : " +
+                        "PATCH /v1/victimes/{adversaireId}/position-rc avec body {action, pourcentage, motifRejet}.");
     }
 
     @Override
     @Transactional
-    public DataResponse<SinistreResponse> confirmerGarantie(UUID id, ConfirmationGarantieRequest r, String loginAuteur) {
+    public DataResponse<SinistreResponse> confirmerGarantie(UUID id, ConfirmationGarantieRequest r,
+            String loginAuteur) {
         Sinistre s = sinistreRepository.findActiveByTrackingId(id)
-            .orElseThrow(() -> new RessourceNotFoundException("Sinistre introuvable"));
+                .orElseThrow(() -> new RessourceNotFoundException("Sinistre introuvable"));
 
         s.setGarantieAcquise(r.garantieAcquise());
         s.setReferenceGarantie(r.referenceGarantie());
         s.setDateConfirmationGarantie(
-            r.dateConfirmationGarantie() != null ? r.dateConfirmationGarantie() : java.time.LocalDate.now());
+                r.dateConfirmationGarantie() != null ? r.dateConfirmationGarantie() : java.time.LocalDate.now());
         s.setObservationsGarantie(r.observationsGarantie());
         s.setCourrierNonGarantieRef(r.courrierNonGarantieRef());
         s.setCourrierNonGarantieDate(r.courrierNonGarantieDate());
-        // Garantie acquise → ATTENTE_PV (instruction démarre) ; non acquise → dossier bloqué en GARANTIE_NON_ACQUISE
+        // Garantie acquise → ATTENTE_PV (instruction démarre) ; non acquise → dossier
+        // bloqué en GARANTIE_NON_ACQUISE
         s.setStatut(Boolean.TRUE.equals(r.garantieAcquise())
-            ? StatutSinistre.ATTENTE_PV
-            : StatutSinistre.GARANTIE_NON_ACQUISE);
+                ? StatutSinistre.ATTENTE_PV
+                : StatutSinistre.GARANTIE_NON_ACQUISE);
         s.setUpdatedBy(loginAuteur);
 
         Sinistre saved = sinistreRepository.save(s);
         String msg = Boolean.TRUE.equals(r.garantieAcquise())
-            ? "Garantie confirmee"
-            : "Garantie non acquise enregistree";
+                ? "Garantie confirmee"
+                : "Garantie non acquise enregistree";
         return DataResponse.success(msg, sinistreMapper.toResponse(saved));
     }
 
-    /* ═════════ Passages en CONTENTIEUX / ARBITRAGE / sortie vers BAP ═════════
-       Règles métier (doc OpenL) :
-       - Depuis n'importe quel statut, le SE peut passer un dossier en CONTENTIEUX
-         (procédure judiciaire) ou ARBITRAGE (instance arbitrale / commission).
-       - Le flag `estContentieux` reste vrai tant que le dossier est en
-         CONTENTIEUX. On le remet à faux à la sortie.
-       - `niveauJuridiction` et `dateProchaineAudience` sont persistés pour
-         alimenter les alertes d'audience côté Délais (CategorieActiviteDelai).
-       - Sortie de litige → statut BAP : le dossier rejoint la file normale,
-         est bon à payer (avec l'offre déjà calculée en amont).               */
+    /*
+     * ═════════ Passages en CONTENTIEUX / ARBITRAGE / sortie vers BAP ═════════
+     * Règles métier (doc OpenL) :
+     * - Depuis n'importe quel statut, le SE peut passer un dossier en CONTENTIEUX
+     * (procédure judiciaire) ou ARBITRAGE (instance arbitrale / commission).
+     * - Le flag `estContentieux` reste vrai tant que le dossier est en
+     * CONTENTIEUX. On le remet à faux à la sortie.
+     * - `niveauJuridiction` et `dateProchaineAudience` sont persistés pour
+     * alimenter les alertes d'audience côté Délais (CategorieActiviteDelai).
+     * - Sortie de litige → statut BAP : le dossier rejoint la file normale,
+     * est bon à payer (avec l'offre déjà calculée en amont).
+     */
 
     @Override
     @Transactional
     public DataResponse<SinistreResponse> mettreEnContentieux(UUID id, MiseEnContentieuxRequest r, String loginAuteur) {
         Sinistre s = sinistreRepository.findActiveByTrackingId(id)
-            .orElseThrow(() -> new RessourceNotFoundException("Sinistre introuvable"));
+                .orElseThrow(() -> new RessourceNotFoundException("Sinistre introuvable"));
         if (s.getStatut() == StatutSinistre.CONTENTIEUX) {
             throw new BadRequestException("Le dossier est déjà en contentieux.");
         }
@@ -294,7 +309,7 @@ public class SinistreServiceImpl implements SinistreService {
         s.setUpdatedBy(loginAuteur);
         Sinistre saved = sinistreRepository.save(s);
         log.info("[WORKFLOW] Sinistre {} → CONTENTIEUX (juridiction={}, audience={})",
-                 saved.getNumeroSinistreLocal(), r.niveauJuridiction(), r.dateProchaineAudience());
+                saved.getNumeroSinistreLocal(), r.niveauJuridiction(), r.dateProchaineAudience());
         return DataResponse.success("Dossier mis en contentieux", sinistreMapper.toResponse(saved));
     }
 
@@ -302,7 +317,7 @@ public class SinistreServiceImpl implements SinistreService {
     @Transactional
     public DataResponse<SinistreResponse> mettreEnArbitrage(UUID id, MiseEnArbitrageRequest r, String loginAuteur) {
         Sinistre s = sinistreRepository.findActiveByTrackingId(id)
-            .orElseThrow(() -> new RessourceNotFoundException("Sinistre introuvable"));
+                .orElseThrow(() -> new RessourceNotFoundException("Sinistre introuvable"));
         if (s.getStatut() == StatutSinistre.ARBITRAGE) {
             throw new BadRequestException("Le dossier est déjà en arbitrage.");
         }
@@ -318,7 +333,7 @@ public class SinistreServiceImpl implements SinistreService {
         s.setUpdatedBy(loginAuteur);
         Sinistre saved = sinistreRepository.save(s);
         log.info("[WORKFLOW] Sinistre {} → ARBITRAGE (saisine={})",
-                 saved.getNumeroSinistreLocal(), r.dateSaisineArbitrage());
+                saved.getNumeroSinistreLocal(), r.dateSaisineArbitrage());
         return DataResponse.success("Dossier mis en arbitrage", sinistreMapper.toResponse(saved));
     }
 
@@ -326,11 +341,11 @@ public class SinistreServiceImpl implements SinistreService {
     @Transactional
     public DataResponse<SinistreResponse> sortirDuLitige(UUID id, String loginAuteur) {
         Sinistre s = sinistreRepository.findActiveByTrackingId(id)
-            .orElseThrow(() -> new RessourceNotFoundException("Sinistre introuvable"));
+                .orElseThrow(() -> new RessourceNotFoundException("Sinistre introuvable"));
         if (s.getStatut() != StatutSinistre.CONTENTIEUX && s.getStatut() != StatutSinistre.ARBITRAGE) {
             throw new BadRequestException(
-                "Sortie de litige possible uniquement depuis CONTENTIEUX ou ARBITRAGE (statut actuel : "
-                + s.getStatut() + ").");
+                    "Sortie de litige possible uniquement depuis CONTENTIEUX ou ARBITRAGE (statut actuel : "
+                            + s.getStatut() + ").");
         }
         s.setEstContentieux(false);
         s.setStatut(StatutSinistre.BAP);
@@ -338,5 +353,42 @@ public class SinistreServiceImpl implements SinistreService {
         Sinistre saved = sinistreRepository.save(s);
         log.info("[WORKFLOW] Sinistre {} sort de litige → BAP", saved.getNumeroSinistreLocal());
         return DataResponse.success("Dossier sorti du litige – passé en BAP", sinistreMapper.toResponse(saved));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DataResponse<EncaissementStatusResponse> getEncaissementStatus(UUID sinistreTrackingId) {
+
+        sinistreRepository.findActiveByTrackingId(sinistreTrackingId)
+                .orElseThrow(() -> new RessourceNotFoundException("Sinistre introuvable"));
+
+        boolean hasAny = encaissementRepository.existsNonAnnuleBySinistre(sinistreTrackingId);
+        BigDecimal totalEncaisse = nz(encaissementRepository.sumMontantEncaisseBySinistre(sinistreTrackingId));
+        BigDecimal totalEngage = nz(paiementRepository.sumMontantActifBySinistre(sinistreTrackingId));
+        BigDecimal couverture = totalEncaisse.subtract(totalEngage);
+
+        boolean regleAOk = hasAny;
+        boolean regleBOk = totalEncaisse.signum() > 0;
+        boolean regleCOk = couverture.signum() >= 0;
+        boolean hasEncaisse = regleBOk;
+
+        String message = null;
+        if (!regleAOk) {
+            message = "Aucun encaissement enregistré pour ce sinistre. La création d'un règlement est bloquée.";
+        } else if (!regleBOk) {
+            message = "Aucun chèque encore crédité en banque. Le règlement comptable sera bloqué.";
+        } else if (!regleCOk) {
+            message = String.format(
+                    "Couverture insuffisante : encaissé %s FCFA, engagé %s FCFA. La validation comptable est bloquée.",
+                    totalEncaisse.toPlainString(), totalEngage.toPlainString());
+        }
+
+        return DataResponse.success(new EncaissementStatusResponse(
+                hasAny, hasEncaisse, totalEncaisse, totalEngage, couverture,
+                regleAOk, regleBOk, regleCOk, message));
+    }
+
+    private static BigDecimal nz(BigDecimal v) {
+        return v == null ? BigDecimal.ZERO : v;
     }
 }

@@ -110,6 +110,9 @@ public class SinistreVersioningService extends AbstractVersioningService<Sinistr
         if (r.declarantTelephone() != null) u.setDeclarantTelephone(r.declarantTelephone());
         if (r.declarantQualite() != null)   u.setDeclarantQualite(r.declarantQualite());
 
+        // V2026042601 — n° sinistre côté assureur étranger
+        if (r.numeroSinistreAssureur() != null) u.setNumeroSinistreAssureur(r.numeroSinistreAssureur());
+
         return u;
     }
 

@@ -4,6 +4,7 @@ import com.ossanasur.cbconnect.module.sinistre.dto.request.ConfirmationGarantieR
 import com.ossanasur.cbconnect.module.sinistre.dto.request.MiseEnArbitrageRequest;
 import com.ossanasur.cbconnect.module.sinistre.dto.request.MiseEnContentieuxRequest;
 import com.ossanasur.cbconnect.module.sinistre.dto.request.SinistreRequest;
+import com.ossanasur.cbconnect.module.sinistre.dto.response.EncaissementStatusResponse;
 import com.ossanasur.cbconnect.module.sinistre.dto.response.SinistreResponse;
 import com.ossanasur.cbconnect.module.sinistre.service.SinistreService;
 import com.ossanasur.cbconnect.utils.DataResponse;
@@ -40,6 +41,14 @@ public class SinistreController {
     @Operation(summary = "Obtenir un sinistre")
     public ResponseEntity<DataResponse<SinistreResponse>> getOne(@PathVariable UUID id) {
         return ResponseEntity.ok(sinistreService.getByTrackingId(id));
+    }
+
+    @GetMapping("/{trackingId}/encaissement-status")
+    @PreAuthorize("hasAnyRole('SE','CSS','REDACTEUR','COMPTABLE')")
+    @Operation(summary = "Statut encaissement vs règlements pour un sinistre — pilote l'UX du frontend")
+    public ResponseEntity<DataResponse<EncaissementStatusResponse>> getEncaissementStatus(
+            @PathVariable UUID trackingId) {
+        return ResponseEntity.ok(sinistreService.getEncaissementStatus(trackingId));
     }
 
     @GetMapping

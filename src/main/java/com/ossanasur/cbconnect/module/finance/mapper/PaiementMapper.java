@@ -12,6 +12,7 @@ import com.ossanasur.cbconnect.module.finance.dto.request.PaiementCreateRequest;
 import com.ossanasur.cbconnect.module.auth.entity.Organisme;
 import com.ossanasur.cbconnect.module.auth.entity.Utilisateur;
 import com.ossanasur.cbconnect.module.comptabilite.entity.EcritureComptable;
+import com.ossanasur.cbconnect.module.expertise.entity.Expert;
 import com.ossanasur.cbconnect.module.finance.dto.response.PaiementDetailResponse;
 
 import com.ossanasur.cbconnect.module.finance.dto.response.PaiementDetailResponse.BeneficiaireInfo;
@@ -57,7 +58,9 @@ public class PaiementMapper {
                 /* V2026042601 */
                 p.getDateEmissionCheque(),
                 p.getTypePrejudice(),
-                p.getMotifComplement());
+                p.getMotifComplement(),
+                p.getCategorie(),
+                p.getMotif());
     }
 
     @NonNull
@@ -102,7 +105,11 @@ public class PaiementMapper {
                 /* V2026042601 */
                 p.getDateEmissionCheque(),
                 p.getTypePrejudice(),
-                p.getMotifComplement());
+                p.getMotifComplement(),
+                p.getCategorie(),
+                p.getMotif(),
+                p.getBeneficiaireExpert() != null ? p.getBeneficiaireExpert().getNomComplet() : null,
+                p.getBeneficiaireExpert() != null ? p.getBeneficiaireExpert().getExpertTrackingId() : null);
     }
 
     @NonNull
@@ -111,6 +118,8 @@ public class PaiementMapper {
             @NonNull Sinistre sinistre,
             @Nullable Victime victime,
             @Nullable Organisme organisme,
+            @Nullable Expert expert,
+            @NonNull String motifLibelle,
             @Nullable String createdBy) {
 
         validateBeneficiaireXOR(victime, organisme);
@@ -139,18 +148,25 @@ public class PaiementMapper {
                 .activeData(true)
                 .deletedData(false)
                 .fromTable(TypeTable.PAIEMENT)
+                .beneficiaireExpert(expert)
+                .categorie(request.categorie())
+                .motif(motifLibelle)
                 .build();
     }
 
     @Nullable
     private BeneficiaireInfo toBeneficiaireInfo(@NonNull Paiement p) {
-        if (p.getBeneficiaireVictime() != null) {
+        if (p.getBeneficiaireVictime() != null)
             return toBeneficiaireVictime(p.getBeneficiaireVictime());
-        }
-        if (p.getBeneficiaireOrganisme() != null) {
+        if (p.getBeneficiaireOrganisme() != null)
             return toBeneficiaireOrganisme(p.getBeneficiaireOrganisme());
-        }
+        if (p.getBeneficiaireExpert() != null)
+            return toBeneficiaireExpert(p.getBeneficiaireExpert()); // NOUVEAU
         return null;
+    }
+
+    private BeneficiaireInfo toBeneficiaireExpert(@NonNull Expert expert) {
+        return BeneficiaireInfo.ofExpert(expert.getExpertTrackingId(), expert.getNomComplet());
     }
 
     /**
@@ -240,7 +256,8 @@ public class PaiementMapper {
     }
 
     /**
-     * Dérive le type d'opération financière à partir du contexte d'une ligne Paiement.
+     * Dérive le type d'opération financière à partir du contexte d'une ligne
+     * Paiement.
      * Cohérent avec la convention de génération du numero_operation et le SQL
      * de backfill (cf. spec 2026-04-28, invariant § DTOs).
      */

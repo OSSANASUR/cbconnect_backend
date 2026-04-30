@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.UUID;
 import java.math.BigDecimal;
 
+import com.ossanasur.cbconnect.common.enums.CategorieReglement;
 import com.ossanasur.cbconnect.common.enums.StatutPaiement;
 import com.ossanasur.cbconnect.common.enums.TypeOperationFinanciere;
 
@@ -44,12 +45,16 @@ public record PaiementDetailResponse(
                 String updatedBy,
                 LocalDateTime deletedAt,
                 String deletedBy,
-                String parentCodeId
-                ,
+                String parentCodeId,
                 // V2026042601
                 java.time.LocalDate dateEmissionCheque,
                 com.ossanasur.cbconnect.common.enums.TypePrejudice typePrejudice,
-                String motifComplement
+                String motifComplement,
+
+                CategorieReglement categorie,
+                String motif,
+                String beneficiaireExpertNom,
+                UUID beneficiaireExpertTrackingId
 
 ) {
 
@@ -71,6 +76,11 @@ public record PaiementDetailResponse(
                                 String code, String typeOrganisme, String codePaysBCB) {
                         return new BeneficiaireInfo("ORGANISME", trackingId, raisonSociale,
                                         code, typeOrganisme, codePaysBCB);
+                }
+
+                /** Fabrique une instance bénéficiaire-expert. */
+                public static BeneficiaireInfo ofExpert(UUID trackingId, String nomComplet) {
+                        return new BeneficiaireInfo("EXPERT", trackingId, nomComplet, null, null, null);
                 }
         }
 

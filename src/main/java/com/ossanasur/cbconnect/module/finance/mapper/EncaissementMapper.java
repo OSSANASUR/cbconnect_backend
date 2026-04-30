@@ -11,7 +11,9 @@ public class EncaissementMapper {
             e.getProduitFraisGestion(), e.getDateEmission(), e.getDateReception(), e.getDateEncaissement(),
             e.getBanqueEmettrice(), e.getStatutCheque(),
             e.getOrganismeEmetteur()!=null?e.getOrganismeEmetteur().getRaisonSociale():null,
-            e.getSinistre()!=null?e.getSinistre().getNumeroSinistreLocal():null
+            e.getSinistre()!=null?e.getSinistre().getNumeroSinistreLocal():null,
+            e.getChequeOrdreOrganisme()!=null?e.getChequeOrdreOrganisme().getRaisonSociale():null,
+            e.getChequeOrdreOrganisme()!=null?e.getChequeOrdreOrganisme().getOrganismeTrackingId():null
         );
     }
 }

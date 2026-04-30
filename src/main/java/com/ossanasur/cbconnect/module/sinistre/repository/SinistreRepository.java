@@ -2,6 +2,7 @@ package com.ossanasur.cbconnect.module.sinistre.repository;
 
 import com.ossanasur.cbconnect.common.enums.StatutSinistre;
 import com.ossanasur.cbconnect.common.enums.TypeSinistre;
+import com.ossanasur.cbconnect.common.enums.PositionRc;
 import com.ossanasur.cbconnect.module.sinistre.entity.Sinistre;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -40,6 +41,65 @@ public interface SinistreRepository extends JpaRepository<Sinistre, Integer> {
                         + "  ) "
                         + "ORDER BY s.dateDeclaration DESC")
         Page<Sinistre> search(@Param("q") String query, Pageable pageable);
+
+        @Query("""
+                        SELECT s FROM Sinistre s
+                        LEFT JOIN s.assure a
+                        LEFT JOIN s.organismeMembre om
+                        LEFT JOIN s.paysEmetteur pe
+                        WHERE s.activeData=true AND s.deletedData=false
+                          AND (:q IS NULL OR :q = '' OR (
+                               LOWER(s.numeroSinistreLocal)     LIKE LOWER(CONCAT('%', :q, '%'))
+                            OR LOWER(s.numeroSinistreManuel)    LIKE LOWER(CONCAT('%', :q, '%'))
+                            OR LOWER(s.numeroSinistreHomologue) LIKE LOWER(CONCAT('%', :q, '%'))
+                            OR LOWER(a.nomAssure)               LIKE LOWER(CONCAT('%', :q, '%'))
+                            OR LOWER(a.prenomAssure)            LIKE LOWER(CONCAT('%', :q, '%'))
+                            OR LOWER(a.nomComplet)              LIKE LOWER(CONCAT('%', :q, '%'))
+                            OR LOWER(a.immatriculation)         LIKE LOWER(CONCAT('%', :q, '%'))
+                            OR LOWER(a.numeroPolice)            LIKE LOWER(CONCAT('%', :q, '%'))
+                            OR LOWER(om.raisonSociale)          LIKE LOWER(CONCAT('%', :q, '%'))
+                            OR LOWER(pe.libelle)                LIKE LOWER(CONCAT('%', :q, '%'))
+                          ))
+                          AND (:statut IS NULL OR s.statut = :statut)
+                          AND (:dateDebut IS NULL OR s.dateDeclaration >= :dateDebut)
+                          AND (:dateFin IS NULL OR s.dateDeclaration <= :dateFin)
+                          AND (:positionRc IS NULL OR s.positionRc = :positionRc)
+                          AND (:rcManquante = false OR (
+                              s.statut IN :statutsRcAttendue
+                              AND (s.positionRc IS NULL OR s.positionRc <> :tranchee)
+                          ))
+                          AND (:rcPct IS NULL OR (
+                              s.positionRc = :tranchee
+                              AND s.tauxRc IS NOT NULL
+                              AND (
+                                  (:rcPct = '<50' AND s.tauxRc < 50)
+                                  OR (:rcPct = '50-80' AND s.tauxRc >= 50 AND s.tauxRc <= 80)
+                                  OR (:rcPct = '>80' AND s.tauxRc > 80)
+                              )
+                          ))
+                          AND (:litige IS NULL
+                              OR (:litige = 'EN_LITIGE' AND (s.statut IN :statutsLitige OR s.estContentieux = true))
+                              OR (:litige = 'HORS_LITIGE' AND (s.statut NOT IN :statutsLitige AND s.estContentieux = false))
+                              OR (:litige = 'CONTENTIEUX' AND s.statut = :statutContentieux)
+                              OR (:litige = 'ARBITRAGE' AND s.statut = :statutArbitrage)
+                          )
+                        ORDER BY s.dateDeclaration DESC
+                        """)
+        Page<Sinistre> findAllFiltered(
+                        @Param("q") String query,
+                        @Param("statut") StatutSinistre statut,
+                        @Param("positionRc") PositionRc positionRc,
+                        @Param("rcManquante") boolean rcManquante,
+                        @Param("rcPct") String rcPct,
+                        @Param("litige") String litige,
+                        @Param("dateDebut") LocalDate dateDebut,
+                        @Param("dateFin") LocalDate dateFin,
+                        @Param("statutsRcAttendue") List<StatutSinistre> statutsRcAttendue,
+                        @Param("statutsLitige") List<StatutSinistre> statutsLitige,
+                        @Param("statutContentieux") StatutSinistre statutContentieux,
+                        @Param("statutArbitrage") StatutSinistre statutArbitrage,
+                        @Param("tranchee") PositionRc tranchee,
+                        Pageable pageable);
 
   @Query("SELECT s FROM Sinistre s WHERE s.statut=:statut AND s.activeData=true AND s.deletedData=false ORDER BY s.dateDeclaration DESC")
   List<Sinistre> findAllByStatut(@Param("statut") StatutSinistre statut);

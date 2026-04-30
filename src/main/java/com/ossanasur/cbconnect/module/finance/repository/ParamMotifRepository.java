@@ -32,4 +32,16 @@ public interface ParamMotifRepository extends JpaRepository<ParamMotif, Integer>
     // Variante pour création (pas d'exclusion)
     boolean existsByLibelleMotifAndTypeAndActiveDataTrueAndDeletedDataFalse(
             String libelleMotif, TypeMotif type);
+
+    @Query("""
+        SELECT p FROM ParamMotif p
+        WHERE p.libelleMotif = :libelle
+          AND p.type = :type
+          AND p.actif = true
+          AND p.activeData = true
+          AND p.deletedData = false
+        """)
+    Optional<ParamMotif> findActiveByLibelleAndType(
+            @Param("libelle") String libelle,
+            @Param("type") TypeMotif type);
 }

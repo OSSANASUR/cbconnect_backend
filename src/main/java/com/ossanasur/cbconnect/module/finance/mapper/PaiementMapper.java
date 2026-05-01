@@ -41,7 +41,7 @@ public class PaiementMapper {
                 deriveType(p),
                 p.getParentCodeId(),
                 s != null ? s.getSinistreTrackingId() : null,
-                s != null ? s.getLibelle() : null,
+                resolveSinistreReference(s),
                 p.getBeneficiaire(),
                 p.getMontant(),
                 p.getModePaiement(),
@@ -76,7 +76,7 @@ public class PaiementMapper {
                 p.getNumeroPaiement(),
                 deriveType(p),
                 s != null ? s.getSinistreTrackingId() : null,
-                s != null ? s.getLibelle() : null,
+                resolveSinistreReference(s),
                 /* bénéficiaire */
                 p.getBeneficiaire(),
                 toBeneficiaireInfo(p),
@@ -250,5 +250,21 @@ public class PaiementMapper {
             return TypeOperationFinanciere.REGLEMENT_COMPTABLE;
         }
         return TypeOperationFinanciere.REGLEMENT_TECHNIQUE;
+    }
+
+    /**
+     * Référence affichable du sinistre : préfère numero_sinistre_local,
+     * fallback sur manuel/homologue, puis libelle InternalHistorique.
+     */
+    @Nullable
+    private String resolveSinistreReference(@Nullable Sinistre s) {
+        if (s == null) return null;
+        if (s.getNumeroSinistreLocal() != null && !s.getNumeroSinistreLocal().isBlank())
+            return s.getNumeroSinistreLocal();
+        if (s.getNumeroSinistreManuel() != null && !s.getNumeroSinistreManuel().isBlank())
+            return s.getNumeroSinistreManuel();
+        if (s.getNumeroSinistreHomologue() != null && !s.getNumeroSinistreHomologue().isBlank())
+            return s.getNumeroSinistreHomologue();
+        return s.getLibelle();
     }
 }

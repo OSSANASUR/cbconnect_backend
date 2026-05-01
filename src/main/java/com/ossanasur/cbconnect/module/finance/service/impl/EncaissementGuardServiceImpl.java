@@ -45,7 +45,9 @@ public class EncaissementGuardServiceImpl implements EncaissementGuardService {
     @Transactional(readOnly = true)
     public void verifierRegleC(UUID sinistreTrackingId, BigDecimal montantNouveau) {
         BigDecimal nouveau = montantNouveau == null ? BigDecimal.ZERO : montantNouveau;
-        BigDecimal encaisse = nz(encaissementRepository.sumMontantEncaisseBySinistre(sinistreTrackingId));
+        // On compte tous les encaissements non-annulés (RECU ou ENCAISSE) — l'encaissement
+        // existe dès qu'il est saisi, le statut ENCAISSE n'est qu'une étape postérieure.
+        BigDecimal encaisse = nz(encaissementRepository.sumMontantActifBySinistre(sinistreTrackingId));
         BigDecimal engage = nz(paiementRepository.sumMontantActifBySinistre(sinistreTrackingId));
         BigDecimal besoin = engage.add(nouveau);
 

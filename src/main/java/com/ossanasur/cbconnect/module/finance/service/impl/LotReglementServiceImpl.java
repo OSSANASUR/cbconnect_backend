@@ -69,6 +69,23 @@ public class LotReglementServiceImpl implements LotReglementService {
 
             String numeroPolice = s.getAssure() != null ? s.getAssure().getNumeroPolice() : null;
 
+            String libelle = "";
+            if (s.getAssure() != null) {
+                String nom = s.getAssure().getNomComplet() != null && !s.getAssure().getNomComplet().isBlank()
+                        ? s.getAssure().getNomComplet()
+                        : (((s.getAssure().getNomAssure() != null ? s.getAssure().getNomAssure() : "") + " "
+                            + (s.getAssure().getPrenomAssure() != null ? s.getAssure().getPrenomAssure() : "")).trim());
+                String immat = s.getAssure().getImmatriculation();
+                if (!nom.isBlank() && immat != null && !immat.isBlank()) {
+                    libelle = nom + " — " + immat;
+                } else if (!nom.isBlank()) {
+                    libelle = nom;
+                } else if (immat != null) {
+                    libelle = immat;
+                }
+            }
+            if (libelle.isBlank()) libelle = s.getLibelle();
+
             java.time.LocalDate dateSinistre = s.getDateAccident() != null
                     ? s.getDateAccident()
                     : s.getDateDeclaration();
@@ -81,7 +98,7 @@ public class LotReglementServiceImpl implements LotReglementService {
 
             return new SinistrePayableResponse(
                     s.getSinistreTrackingId(),
-                    s.getLibelle(),
+                    libelle,
                     numeroSinistre,
                     numeroPolice,
                     dateSinistre,

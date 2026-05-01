@@ -49,6 +49,7 @@ public class EncaissementMapper {
                 .encaissementTrackingId(UUID.randomUUID())
                 .numeroCheque(req.numeroCheque())
                 .montantCheque(req.montantCheque())
+                .montantTheorique(req.montantTheorique())
                 .produitFraisGestion(fraisGestion)
                 .dateEmission(req.dateEmission())
                 .dateReception(req.dateReception())

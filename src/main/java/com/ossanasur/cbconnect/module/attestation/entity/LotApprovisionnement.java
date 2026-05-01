@@ -30,9 +30,7 @@ public class LotApprovisionnement extends InternalHistorique {
     private String numeroDebutSerie;
     @Column(nullable = false)
     private String numeroFinSerie;
-    @Column(nullable = false)
     private BigDecimal prixUnitaireAchat;
-    @Column(nullable = false)
     private LocalDate dateCommande;
     private LocalDate dateLivraisonFournisseur;
     @Enumerated(EnumType.STRING)

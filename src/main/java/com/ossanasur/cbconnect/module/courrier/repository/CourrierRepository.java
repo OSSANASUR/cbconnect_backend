@@ -20,21 +20,25 @@ public interface CourrierRepository extends JpaRepository<Courrier, Integer> {
     @Query("SELECT c FROM Courrier c WHERE c.traite=false AND c.activeData=true AND c.deletedData=false ORDER BY c.dateCourrier ASC")
     List<Courrier> findNonTraites();
 
+    @Query("SELECT c FROM Courrier c WHERE c.activeData=true AND c.deletedData=false ORDER BY c.dateCourrier DESC")
+    List<Courrier> findAllActive();
+
     // Courriers sortants envoyés via messagerie CBConnect, triés par date d'envoi
     // desc
     @Query("SELECT c FROM Courrier c WHERE c.typeCourrier = 'SORTANT' AND c.envoyeParMail = true " +
             "AND c.activeData = true AND c.deletedData = false ORDER BY c.dateEnvoi DESC")
     List<Courrier> findSortantsEnvoyesParMail();
 
-    /** Courriers SORTANTS physiques prêts à embarquer (pas encore attachés à un bordereau). */
+    /** Courriers SORTANTS transportés par coursier ou poste, prêts à embarquer (pas encore attachés à un bordereau). */
     @Query("SELECT c FROM Courrier c WHERE c.typeCourrier = 'SORTANT' " +
-            "AND c.canal = 'PHYSIQUE' AND c.bordereau IS NULL " +
+            "AND c.canal IN ('PHYSIQUE','COURRIER_POSTAL') AND c.bordereau IS NULL " +
             "AND c.activeData = true AND c.deletedData = false " +
             "ORDER BY c.dateCourrier ASC")
     List<Courrier> findSortantsPretsAEmbarquer();
 
-    /** Courriers SORTANTS physiques prêts pour un destinataire homologue précis. */
-    @Query("SELECT c FROM Courrier c WHERE c.typeCourrier = 'SORTANT' AND c.canal = 'PHYSIQUE' " +
+    /** Courriers SORTANTS transportés (PHYSIQUE/COURRIER_POSTAL) prêts pour un destinataire homologue précis. */
+    @Query("SELECT c FROM Courrier c WHERE c.typeCourrier = 'SORTANT' " +
+            "AND c.canal IN ('PHYSIQUE','COURRIER_POSTAL') " +
             "AND c.bordereau IS NULL " +
             "AND c.destinataireOrganisme.organismeTrackingId = :destId " +
             "AND c.activeData = true AND c.deletedData = false " +

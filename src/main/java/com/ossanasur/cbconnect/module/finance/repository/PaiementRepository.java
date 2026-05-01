@@ -605,8 +605,17 @@ public interface PaiementRepository extends JpaRepository<Paiement, Integer> {
             @Param("sinistreTrackingId") java.util.UUID sinistreTrackingId);
 
     /**
-     * Total des paiements actifs (non-annulés) pour un sinistre donné.
-     * Utilisé pour calculer le solde disponible avant nouveau règlement.
+     * Total des paiements "leaf" (feuilles) actifs pour un sinistre donné.
+     * Une feuille = un Paiement non-annulé qui n'a aucun Paiement enfant actif
+     * (parent_code_id pointant vers lui). Cela évite de compter à la fois le RT
+     * et son RC issu, ou le RC dont une annulation existe.
+     *
+     * Cas couverts :
+     *   - RT seul (pas encore RC)  -> compté (engagé, pas encore décaissé)
+     *   - RT + RC validé           -> seul le RC est compté
+     *   - RT + RC + AN annulation  -> aucun n'est compté (AN exclu par statut,
+     *                                  RC exclu car AN est son enfant,
+     *                                  RT exclu car RC est son enfant)
      */
     @Query(nativeQuery = true, value = """
         SELECT COALESCE(SUM(p.montant), 0) FROM paiement p
@@ -614,6 +623,11 @@ public interface PaiementRepository extends JpaRepository<Paiement, Integer> {
         WHERE s.sinistre_tracking_id = :sinistreTrackingId
           AND p.statut <> 'ANNULE'
           AND p.active_data = TRUE AND p.deleted_data = FALSE
+          AND NOT EXISTS (
+              SELECT 1 FROM paiement child
+              WHERE child.parent_code_id = p.paiement_tracking_id::text
+                AND child.active_data = TRUE AND child.deleted_data = FALSE
+          )
         """)
     java.math.BigDecimal sumPaiementsActifsBySinistre(
             @Param("sinistreTrackingId") java.util.UUID sinistreTrackingId);

@@ -13,5 +13,8 @@ public record SinistrePayableResponse(
         String typeExpertise,
         LocalDate dateRapport,
         BigDecimal montantHtPropose,
+        BigDecimal fondsDisponibles,
+        BigDecimal totalEncaisse,
+        BigDecimal totalDejaPaye,
         boolean dejaPaye
 ) {}

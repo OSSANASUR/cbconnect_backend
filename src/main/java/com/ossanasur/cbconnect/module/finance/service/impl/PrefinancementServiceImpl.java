@@ -1,17 +1,12 @@
 package com.ossanasur.cbconnect.module.finance.service.impl;
 
-import com.ossanasur.cbconnect.common.enums.StatutEcritureComptable;
 import com.ossanasur.cbconnect.common.enums.StatutPrefinancement;
 import com.ossanasur.cbconnect.common.enums.TypeOperationFinanciere;
 import com.ossanasur.cbconnect.common.enums.TypeTable;
-import com.ossanasur.cbconnect.common.enums.TypeTransactionComptable;
 import com.ossanasur.cbconnect.exception.BadRequestException;
 import com.ossanasur.cbconnect.exception.RessourceNotFoundException;
 import com.ossanasur.cbconnect.module.auth.entity.Utilisateur;
 import com.ossanasur.cbconnect.module.auth.repository.UtilisateurRepository;
-import com.ossanasur.cbconnect.module.comptabilite.entity.EcritureComptable;
-import com.ossanasur.cbconnect.module.comptabilite.repository.EcritureComptableRepository;
-import com.ossanasur.cbconnect.module.comptabilite.service.ComptabiliteService;
 import com.ossanasur.cbconnect.module.finance.dto.request.AnnulerPrefinancementRequest;
 import com.ossanasur.cbconnect.module.finance.dto.request.PrefinancementCreateRequest;
 import com.ossanasur.cbconnect.module.finance.dto.request.RembourserPrefinancementRequest;
@@ -53,9 +48,7 @@ public class PrefinancementServiceImpl implements PrefinancementService {
         private final PrefinancementRemboursementRepository remboursementRepository;
         private final SinistreRepository sinistreRepository;
         private final EncaissementRepository encaissementRepository;
-        private final EcritureComptableRepository ecritureRepository;
         private final UtilisateurRepository utilisateurRepository;
-        private final ComptabiliteService comptabiliteService;
         private final NumeroOperationGenerator numeroOperationGenerator;
         private final PrefinancementMapper mapper;
         private final PaiementRepository paiementRepository;
@@ -160,11 +153,11 @@ public class PrefinancementServiceImpl implements PrefinancementService {
 
                 // Écriture comptable PREFINANCEMENT — désactivée temporairement
                 // var ecritureResp = comptabiliteService.genererEcritureAuto(
-                //                 TypeTransactionComptable.PREFINANCEMENT,
-                //                 p.getSinistre().getSinistreTrackingId(),
-                //                 p.getMontantPrefinance(),
-                //                 "Préfinancement " + p.getNumeroPrefinancement(),
-                //                 loginAuteur);
+                // TypeTransactionComptable.PREFINANCEMENT,
+                // p.getSinistre().getSinistreTrackingId(),
+                // p.getMontantPrefinance(),
+                // "Préfinancement " + p.getNumeroPrefinancement(),
+                // loginAuteur);
 
                 // EcritureComptable ecriture = ecritureRepository
                 // .findByEcritureTrackingId(ecritureResp.ecritureTrackingId())
@@ -325,11 +318,11 @@ public class PrefinancementServiceImpl implements PrefinancementService {
 
                 // Écriture comptable REMB_PREFINANCEMENT — désactivée temporairement
                 // var ecritureResp = comptabiliteService.genererEcritureAuto(
-                //                 TypeTransactionComptable.REMB_PREFINANCEMENT,
-                //                 p.getSinistre().getSinistreTrackingId(),
-                //                 request.montant(),
-                //                 "Remb. préfinancement " + p.getNumeroPrefinancement(),
-                //                 loginAuteur);
+                // TypeTransactionComptable.REMB_PREFINANCEMENT,
+                // p.getSinistre().getSinistreTrackingId(),
+                // request.montant(),
+                // "Remb. préfinancement " + p.getNumeroPrefinancement(),
+                // loginAuteur);
                 // EcritureComptable ecriture = ecritureRepository
                 // .findByEcritureTrackingId(ecritureResp.ecritureTrackingId())
                 // .orElseThrow(() -> new IllegalStateException(

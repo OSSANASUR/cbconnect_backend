@@ -97,6 +97,12 @@ public class LotReglementServiceImpl implements LotReglementService {
             java.time.LocalDate dateRapport = sinistreRepository.findDateRapportForExpert(
                     s.getHistoriqueId(), expert.getHistoriqueId());
 
+            BigDecimal totalEnc = encaissementRepository.sumMontantActifBySinistre(s.getSinistreTrackingId());
+            BigDecimal totalPay = paiementRepository.sumPaiementsActifsBySinistre(s.getSinistreTrackingId());
+            if (totalEnc == null) totalEnc = BigDecimal.ZERO;
+            if (totalPay == null) totalPay = BigDecimal.ZERO;
+            BigDecimal fondsDispo = totalEnc.subtract(totalPay);
+
             return new SinistrePayableResponse(
                     s.getSinistreTrackingId(),
                     libelle,
@@ -106,6 +112,9 @@ public class LotReglementServiceImpl implements LotReglementService {
                     typeExpertise,
                     dateRapport,
                     expert.getMontExpertise(),
+                    fondsDispo,
+                    totalEnc,
+                    totalPay,
                     dejaPaye
             );
         }).toList();
@@ -147,7 +156,7 @@ public class LotReglementServiceImpl implements LotReglementService {
             BigDecimal tva = ht.multiply(tauxTva).setScale(2, RoundingMode.HALF_UP);
             BigDecimal ttcLigne = ht.add(tva);
 
-            BigDecimal totalEncaisse = encaissementRepository.sumMontantEncaisseBySinistre(
+            BigDecimal totalEncaisse = encaissementRepository.sumMontantActifBySinistre(
                     ligne.sinistreTrackingId());
             BigDecimal totalDejaPaye = paiementRepository.sumPaiementsActifsBySinistre(
                     ligne.sinistreTrackingId());
@@ -156,10 +165,19 @@ public class LotReglementServiceImpl implements LotReglementService {
             BigDecimal fondsDispo = totalEncaisse.subtract(totalDejaPaye);
 
             if (fondsDispo.compareTo(ttcLigne) < 0) {
+                String numSin = sinistre.getNumeroSinistreLocal() != null
+                        ? sinistre.getNumeroSinistreLocal()
+                        : (sinistre.getNumeroSinistreManuel() != null
+                                ? sinistre.getNumeroSinistreManuel()
+                                : sinistre.getNumeroSinistreHomologue());
+                if (numSin == null || numSin.isBlank()) numSin = "#" + sinistre.getHistoriqueId();
+
+                BigDecimal manque = ttcLigne.subtract(fondsDispo);
                 throw new BadRequestException(String.format(
-                        "Fonds insuffisants sur le sinistre %s : disponible %s FCFA, " +
-                                "règlement requis %s FCFA",
-                        sinistre.getLibelle(), fondsDispo, ttcLigne));
+                        "Fonds insuffisants sur le sinistre %s. Solde disponible : %s FCFA " +
+                                "(encaissé : %s FCFA, déjà réglé : %s FCFA). Règlement demandé : %s FCFA. " +
+                                "Manque : %s FCFA.",
+                        numSin, fondsDispo, totalEncaisse, totalDejaPaye, ttcLigne, manque));
             }
         }
 

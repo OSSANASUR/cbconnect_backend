@@ -198,7 +198,7 @@ public class AffectationExpertServiceImpl {
                 sinistre.getNumeroSinistreLocal(),
                 sinistre.getDateAccident().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")),
                 limite,
-                expert.getTauxRetenue() != null ? expert.getTauxRetenue().toPlainString() : "0");
+                expert.getTauxRetenue() != null ? expert.getTauxRetenue().getValeur().toPlainString() : "0");
     }
 
     private String genererCorpsLettreVictime(
@@ -255,6 +255,7 @@ public class AffectationExpertServiceImpl {
                 a.getAffectationTrackingId(),
                 e.getExpertTrackingId(), e.getNomComplet(), e.getEmail(), e.getTelephone(),
                 e.getTypeExpert().name(),
+                e.getMontExpertise(), e.getTauxRetenue(),
                 v.getVictimeTrackingId(),
                 v.getPrenoms() + " " + v.getNom(),
                 null, // victimeEmail à mapper si champ existe

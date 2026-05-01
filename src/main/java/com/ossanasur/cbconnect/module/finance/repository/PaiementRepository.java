@@ -585,4 +585,65 @@ public interface PaiementRepository extends JpaRepository<Paiement, Integer> {
            "WHERE p.numeroPaiement LIKE :prefixPattern")
     long countSeqForTypeOnPaiement(@Param("prefixPattern") String prefixPattern);
 
+    /**
+     * Vrai si un paiement d'honoraires actif (statut != ANNULE) existe déjà
+     * pour ce couple (expert, sinistre). Utilisé comme guard avant création
+     * d'un règlement honoraires pour éviter le doublon.
+     */
+    @Query(nativeQuery = true, value = """
+        SELECT COUNT(*) > 0 FROM paiement p
+        JOIN sinistre s ON s.historique_id = p.sinistre_id
+        JOIN expert e ON e.historique_id = p.beneficiaire_expert_id
+        WHERE s.sinistre_tracking_id = :sinistreTrackingId
+          AND e.expert_tracking_id = :expertTrackingId
+          AND p.categorie = 'HONORAIRES'
+          AND p.statut <> 'ANNULE'
+          AND p.active_data = TRUE AND p.deleted_data = FALSE
+        """)
+    boolean existsHonorairesActifByExpertAndSinistre(
+            @Param("expertTrackingId") java.util.UUID expertTrackingId,
+            @Param("sinistreTrackingId") java.util.UUID sinistreTrackingId);
+
+    /**
+     * Total des paiements "leaf" (feuilles) actifs pour un sinistre donné.
+     * Une feuille = un Paiement non-annulé qui n'a aucun Paiement enfant actif
+     * (parent_code_id pointant vers lui). Cela évite de compter à la fois le RT
+     * et son RC issu, ou le RC dont une annulation existe.
+     *
+     * Cas couverts :
+     *   - RT seul (pas encore RC)  -> compté (engagé, pas encore décaissé)
+     *   - RT + RC validé           -> seul le RC est compté
+     *   - RT + RC + AN annulation  -> aucun n'est compté (AN exclu par statut,
+     *                                  RC exclu car AN est son enfant,
+     *                                  RT exclu car RC est son enfant)
+     */
+    @Query(nativeQuery = true, value = """
+        SELECT COALESCE(SUM(p.montant), 0) FROM paiement p
+        JOIN sinistre s ON s.historique_id = p.sinistre_id
+        WHERE s.sinistre_tracking_id = :sinistreTrackingId
+          AND p.statut <> 'ANNULE'
+          AND p.active_data = TRUE AND p.deleted_data = FALSE
+          AND NOT EXISTS (
+              SELECT 1 FROM paiement child
+              WHERE child.parent_code_id = p.paiement_tracking_id::text
+                AND child.active_data = TRUE AND child.deleted_data = FALSE
+          )
+        """)
+    java.math.BigDecimal sumPaiementsActifsBySinistre(
+            @Param("sinistreTrackingId") java.util.UUID sinistreTrackingId);
+
+    /**
+     * Renvoie tous les paiements actifs rattachés à un lot de règlement.
+     * Utilisé par LotReglementServiceImpl pour itérer sur les lignes d'un lot.
+     */
+    List<Paiement> findByLotReglement(com.ossanasur.cbconnect.module.finance.entity.LotReglement lot);
+
+    /**
+     * Renvoie les paiements d'un lot filtrés par statut.
+     * Utilisé lors de la validation comptable pour ne traiter que les RC.
+     */
+    List<Paiement> findByLotReglementAndStatut(
+            com.ossanasur.cbconnect.module.finance.entity.LotReglement lot,
+            com.ossanasur.cbconnect.common.enums.StatutPaiement statut);
+
 }

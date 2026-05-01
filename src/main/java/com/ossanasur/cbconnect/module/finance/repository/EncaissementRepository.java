@@ -36,10 +36,13 @@ public interface EncaissementRepository extends JpaRepository<Encaissement, Inte
            "ORDER BY e.dateEncaissement ASC")
     List<Encaissement> findActifsBySinistre(@Param("sid") UUID sinistreTrackingId);
 
-    @Query("SELECT COALESCE(SUM(e.montantCheque), 0) FROM Encaissement e " +
-           "WHERE e.sinistre.sinistreTrackingId = :sid " +
-           "AND e.statutCheque <> com.ossanasur.cbconnect.common.enums.StatutCheque.ANNULE " +
-           "AND e.activeData = true AND e.deletedData = false")
+    @Query(nativeQuery = true, value = """
+        SELECT COALESCE(SUM(e.montant_cheque), 0) FROM encaissement e
+        JOIN sinistre s ON s.historique_id = e.sinistre_id
+        WHERE s.sinistre_tracking_id = :sid
+          AND e.statut_cheque <> 'ANNULE'
+          AND e.active_data = TRUE AND e.deleted_data = FALSE
+        """)
     java.math.BigDecimal sumMontantActifBySinistre(@Param("sid") UUID sid);
 
     @Query("SELECT CASE WHEN COUNT(e) > 0 THEN true ELSE false END FROM Encaissement e " +

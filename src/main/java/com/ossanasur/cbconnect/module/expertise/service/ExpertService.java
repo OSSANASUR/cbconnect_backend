@@ -9,5 +9,6 @@ public interface ExpertService {
     DataResponse<ExpertResponse> update(UUID id, ExpertRequest r, String loginAuteur);
     DataResponse<ExpertResponse> getByTrackingId(UUID id);
     DataResponse<List<ExpertResponse>> getAllActifsByType(TypeExpert type);
+    DataResponse<List<ExpertResponse>> getAllActifs();
     DataResponse<Void> delete(UUID id, String loginAuteur);
 }

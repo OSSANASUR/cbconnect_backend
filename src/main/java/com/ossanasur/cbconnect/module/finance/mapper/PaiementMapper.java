@@ -12,6 +12,7 @@ import com.ossanasur.cbconnect.module.finance.dto.request.PaiementCreateRequest;
 import com.ossanasur.cbconnect.module.auth.entity.Organisme;
 import com.ossanasur.cbconnect.module.auth.entity.Utilisateur;
 import com.ossanasur.cbconnect.module.comptabilite.entity.EcritureComptable;
+import com.ossanasur.cbconnect.module.expertise.entity.Expert;
 import com.ossanasur.cbconnect.module.finance.dto.response.PaiementDetailResponse;
 
 import com.ossanasur.cbconnect.module.finance.dto.response.PaiementDetailResponse.BeneficiaireInfo;
@@ -40,7 +41,7 @@ public class PaiementMapper {
                 deriveType(p),
                 p.getParentCodeId(),
                 s != null ? s.getSinistreTrackingId() : null,
-                s != null ? s.getLibelle() : null,
+                resolveSinistreReference(s),
                 p.getBeneficiaire(),
                 p.getMontant(),
                 p.getModePaiement(),
@@ -57,7 +58,13 @@ public class PaiementMapper {
                 /* V2026042601 */
                 p.getDateEmissionCheque(),
                 p.getTypePrejudice(),
-                p.getMotifComplement());
+                p.getMotifComplement(),
+                p.getCategorie(),
+                p.getMotif(),
+                p.getMontantTtc(),
+                p.getMontantTva(),
+                p.getMontantTaxe(),
+                p.getLotReglement() != null ? p.getLotReglement().getLotTrackingId() : null);
     }
 
     @NonNull
@@ -69,7 +76,7 @@ public class PaiementMapper {
                 p.getNumeroPaiement(),
                 deriveType(p),
                 s != null ? s.getSinistreTrackingId() : null,
-                s != null ? s.getLibelle() : null,
+                resolveSinistreReference(s),
                 /* bénéficiaire */
                 p.getBeneficiaire(),
                 toBeneficiaireInfo(p),
@@ -102,7 +109,15 @@ public class PaiementMapper {
                 /* V2026042601 */
                 p.getDateEmissionCheque(),
                 p.getTypePrejudice(),
-                p.getMotifComplement());
+                p.getMotifComplement(),
+                p.getCategorie(),
+                p.getMotif(),
+                p.getBeneficiaireExpert() != null ? p.getBeneficiaireExpert().getNomComplet() : null,
+                p.getBeneficiaireExpert() != null ? p.getBeneficiaireExpert().getExpertTrackingId() : null,
+                p.getMontantTtc(),
+                p.getMontantTva(),
+                p.getMontantTaxe(),
+                p.getLotReglement() != null ? p.getLotReglement().getLotTrackingId() : null);
     }
 
     @NonNull
@@ -111,9 +126,9 @@ public class PaiementMapper {
             @NonNull Sinistre sinistre,
             @Nullable Victime victime,
             @Nullable Organisme organisme,
+            @Nullable Expert expert,
+            @NonNull String motifLibelle,
             @Nullable String createdBy) {
-
-        validateBeneficiaireXOR(victime, organisme);
 
         return Paiement.builder()
                 .paiementTrackingId(UUID.randomUUID())
@@ -139,42 +154,31 @@ public class PaiementMapper {
                 .activeData(true)
                 .deletedData(false)
                 .fromTable(TypeTable.PAIEMENT)
+                .beneficiaireExpert(expert)
+                .categorie(request.categorie())
+                .motif(motifLibelle)
                 .build();
     }
 
     @Nullable
     private BeneficiaireInfo toBeneficiaireInfo(@NonNull Paiement p) {
-        if (p.getBeneficiaireVictime() != null) {
+        if (p.getBeneficiaireVictime() != null)
             return toBeneficiaireVictime(p.getBeneficiaireVictime());
-        }
-        if (p.getBeneficiaireOrganisme() != null) {
+        if (p.getBeneficiaireOrganisme() != null)
             return toBeneficiaireOrganisme(p.getBeneficiaireOrganisme());
-        }
+        if (p.getBeneficiaireExpert() != null)
+            return toBeneficiaireExpert(p.getBeneficiaireExpert());
         return null;
     }
 
-    /**
-     * Victime → {@link BeneficiaireInfo}.
-     *
-     * <p>
-     * Le nom de la victime est lu via {@code Victime#getLibelle()} (champ
-     * hérité de {@code InternalHistorique} qui stocke le libellé d'affichage).
-     *
-     * <p>
-     * <strong>TODO :</strong> adapter si {@code Victime} expose un champ dédié
-     * (ex. {@code nom + prenom}).
-     */
+    private BeneficiaireInfo toBeneficiaireExpert(@NonNull Expert expert) {
+        return BeneficiaireInfo.ofExpert(expert.getExpertTrackingId(), expert.getNomComplet());
+    }
+
     private BeneficiaireInfo toBeneficiaireVictime(@NonNull Victime v) {
         return BeneficiaireInfo.ofVictime(v.getVictimeTrackingId(), v.getLibelle());
     }
 
-    /**
-     * Organisme → {@link BeneficiaireInfo}.
-     *
-     * <p>
-     * {@code typeOrganisme} est converti en texte via {@code name()}
-     * pour éviter une dépendance de l'énumération dans la couche DTO.
-     */
     private BeneficiaireInfo toBeneficiaireOrganisme(@NonNull Organisme o) {
         return BeneficiaireInfo.ofOrganisme(
                 o.getOrganismeTrackingId(),
@@ -228,19 +232,10 @@ public class PaiementMapper {
         return u.getUsername() != null ? u.getUsername() : u.getEmail();
     }
 
-    private void validateBeneficiaireXOR(@Nullable Victime victime,
-            @Nullable Organisme organisme) {
-        boolean hasVictime = victime != null;
-        boolean hasOrganisme = organisme != null;
-        if (hasVictime == hasOrganisme) { // les deux true OU les deux false
-            throw new IllegalArgumentException(
-                    "Exactement un bénéficiaire doit être fourni : " +
-                            "victime=" + hasVictime + ", organisme=" + hasOrganisme);
-        }
-    }
 
     /**
-     * Dérive le type d'opération financière à partir du contexte d'une ligne Paiement.
+     * Dérive le type d'opération financière à partir du contexte d'une ligne
+     * Paiement.
      * Cohérent avec la convention de génération du numero_operation et le SQL
      * de backfill (cf. spec 2026-04-28, invariant § DTOs).
      */
@@ -255,5 +250,21 @@ public class PaiementMapper {
             return TypeOperationFinanciere.REGLEMENT_COMPTABLE;
         }
         return TypeOperationFinanciere.REGLEMENT_TECHNIQUE;
+    }
+
+    /**
+     * Référence affichable du sinistre : préfère numero_sinistre_local,
+     * fallback sur manuel/homologue, puis libelle InternalHistorique.
+     */
+    @Nullable
+    private String resolveSinistreReference(@Nullable Sinistre s) {
+        if (s == null) return null;
+        if (s.getNumeroSinistreLocal() != null && !s.getNumeroSinistreLocal().isBlank())
+            return s.getNumeroSinistreLocal();
+        if (s.getNumeroSinistreManuel() != null && !s.getNumeroSinistreManuel().isBlank())
+            return s.getNumeroSinistreManuel();
+        if (s.getNumeroSinistreHomologue() != null && !s.getNumeroSinistreHomologue().isBlank())
+            return s.getNumeroSinistreHomologue();
+        return s.getLibelle();
     }
 }

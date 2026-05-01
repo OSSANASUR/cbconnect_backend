@@ -1,10 +1,14 @@
 package com.ossanasur.cbconnect.module.finance.dto.response;
 
 import com.ossanasur.cbconnect.common.enums.StatutCheque;
+
+import lombok.Builder;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 
+@Builder
 public record EncaissementResponse(
                 UUID encaissementTrackingId,
                 String numeroCheque,
@@ -17,5 +21,7 @@ public record EncaissementResponse(
                 String banqueEmettrice,
                 StatutCheque statutCheque,
                 String organismeEmetteurRaisonSociale,
-                String sinistreNumeroLocal) {
+                String sinistreNumeroLocal,
+                String chequeOrdreOrganismeNom,
+                UUID chequeOrdreOrganismeTrackingId) {
 }

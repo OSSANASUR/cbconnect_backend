@@ -19,6 +19,7 @@ public class ExpertMapper {
                 e.getEmail(), // nouveau
                 e.getTelephone(), // nouveau
                 e.getTauxRetenue(),
+                e.getMontExpertise(),
                 e.isActif(),
                 e.getPays() != null ? e.getPays().getLibelle() : null);
     }

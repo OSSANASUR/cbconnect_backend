@@ -70,4 +70,8 @@ public class Encaissement extends InternalHistorique {
     @Column(name = "reprise_historique")
     @Builder.Default
     private boolean repriseHistorique = false;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cheque_ordre_organisme_id", nullable = false)
+    private Organisme chequeOrdreOrganisme;
 }

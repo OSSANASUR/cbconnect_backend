@@ -1,5 +1,6 @@
 package com.ossanasur.cbconnect.module.auth.repository;
 
+import com.ossanasur.cbconnect.common.enums.TypeOrganisme;
 import com.ossanasur.cbconnect.module.auth.entity.Organisme;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -39,4 +40,15 @@ public interface OrganismeRepository extends JpaRepository<Organisme, Integer> {
     // historique lorsque le code assureur (ex: "SUNU BJ") ne matche aucun code
     // exact. `findFirst` car plusieurs organismes peuvent matcher (LIMIT 1).
     Optional<Organisme> findFirstByRaisonSocialeContainingIgnoreCase(String raisonSociale);
+
+    @Query("SELECT o FROM Organisme o WHERE o.typeOrganisme IN :types AND o.activeData = true AND o.deletedData = false ORDER BY o.raisonSociale ASC")
+    List<Organisme> findAllActiveByTypeIn(@Param("types") List<TypeOrganisme> types);
+
+    @Query("""
+            SELECT o FROM Organisme o
+            WHERE o.activeData = true AND o.deletedData = false
+              AND o.typeOrganisme IN :types
+            ORDER BY o.raisonSociale
+            """)
+    List<Organisme> findActifsByTypes(@Param("types") List<TypeOrganisme> types);
 }

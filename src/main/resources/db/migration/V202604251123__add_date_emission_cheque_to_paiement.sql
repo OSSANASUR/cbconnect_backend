@@ -1,1 +1,1 @@
-ALTER TABLE paiement ADD COLUMN IF NOT EXISTS date_emission_cheque DATE;
+ALTER TABLE paiement ADD COLUMN date_emission_cheque DATE;

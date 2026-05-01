@@ -2,14 +2,19 @@ package com.ossanasur.cbconnect.module.reclamation.service.impl;
 
 import com.ossanasur.cbconnect.common.enums.StatutPiece;
 import com.ossanasur.cbconnect.common.enums.StatutSinistre;
+import com.ossanasur.cbconnect.common.enums.StatutTraitementFacture;
+import com.ossanasur.cbconnect.common.enums.TypeDepenseReclamation;
 import com.ossanasur.cbconnect.common.enums.TypeDocumentOssanGed;
 import com.ossanasur.cbconnect.common.enums.TypeDommage;
+import com.ossanasur.cbconnect.common.enums.TypeTable;
 import com.ossanasur.cbconnect.common.enums.TypeVictime;
 import com.ossanasur.cbconnect.exception.RessourceNotFoundException;
 import com.ossanasur.cbconnect.module.ged.entity.OssanGedDocument;
 import com.ossanasur.cbconnect.module.ged.repository.OssanGedDocumentRepository;
 import com.ossanasur.cbconnect.module.reclamation.dto.request.AssocierDocumentRequest;
 import com.ossanasur.cbconnect.module.reclamation.dto.request.TypePieceRequest;
+import com.ossanasur.cbconnect.module.reclamation.entity.FactureReclamation;
+import com.ossanasur.cbconnect.module.reclamation.repository.FactureReclamationRepository;
 import com.ossanasur.cbconnect.module.reclamation.dto.response.MaturiteDossierResponse;
 import com.ossanasur.cbconnect.module.reclamation.dto.response.PieceDossierResponse;
 import com.ossanasur.cbconnect.module.reclamation.dto.response.TypePieceResponse;
@@ -43,6 +48,7 @@ public class PiecesAdministrativesServiceImpl implements PiecesAdministrativesSe
         private final DossierReclamationRepository dossierRepo;
         private final OssanGedDocumentRepository ossanGedDocRepo;
         private final SinistreRepository sinistreRepository;
+        private final FactureReclamationRepository factureRepo;
 
         // ── Paramétrage ───────────────────────────────────────────────
 
@@ -328,6 +334,51 @@ public class PiecesAdministrativesServiceImpl implements PiecesAdministrativesSe
                                         piece.getTypePiece().getLibelle(), dossier.getNumeroDossier(), typeDocumentGed);
                 } catch (Exception e) {
                         log.warn("[AUTO-ASSOC] Exception (dossier={}, type={}): {}",
+                                        dossierTrackingId, typeDocumentGed, e.getMessage(), e);
+                }
+        }
+
+        private static final java.util.Set<TypeDocumentOssanGed> TYPES_FACTURE = java.util.Set.of(
+                        TypeDocumentOssanGed.FACTURE_MED,
+                        TypeDocumentOssanGed.FACTURE_RECLAMATION,
+                        TypeDocumentOssanGed.FRAIS_FUNERAIRES,
+                        TypeDocumentOssanGed.FACTURE_ATTESTATION);
+
+        @Override
+        public void autoCreerFactureDepuisGed(UUID dossierTrackingId, TypeDocumentOssanGed typeDocumentGed,
+                        String titre, java.time.LocalDate dateDocument, Integer ossanGedDocumentId,
+                        String loginAuteur) {
+                if (dossierTrackingId == null || typeDocumentGed == null) return;
+                if (!TYPES_FACTURE.contains(typeDocumentGed)) return;
+                try {
+                        DossierReclamation dossier = dossierRepo.findActiveByTrackingId(dossierTrackingId)
+                                        .orElse(null);
+                        if (dossier == null) {
+                                log.warn("[AUTO-FACTURE] Dossier introuvable : {}", dossierTrackingId);
+                                return;
+                        }
+                        TypeDepenseReclamation typeDepense = switch (typeDocumentGed) {
+                                case FACTURE_MED -> TypeDepenseReclamation.CONSULTATION;
+                                case FRAIS_FUNERAIRES -> TypeDepenseReclamation.FRAIS_FUNERAIRES;
+                                default -> TypeDepenseReclamation.AUTRE;
+                        };
+                        FactureReclamation facture = FactureReclamation.builder()
+                                        .factureTrackingId(UUID.randomUUID())
+                                        .nomPrestataire(titre != null && !titre.isBlank() ? titre : "À compléter")
+                                        .typeDepense(typeDepense)
+                                        .dateFacture(dateDocument != null ? dateDocument : java.time.LocalDate.now())
+                                        .montantReclame(java.math.BigDecimal.ZERO)
+                                        .ossanGedDocumentId(ossanGedDocumentId)
+                                        .statutTraitement(StatutTraitementFacture.EN_ATTENTE)
+                                        .dossierReclamation(dossier)
+                                        .createdBy(loginAuteur).activeData(true).deletedData(false)
+                                        .fromTable(TypeTable.FACTURE_RECLAMATION)
+                                        .build();
+                        factureRepo.save(facture);
+                        log.info("[AUTO-FACTURE] ✓ FactureReclamation créée pour dossier {} via type GED {}",
+                                        dossier.getNumeroDossier(), typeDocumentGed);
+                } catch (Exception e) {
+                        log.warn("[AUTO-FACTURE] Exception (dossier={}, type={}): {}",
                                         dossierTrackingId, typeDocumentGed, e.getMessage(), e);
                 }
         }

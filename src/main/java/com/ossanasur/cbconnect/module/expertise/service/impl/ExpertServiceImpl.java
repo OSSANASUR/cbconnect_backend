@@ -30,7 +30,7 @@ public class ExpertServiceImpl implements ExpertService {
     public DataResponse<ExpertResponse> create(ExpertRequest r, String loginAuteur) {
         Expert e = Expert.builder().expertTrackingId(UUID.randomUUID())
                 .typeExpert(r.typeExpert()).nomComplet(r.nomComplet())
-                .specialite(r.specialite()).nif(r.nif()).tauxRetenue(r.tauxRetenue()).actif(r.actif())
+                .specialite(r.specialite()).nif(r.nif()).tauxRetenue(r.tauxRetenue()).montExpertise(r.montExpertise()).actif(r.actif())
                 .createdBy(loginAuteur).activeData(true).deletedData(false).fromTable(TypeTable.EXPERT)
                 .build();
         if (r.paysTrackingId() != null)
@@ -55,6 +55,13 @@ public class ExpertServiceImpl implements ExpertService {
     @Transactional(readOnly = true)
     public DataResponse<List<ExpertResponse>> getAllActifsByType(TypeExpert type) {
         return DataResponse.success(expertRepository.findAllActifsByType(type).stream().map(expertMapper::toResponse)
+                .collect(Collectors.toList()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DataResponse<List<ExpertResponse>> getAllActifs() {
+        return DataResponse.success(expertRepository.findAllActifs().stream().map(expertMapper::toResponse)
                 .collect(Collectors.toList()));
     }
 

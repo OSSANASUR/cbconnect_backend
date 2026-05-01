@@ -62,13 +62,13 @@ class PaiementServiceImplGuardIntegrationTest {
         doThrow(new BadRequestException("aucun encaissement"))
                 .when(guardService).verifierRegleA(SID);
 
-        // PaiementCreateRequest: sinistreTrackingId, beneficiaire,
-        // beneficiaireVictimeTrackingId, beneficiaireOrganismeTrackingId,
-        // montant, typePrejudice, motifComplement
         var req = new PaiementCreateRequest(SID, "Bénéf",
                 null, null,
                 new BigDecimal("100000"),
-                null, null);
+                null, null,
+                null,
+                com.ossanasur.cbconnect.common.enums.CategorieReglement.PRINCIPAL,
+                "Motif test");
 
         assertThatThrownBy(() -> service.creer(req, "user1"))
                 .isInstanceOf(BadRequestException.class)

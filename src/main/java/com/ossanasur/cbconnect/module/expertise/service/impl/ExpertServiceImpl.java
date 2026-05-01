@@ -59,6 +59,13 @@ public class ExpertServiceImpl implements ExpertService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public DataResponse<List<ExpertResponse>> getAllActifs() {
+        return DataResponse.success(expertRepository.findAllActifs().stream().map(expertMapper::toResponse)
+                .collect(Collectors.toList()));
+    }
+
+    @Override
     @Transactional
     public DataResponse<Void> delete(UUID id, String loginAuteur) {
         versioningService.softDelete(id, loginAuteur);

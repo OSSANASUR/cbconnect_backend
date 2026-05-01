@@ -9,18 +9,36 @@ public class OrganismeMapper {
     public OrganismeResponse toResponse(Organisme o) {
         if (o == null)
             return null;
-        return new OrganismeResponse(
-                o.getOrganismeTrackingId(), o.getTypeOrganisme(), o.getRaisonSociale(),
-                o.getCode(), o.getEmail(), o.getResponsable(), o.getContacts(),
-                o.getCodePays(), o.getCodePaysBCB(), o.getPaysId(),
-                o.getAdresse(), o.getBoitePostale(), o.getVille(),
-                o.getDateCreation(), o.getNumeroAgrement(), o.getApiEndpointUrl(),
-                o.isActive(), o.isTwoFactorEnabled(), o.getCreatedAt(), o.getTelephonePrincipal(), o.getFax(),
-                o.getSiteWeb(),
-                o.getLogo(),
-                o.getHeaderImageUrl(), o.getFooterImageUrl(),
-                o.getTitreResponsable(),
-                o.isAfficherDeuxSignatures(),
-                o.getResponsable2(), o.getTitreResponsable2());
+
+        return OrganismeResponse.builder()
+                .organismeTrackingId(o.getOrganismeTrackingId())
+                .raisonSociale(o.getRaisonSociale())
+                .code(o.getCode())
+                .email(o.getEmail())
+                .responsable(o.getResponsable())
+                .contacts(o.getContacts())
+                .codePays(o.getCodePays())
+                .paysId(o.getPaysId())
+                .adresse(o.getAdresse())
+                .boitePostale(o.getBoitePostale())
+                .ville(o.getVille())
+                .dateCreation(o.getDateCreation())
+                .numeroAgrement(o.getNumeroAgrement())
+                .apiEndpointUrl(o.getApiEndpointUrl())
+                .active(o.isActive())
+                .twoFactorEnabled(o.isTwoFactorEnabled())
+                .createdAt(o.getCreatedAt())
+                .telephonePrincipal(o.getTelephonePrincipal())
+                .fax(o.getFax())
+                .siteWeb(o.getSiteWeb())
+                .logo(o.getLogo())
+                .headerImageUrl(o.getHeaderImageUrl())
+                .footerImageUrl(o.getFooterImageUrl())
+                .titreResponsable(o.getTitreResponsable())
+                .afficherDeuxSignatures(o.isAfficherDeuxSignatures())
+                .responsable2(o.getResponsable2())
+                .titreResponsable2(o.getTitreResponsable2())
+                .build();
+
     }
 }

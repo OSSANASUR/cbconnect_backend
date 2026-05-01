@@ -17,6 +17,7 @@ public interface TokenRepository extends JpaRepository<Token, Integer> {
 
     boolean existsTokenByAccessTokenOrRefreshToken(String at, String rt);
 
+    @Transactional(readOnly = true)
     @Query("SELECT COUNT(t) > 0 FROM Token t WHERE (t.accessToken = :token OR t.refreshToken = :token) AND t.isValid = true")
     boolean existsActiveToken(@Param("token") String token);
 

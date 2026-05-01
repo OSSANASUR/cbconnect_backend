@@ -31,6 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -174,8 +175,55 @@ public class SinistreServiceImpl implements SinistreService {
     @Transactional(readOnly = true)
     public PaginatedResponse<SinistreResponse> getAll(int page, int size) {
         return PaginatedResponse.fromPage(sinistreRepository.findAllActive(
-                PageRequest.of(page, size, Sort.by("dateDeclaration").descending()))
+                PageRequest.of(normalizePage(page), normalizeSize(size), Sort.by("dateDeclaration").descending()))
                 .map(sinistreMapper::toResponse), "Liste des sinistres");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaginatedResponse<SinistreResponse> getAllFiltered(
+            String search, String statut, String positionRc, String rcPct, String litige,
+            LocalDate dateDebut, LocalDate dateFin, int page, int size) {
+        String q = search == null ? null : search.trim();
+        StatutSinistre statutEnum = parseEnum(StatutSinistre.class, statut, "Statut invalide");
+        boolean rcManquante = "MANQUANTE".equalsIgnoreCase(positionRc);
+        PositionRc positionRcEnum = rcManquante ? null : parseEnum(PositionRc.class, positionRc, "Position RC invalide");
+        String rcPctValue = normalizeBlank(rcPct);
+        String litigeValue = normalizeBlank(litige);
+
+        List<StatutSinistre> statutsRcAttendue = List.of(
+                StatutSinistre.ATTENTE_RC,
+                StatutSinistre.ATTENTE_PIECES_DE_RECLAMATION,
+                StatutSinistre.MUR,
+                StatutSinistre.OFFRE_EFFECTUE,
+                StatutSinistre.ATTENTE_OFFRE,
+                StatutSinistre.OFFRE_RECUE,
+                StatutSinistre.ACCORD,
+                StatutSinistre.REJET,
+                StatutSinistre.BAP,
+                StatutSinistre.ATTENTE_CHEQUE,
+                StatutSinistre.CHEQUE_RECU,
+                StatutSinistre.PARTIELLEMENT_PAYE);
+        List<StatutSinistre> statutsLitige = List.of(StatutSinistre.CONTENTIEUX, StatutSinistre.ARBITRAGE);
+
+        return PaginatedResponse.fromPage(
+                sinistreRepository.findAllFiltered(
+                        q,
+                        statutEnum,
+                        positionRcEnum,
+                        rcManquante,
+                        rcPctValue,
+                        litigeValue,
+                        dateDebut,
+                        dateFin,
+                        statutsRcAttendue,
+                        statutsLitige,
+                        StatutSinistre.CONTENTIEUX,
+                        StatutSinistre.ARBITRAGE,
+                        PositionRc.TRANCHEE,
+                        PageRequest.of(normalizePage(page), normalizeSize(size), Sort.by("dateDeclaration").descending()))
+                        .map(sinistreMapper::toResponse),
+                "Liste des sinistres");
     }
 
     @Override
@@ -188,9 +236,32 @@ public class SinistreServiceImpl implements SinistreService {
         }
         return PaginatedResponse.fromPage(
                 sinistreRepository.search(query.trim(),
-                        PageRequest.of(page, Math.min(Math.max(size, 1), 50)))
+                        PageRequest.of(normalizePage(page), normalizeSize(size)))
                         .map(sinistreMapper::toResponse),
                 "Résultats recherche sinistre");
+    }
+
+    private int normalizePage(int page) {
+        return Math.max(page, 0);
+    }
+
+    private int normalizeSize(int size) {
+        return Math.min(Math.max(size, 1), 100);
+    }
+
+    private String normalizeBlank(String value) {
+        if (value == null || value.isBlank()) return null;
+        return value.trim();
+    }
+
+    private <E extends Enum<E>> E parseEnum(Class<E> enumType, String value, String message) {
+        String v = normalizeBlank(value);
+        if (v == null) return null;
+        try {
+            return Enum.valueOf(enumType, v);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException(message + " : " + value);
+        }
     }
 
     @Override

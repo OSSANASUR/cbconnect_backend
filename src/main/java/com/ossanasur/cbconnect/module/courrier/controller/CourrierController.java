@@ -31,6 +31,10 @@ public class CourrierController {
     @Operation(summary="Courriers en attente de traitement")
     public ResponseEntity<DataResponse<List<CourrierResponse>>> getNonTraites() {
         return ResponseEntity.ok(courrierService.getNonTraites()); }
+    @GetMapping @PreAuthorize("hasAnyRole('SE','CSS','SECRETAIRE','REDACTEUR')")
+    @Operation(summary="Liste de tous les courriers actifs (entrants + sortants)")
+    public ResponseEntity<DataResponse<List<CourrierResponse>>> getAll() {
+        return ResponseEntity.ok(courrierService.getAll()); }
     @PatchMapping("/{id}/traiter") @PreAuthorize("hasAnyRole('SE','CSS','SECRETAIRE','REDACTEUR')")
     public ResponseEntity<DataResponse<Void>> traiter(@PathVariable UUID id, @AuthenticationPrincipal UserDetails u) {
         return ResponseEntity.ok(courrierService.marquerTraite(id, u.getUsername())); }

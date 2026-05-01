@@ -8,6 +8,7 @@ import com.ossanasur.cbconnect.module.sinistre.dto.response.EncaissementStatusRe
 import com.ossanasur.cbconnect.module.sinistre.dto.response.SinistreResponse;
 import com.ossanasur.cbconnect.utils.DataResponse;
 import com.ossanasur.cbconnect.utils.PaginatedResponse;
+import java.time.LocalDate;
 import java.util.UUID;
 
 public interface SinistreService {
@@ -18,6 +19,17 @@ public interface SinistreService {
     DataResponse<SinistreResponse> getByTrackingId(UUID id);
 
     PaginatedResponse<SinistreResponse> getAll(int page, int size);
+
+    PaginatedResponse<SinistreResponse> getAllFiltered(
+        String search,
+        String statut,
+        String positionRc,
+        String rcPct,
+        String litige,
+        LocalDate dateDebut,
+        LocalDate dateFin,
+        int page,
+        int size);
 
     PaginatedResponse<SinistreResponse> search(String query, int page, int size);
 

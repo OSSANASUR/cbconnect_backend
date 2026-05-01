@@ -214,6 +214,10 @@ public class OssanGedClientServiceImpl implements OssanGedClientService {
                 piecesService.autoAssocierParTypeDocument(
                         dr.getDossierTrackingId(), r.typeDocument(),
                         doc.getOssanGedDocumentTrackingId(), loginAuteur);
+                piecesService.autoCreerFactureDepuisGed(
+                        dr.getDossierTrackingId(), r.typeDocument(),
+                        r.titre(), r.dateDocument(),
+                        upload.documentId(), loginAuteur);
             } else {
                 log.warn("[AUTO-ASSOC] Ignoré — dr null (victimeTrackingId={}). "
                         + "Sélectionner une victime dans le GedUploader pour activer l'auto-association.",

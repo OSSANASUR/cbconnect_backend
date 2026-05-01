@@ -8,6 +8,7 @@ public interface CourrierService {
     DataResponse<CourrierResponse> getByTrackingId(UUID id);
     DataResponse<List<CourrierResponse>> getBySinistre(UUID sinistreId);
     DataResponse<List<CourrierResponse>> getNonTraites();
+    DataResponse<List<CourrierResponse>> getAll();
     DataResponse<Void> marquerTraite(UUID id, String loginAuteur);
     DataResponse<Void> supprimer(UUID id, String loginAuteur);
 }

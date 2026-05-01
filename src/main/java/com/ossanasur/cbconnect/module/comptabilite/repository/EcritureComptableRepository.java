@@ -23,6 +23,6 @@ public interface EcritureComptableRepository extends JpaRepository<EcritureCompt
     Page<EcritureComptable> findByPeriode(@Param("debut") LocalDate debut, @Param("fin") LocalDate fin,
             Pageable pageable);
 
-    @Query("SELECT COALESCE(MAX(CAST(SUBSTRING(e.numeroEcriture, 9) AS int)),0) FROM EcritureComptable e WHERE e.numeroEcriture LIKE CONCAT('ECR-', :annee, '-%')")
+    @Query("SELECT COALESCE(MAX(CAST(SUBSTRING(e.numeroEcriture, 10) AS int)),0) FROM EcritureComptable e WHERE e.numeroEcriture LIKE CONCAT('ECR-', :annee, '-%')")
     long findMaxSeq(@Param("annee") int annee);
 }

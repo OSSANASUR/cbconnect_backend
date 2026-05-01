@@ -47,11 +47,19 @@ public class CourrierServiceImpl implements CourrierService {
     @Transactional
     public DataResponse<CourrierResponse> enregistrer(CourrierRequest r, String loginAuteur) {
 
-        // Numérotation auto si non fournie : LKS/AAAA/NNNNN (sortant) ou ENT/AAAA/NNNNN (entrant)
+        // Numérotation auto si non fournie : <INITIALES>/AAAA/NNNNN (sortant) ou ENT/AAAA/NNNNN (entrant)
+        // Les initiales sont celles du rédacteur connecté (ex: J. Dupont → JD).
         String ref = r.referenceCourrier();
         if (ref == null || ref.isBlank()) {
             long seq = courrierRepository.count() + 1;
-            String sens = TypeCourrier.SORTANT.equals(r.typeCourrier()) ? "LKS" : "ENT";
+            String sens;
+            if (TypeCourrier.SORTANT.equals(r.typeCourrier())) {
+                sens = utilisateurRepository.findByEmailAndActiveDataTrueAndDeletedDataFalse(loginAuteur)
+                    .map(u -> initialesDe(u.getPrenoms(), u.getNom()))
+                    .orElse("LKS");
+            } else {
+                sens = "ENT";
+            }
             ref = sens + "/" + LocalDate.now().getYear() + "/" + String.format("%05d", seq);
         }
 
@@ -147,6 +155,13 @@ public class CourrierServiceImpl implements CourrierService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public DataResponse<List<CourrierResponse>> getAll() {
+        return DataResponse.success(courrierRepository.findAllActive().stream()
+            .map(mapper::toResponse).collect(Collectors.toList()));
+    }
+
+    @Override
     @Transactional
     public DataResponse<Void> marquerTraite(UUID id, String loginAuteur) {
         Courrier c = courrierRepository.findActiveByTrackingId(id)
@@ -169,5 +184,13 @@ public class CourrierServiceImpl implements CourrierService {
         c.setDeletedBy(loginAuteur);
         courrierRepository.save(c);
         return DataResponse.success("Courrier supprimé", null);
+    }
+
+    private static String initialesDe(String prenoms, String nom) {
+        StringBuilder sb = new StringBuilder();
+        if (prenoms != null && !prenoms.isBlank()) sb.append(Character.toUpperCase(prenoms.trim().charAt(0)));
+        if (nom != null && !nom.isBlank()) sb.append(Character.toUpperCase(nom.trim().charAt(0)));
+        String out = sb.toString();
+        return out.isBlank() ? "LKS" : out;
     }
 }

@@ -117,6 +117,55 @@ public interface DossierReclamationRepository extends JpaRepository<DossierRecla
 
 
     /**
+     * Détail des dossiers — TOGO vers HOMOLOGUES (sinistres ET = SURVENU_TOGO).
+     * Filtre optionnel par code pays émetteur (:codePays = null → tous les pays).
+     *
+     * Colonnes :
+     * [0] pays_libelle  [1] code_pays  [2] compagnie_homologue
+     * [3] numero_dossier [4] date_accident
+     * [5] sin_bncb_tg   [6] sin_bncb_partenaire  [7] sin_assureur_partenaire
+     * [8] assure         [9] victime
+     * [10] montant_reclame  [11] montant_retenu
+     * [12] statut_reclamation  [13] observations  [14] assureur_tg
+     */
+    @Query(value = """
+            SELECT
+                p.libelle                                                           AS pays_libelle,
+                p.code_carte_brune                                                 AS code_pays,
+                COALESCE(oh.raison_sociale, 'INCONNU')                             AS compagnie_homologue,
+                d.numero_dossier                                                   AS numero_dossier,
+                s.date_accident                                                    AS date_accident,
+                s.numero_sinistre_local                                            AS sin_bncb_tg,
+                s.numero_sinistre_homologue                                        AS sin_bncb_partenaire,
+                s.numero_sinistre_assureur                                         AS sin_assureur_partenaire,
+                COALESCE(a.nom_complet, '')                                        AS assure,
+                TRIM(CONCAT(COALESCE(v.nom, ''), ' ', COALESCE(v.prenoms, '')))    AS victime,
+                d.montant_total_reclame                                            AS montant_reclame,
+                d.montant_total_retenu                                             AS montant_retenu,
+                COALESCE(d.statut_reclamation, 'AUTRES')                           AS statut_reclamation,
+                d.notes_redacteur                                                  AS observations,
+                COALESCE(om.raison_sociale, 'INCONNU')                             AS assureur_tg
+            FROM dossier_reclamation d
+            JOIN sinistre s ON s.historique_id = d.sinistre_id
+                AND s.type_sinistre = 'SURVENU_TOGO'
+                AND s.active_data   = TRUE AND s.deleted_data = FALSE
+            JOIN pays p ON p.historique_id = s.pays_emetteur_id
+            LEFT JOIN assure a ON a.historique_id = s.assure_id
+                AND a.active_data = TRUE AND a.deleted_data = FALSE
+            LEFT JOIN victime v ON v.historique_id = d.victime_id
+                AND v.active_data = TRUE AND v.deleted_data = FALSE
+            LEFT JOIN organisme oh ON oh.historique_id = s.organisme_homologue_id
+                AND oh.active_data  = TRUE AND oh.deleted_data = FALSE
+            LEFT JOIN organisme om ON om.historique_id = s.organisme_membre_id
+                AND om.active_data  = TRUE AND om.deleted_data = FALSE
+            WHERE d.deleted_data     = FALSE
+              AND d.active_data      = TRUE
+              AND (:codePays IS NULL OR p.code_carte_brune = :codePays)
+            ORDER BY p.libelle, COALESCE(oh.raison_sociale, 'INCONNU'), d.numero_dossier
+            """, nativeQuery = true)
+    List<Object[]> detailReclamationTogoVersHomologues(@Param("codePays") String codePays);
+
+    /**
      * Liste paginée de tous les dossiers actifs avec filtres optionnels.
      * @param statut  null = tous statuts
      * @param search  recherche insensible à la casse sur : numeroDossier, numéro sinistre, nom victime

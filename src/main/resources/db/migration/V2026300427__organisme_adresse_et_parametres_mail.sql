@@ -3,9 +3,9 @@
 -- coordonnees du BNCB emetteur affichees dans le pied de page des mails.
 
 ALTER TABLE organisme
-    ADD COLUMN adresse        VARCHAR(255),
-    ADD COLUMN boite_postale  VARCHAR(50),
-    ADD COLUMN ville          VARCHAR(100);
+    ADD COLUMN IF NOT EXISTS adresse        VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS boite_postale  VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS ville          VARCHAR(100);
 
 INSERT INTO parametre (parametre_tracking_id, type_parametre, cle, valeur, description, created_at, created_by, active_data, deleted_data) VALUES
   (gen_random_uuid(), 'MAIL',   'MAIL_FOOTER_ORGANISME',         'Carte Brune CEDEAO — Bureau National Togo',                                'Nom affiche dans le pied de page des mails',                NOW(), 'SYSTEM', true, false),

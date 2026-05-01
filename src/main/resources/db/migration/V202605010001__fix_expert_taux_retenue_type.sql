@@ -1,4 +1,9 @@
--- No-op : cette migration tentait de re-convertir expert.taux_retenue en NUMERIC,
--- ce qui est incompatible avec l'entité Java (enum TauxRetenue stocké en VARCHAR(30)).
--- La colonne reste VARCHAR(30) tel que défini par V202604301005.
-SELECT 1;
+ALTER TABLE expert ALTER COLUMN taux_retenue DROP DEFAULT;
+ALTER TABLE expert ALTER COLUMN taux_retenue DROP NOT NULL;
+ALTER TABLE expert
+    ALTER COLUMN taux_retenue TYPE NUMERIC(5,2)
+    USING CASE
+        WHEN taux_retenue IS NULL OR taux_retenue = '' THEN NULL
+        WHEN taux_retenue ~ '^-?[0-9]+(\.[0-9]+)?$' THEN taux_retenue::NUMERIC(5,2)
+        ELSE NULL
+    END;

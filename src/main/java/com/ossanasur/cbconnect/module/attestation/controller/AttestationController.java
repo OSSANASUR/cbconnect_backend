@@ -108,6 +108,13 @@ public class AttestationController {
     public ResponseEntity<DataResponse<LotResponse>> getLot(@PathVariable UUID lotId) {
         return ResponseEntity.ok(attestationService.getLot(lotId)); }
 
+    @PutMapping("/lots/{lotId}")
+    @PreAuthorize("hasAnyRole('SE','COMPTABLE')")
+    @Operation(summary="Modifier un lot d'approvisionnement")
+    public ResponseEntity<DataResponse<LotResponse>> modifierLot(
+            @PathVariable UUID lotId, @Valid @RequestBody LotRequest r, @AuthenticationPrincipal UserDetails u) {
+        return ResponseEntity.ok(attestationService.modifierLot(lotId, r, u.getUsername())); }
+
     // ============== CHÈQUES ==============
     @PostMapping("/cheques")
     @PreAuthorize("hasAnyRole('SE','CSS','COMPTABLE')")

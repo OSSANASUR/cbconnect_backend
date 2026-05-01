@@ -25,6 +25,9 @@ public class LotReglement extends InternalHistorique {
     @Column(name = "lot_tracking_id", unique = true)
     private UUID lotTrackingId;
 
+    @Column(name = "numero_lot", nullable = false, length = 30, unique = true, updatable = false)
+    private String numeroLot;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "expert_id", nullable = false)
     private Expert expert;

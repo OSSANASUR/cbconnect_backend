@@ -19,6 +19,7 @@ public class LotReglementMapper {
         Expert e = lot.getExpert();
         return new LotReglementResponse(
                 lot.getLotTrackingId(),
+                lot.getNumeroLot(),
                 e != null ? e.getExpertTrackingId() : null,
                 e != null ? e.getNomComplet() : null,
                 lot.getTauxRetenue(),

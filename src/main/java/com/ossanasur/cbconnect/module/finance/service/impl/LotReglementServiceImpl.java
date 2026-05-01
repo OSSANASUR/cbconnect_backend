@@ -43,6 +43,7 @@ public class LotReglementServiceImpl implements LotReglementService {
     private final ExpertRepository expertRepository;
     private final SinistreRepository sinistreRepository;
     private final PaiementRepository paiementRepository;
+    private final com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository encaissementRepository;
     private final LotReglementMapper lotMapper;
     private final EncaissementGuardService guardService;
     private final ParamMotifServiceImpl paramMotifService;
@@ -122,7 +123,12 @@ public class LotReglementServiceImpl implements LotReglementService {
             throw new BadRequestException("Au moins un sinistre doit être sélectionné");
         }
 
-        // 1. Pré-validation
+        // 2. Calculs et création du lot
+        BigDecimal tauxTva = expert.getPays() != null && expert.getPays().getTauxTva() != null
+                ? expert.getPays().getTauxTva()
+                : new BigDecimal("0.18");
+
+        // 1. Pré-validation : RÈGLE A + pas de doublon HONORAIRES + fonds suffisants
         for (var ligne : req.lignes()) {
             Sinistre sinistre = sinistreRepository.findActiveByTrackingId(ligne.sinistreTrackingId())
                     .orElseThrow(() -> new RessourceNotFoundException(
@@ -135,19 +141,40 @@ public class LotReglementServiceImpl implements LotReglementService {
                 throw new BadRequestException(
                         "Un règlement HONORAIRES actif existe déjà sur le sinistre " + sinistre.getLibelle());
             }
-        }
 
-        // 2. Calculs et création du lot
-        BigDecimal tauxTva = expert.getPays() != null && expert.getPays().getTauxTva() != null
-                ? expert.getPays().getTauxTva()
-                : new BigDecimal("0.18");
+            // Contrôle solde : fonds_dispo = encaissements ENCAISSE - paiements actifs
+            BigDecimal ht = ligne.montantHt();
+            BigDecimal tva = ht.multiply(tauxTva).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal ttcLigne = ht.add(tva);
+
+            BigDecimal totalEncaisse = encaissementRepository.sumMontantEncaisseBySinistre(
+                    ligne.sinistreTrackingId());
+            BigDecimal totalDejaPaye = paiementRepository.sumPaiementsActifsBySinistre(
+                    ligne.sinistreTrackingId());
+            if (totalEncaisse == null) totalEncaisse = BigDecimal.ZERO;
+            if (totalDejaPaye == null) totalDejaPaye = BigDecimal.ZERO;
+            BigDecimal fondsDispo = totalEncaisse.subtract(totalDejaPaye);
+
+            if (fondsDispo.compareTo(ttcLigne) < 0) {
+                throw new BadRequestException(String.format(
+                        "Fonds insuffisants sur le sinistre %s : disponible %s FCFA, " +
+                                "règlement requis %s FCFA",
+                        sinistre.getLibelle(), fondsDispo, ttcLigne));
+            }
+        }
 
         String motifLibelle = paramMotifService.resolveLibelleByLibelleAndType(
                 libelleMotifPourTypeExpert(expert.getTypeExpert()),
                 TypeMotif.REGLEMENT);
 
+        // Numéro lot : LT{seq:03d}/{yyyy} avec séquence annuelle globale
+        int annee = LocalDate.now().getYear();
+        long countAnnee = lotRepository.countByYear(annee);
+        String numeroLot = String.format("LT%03d/%d", countAnnee + 1, annee);
+
         LotReglement lot = LotReglement.builder()
                 .lotTrackingId(UUID.randomUUID())
+                .numeroLot(numeroLot)
                 .expert(expert)
                 .tauxRetenue(req.tauxRetenue())
                 .statut(StatutLotReglement.EMIS)
@@ -161,7 +188,7 @@ public class LotReglementServiceImpl implements LotReglementService {
                 .createdBy(loginAuteur)
                 .createdAt(LocalDateTime.now())
                 .build();
-        lot = lotRepository.save(lot);
+        lot = lotRepository.saveAndFlush(lot);
 
         // 3. Création des N paiements
         BigDecimal totalTtc = BigDecimal.ZERO;

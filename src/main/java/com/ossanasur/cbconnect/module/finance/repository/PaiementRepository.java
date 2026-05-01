@@ -590,16 +590,32 @@ public interface PaiementRepository extends JpaRepository<Paiement, Integer> {
      * pour ce couple (expert, sinistre). Utilisé comme guard avant création
      * d'un règlement honoraires pour éviter le doublon.
      */
-    @Query("""
-        SELECT COUNT(p) > 0 FROM Paiement p
-        WHERE p.sinistre.sinistreTrackingId = :sinistreTrackingId
-          AND p.beneficiaireExpert.expertTrackingId = :expertTrackingId
-          AND p.categorie = com.ossanasur.cbconnect.common.enums.CategorieReglement.HONORAIRES
-          AND p.statut <> com.ossanasur.cbconnect.common.enums.StatutPaiement.ANNULE
-          AND p.activeData = true AND p.deletedData = false
+    @Query(nativeQuery = true, value = """
+        SELECT COUNT(*) > 0 FROM paiement p
+        JOIN sinistre s ON s.historique_id = p.sinistre_id
+        JOIN expert e ON e.historique_id = p.beneficiaire_expert_id
+        WHERE s.sinistre_tracking_id = :sinistreTrackingId
+          AND e.expert_tracking_id = :expertTrackingId
+          AND p.categorie = 'HONORAIRES'
+          AND p.statut <> 'ANNULE'
+          AND p.active_data = TRUE AND p.deleted_data = FALSE
         """)
     boolean existsHonorairesActifByExpertAndSinistre(
             @Param("expertTrackingId") java.util.UUID expertTrackingId,
+            @Param("sinistreTrackingId") java.util.UUID sinistreTrackingId);
+
+    /**
+     * Total des paiements actifs (non-annulés) pour un sinistre donné.
+     * Utilisé pour calculer le solde disponible avant nouveau règlement.
+     */
+    @Query(nativeQuery = true, value = """
+        SELECT COALESCE(SUM(p.montant), 0) FROM paiement p
+        JOIN sinistre s ON s.historique_id = p.sinistre_id
+        WHERE s.sinistre_tracking_id = :sinistreTrackingId
+          AND p.statut <> 'ANNULE'
+          AND p.active_data = TRUE AND p.deleted_data = FALSE
+        """)
+    java.math.BigDecimal sumPaiementsActifsBySinistre(
             @Param("sinistreTrackingId") java.util.UUID sinistreTrackingId);
 
     /**

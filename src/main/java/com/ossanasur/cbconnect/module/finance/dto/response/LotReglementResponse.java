@@ -11,6 +11,7 @@ import java.util.UUID;
 
 public record LotReglementResponse(
         UUID lotTrackingId,
+        String numeroLot,
         UUID expertTrackingId,
         String expertNomComplet,
         TauxRetenue tauxRetenue,

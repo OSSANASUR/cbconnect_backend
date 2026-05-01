@@ -1,7 +1,5 @@
 package com.ossanasur.cbconnect.module.finance.repository;
 
-import com.ossanasur.cbconnect.common.enums.StatutLotReglement;
-import com.ossanasur.cbconnect.module.expertise.entity.Expert;
 import com.ossanasur.cbconnect.module.finance.entity.LotReglement;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -16,22 +14,35 @@ import java.util.UUID;
 @Repository
 public interface LotReglementRepository extends JpaRepository<LotReglement, Integer> {
 
-    @Query("""
-        SELECT l FROM LotReglement l
-        WHERE l.lotTrackingId = :id
-          AND l.activeData = true AND l.deletedData = false
+    @Query(nativeQuery = true, value = """
+        SELECT * FROM lot_reglement
+        WHERE lot_tracking_id = :id
+          AND active_data = TRUE AND deleted_data = FALSE
         """)
     Optional<LotReglement> findActiveByTrackingId(@Param("id") UUID id);
 
-    @Query("""
-        SELECT l FROM LotReglement l
-        WHERE (:expert IS NULL OR l.expert = :expert)
-          AND (:statut IS NULL OR l.statut = :statut)
-          AND l.activeData = true AND l.deletedData = false
-        ORDER BY l.createdAt DESC
-        """)
+    @Query(nativeQuery = true,
+        value = """
+            SELECT * FROM lot_reglement
+            WHERE (CAST(:expertId AS INTEGER) IS NULL OR expert_id = :expertId)
+              AND (CAST(:statut AS VARCHAR) IS NULL OR statut = :statut)
+              AND active_data = TRUE AND deleted_data = FALSE
+            ORDER BY created_at DESC
+            """,
+        countQuery = """
+            SELECT COUNT(*) FROM lot_reglement
+            WHERE (CAST(:expertId AS INTEGER) IS NULL OR expert_id = :expertId)
+              AND (CAST(:statut AS VARCHAR) IS NULL OR statut = :statut)
+              AND active_data = TRUE AND deleted_data = FALSE
+            """)
     Page<LotReglement> findActiveFiltered(
-            @Param("expert") Expert expert,
-            @Param("statut") StatutLotReglement statut,
+            @Param("expertId") Integer expertId,
+            @Param("statut") String statut,
             Pageable pageable);
+
+    @Query(nativeQuery = true, value = """
+        SELECT COUNT(*) FROM lot_reglement
+        WHERE EXTRACT(YEAR FROM created_at) = :annee
+        """)
+    long countByYear(@Param("annee") int annee);
 }

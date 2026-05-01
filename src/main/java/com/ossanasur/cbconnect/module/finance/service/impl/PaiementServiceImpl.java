@@ -106,8 +106,7 @@ public class PaiementServiceImpl implements PaiementService {
 
                 beneficiaireValidator.valider(request.categorie(), sinistre, victime, organisme, expert);
 
-                String motifLibelle = paramMotifService.resolveLibelleForSnapshot(
-                                request.paramMotifTrackingId(), TypeMotif.REGLEMENT);
+                String motifLibelle = request.motif();
 
                 Paiement paiement = mapper.toNewEntity(request, sinistre, victime, organisme, expert, motifLibelle,
                                 loginAuteur);
@@ -298,8 +297,7 @@ public class PaiementServiceImpl implements PaiementService {
 
                 Paiement parent = findActiveOrThrow(paiementTrackingId);
 
-                String motifLibelle = paramMotifService.resolveLibelleForSnapshot(
-                                request.paramMotifTrackingId(), TypeMotif.ANNULATION);
+                String motifLibelle = request.motif();
 
                 // Garde-fou : un règlement déjà annulé (ligne AN existante pointant vers lui)
                 // ne peut pas l'être à nouveau

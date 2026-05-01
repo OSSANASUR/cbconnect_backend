@@ -1,5 +1,6 @@
 package com.ossanasur.cbconnect.module.finance.dto.request;
 
+import com.ossanasur.cbconnect.common.enums.CategorieReglement;
 import com.ossanasur.cbconnect.common.enums.TypePrejudice;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
@@ -18,11 +19,20 @@ public record PaiementCreateRequest(
 
         @NotNull(message = "Le type de préjudice est obligatoire") TypePrejudice typePrejudice,
 
-        @Size(max = 255, message = "Le motif complémentaire ne peut pas dépasser 255 caractères") String motifComplement
+        @Size(max = 255, message = "Le motif complémentaire ne peut pas dépasser 255 caractères") String motifComplement,
+
+        UUID beneficiaireExpertTrackingId,
+
+        @NotNull CategorieReglement categorie,
+
+        @NotBlank @Size(max = 150) String motif
 
 ) {
-    @AssertTrue(message = "Exactement un bénéficiaire doit être renseigné : victime OU organisme, pas les deux")
-    public boolean isBeneficiaireXOR() {
-        return (beneficiaireVictimeTrackingId != null) ^ (beneficiaireOrganismeTrackingId != null);
+    @AssertTrue(message = "Exactement un bénéficiaire doit être renseigné : Victime, Organisme ou Expert")
+    public boolean isBeneficiaireUnique() {
+        int renseignes = (beneficiaireVictimeTrackingId != null ? 1 : 0)
+                + (beneficiaireOrganismeTrackingId != null ? 1 : 0)
+                + (beneficiaireExpertTrackingId != null ? 1 : 0);
+        return renseignes == 1;
     }
 }

@@ -245,6 +245,7 @@ public class AffectationExpertServiceImpl {
                 a.getAffectationTrackingId(),
                 e.getExpertTrackingId(), e.getNomComplet(), e.getEmail(), e.getTelephone(),
                 e.getTypeExpert().name(),
+                e.getMontExpertise(), e.getTauxRetenue(),
                 v.getVictimeTrackingId(),
                 v.getPrenoms() + " " + v.getNom(),
                 null, // victimeEmail à mapper si champ existe

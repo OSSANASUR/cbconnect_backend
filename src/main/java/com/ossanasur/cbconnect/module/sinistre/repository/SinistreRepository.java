@@ -318,4 +318,46 @@ public interface SinistreRepository extends JpaRepository<Sinistre, Integer> {
       """)
   List<Sinistre> findPayablesForExpert(@Param("expertId") Integer expertId);
 
+  /**
+   * Type d'expertise (INITIALE / CONTRE_EXPERTISE / AMIABLE / TIERCE_EXPERTISE)
+   * de l'affectation active de cet expert sur ce sinistre.
+   */
+  @Query(nativeQuery = true, value = """
+      SELECT a.type_expertise FROM affectation_expert a
+      WHERE a.sinistre_id = :sinistreId
+        AND a.expert_id = :expertId
+        AND a.active_data = TRUE AND a.deleted_data = FALSE
+      ORDER BY a.date_affectation DESC
+      LIMIT 1
+      """)
+  String findTypeExpertiseForExpert(
+      @Param("sinistreId") Integer sinistreId,
+      @Param("expertId") Integer expertId);
+
+  /**
+   * Date du rapport d'expertise (médicale via victime, ou matérielle via sinistre)
+   * pour cet expert sur ce sinistre. Renvoie la plus récente si plusieurs.
+   */
+  @Query(nativeQuery = true, value = """
+      SELECT MAX(date_rapport) FROM (
+          SELECT em.date_rapport
+          FROM expertise_medicale em
+          JOIN victime v ON v.historique_id = em.victime_id
+          WHERE v.sinistre_id = :sinistreId
+            AND em.expert_id = :expertId
+            AND em.date_rapport IS NOT NULL
+            AND em.active_data = TRUE AND em.deleted_data = FALSE
+          UNION ALL
+          SELECT ema.date_rapport
+          FROM expertise_materielle ema
+          WHERE ema.sinistre_id = :sinistreId
+            AND ema.expert_id = :expertId
+            AND ema.date_rapport IS NOT NULL
+            AND ema.active_data = TRUE AND ema.deleted_data = FALSE
+      ) AS toutes_dates
+      """)
+  java.time.LocalDate findDateRapportForExpert(
+      @Param("sinistreId") Integer sinistreId,
+      @Param("expertId") Integer expertId);
+
 }

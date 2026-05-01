@@ -60,14 +60,33 @@ public class LotReglementServiceImpl implements LotReglementService {
         List<SinistrePayableResponse> list = sinistres.stream().map(s -> {
             boolean dejaPaye = paiementRepository.existsHonorairesActifByExpertAndSinistre(
                     expertTrackingId, s.getSinistreTrackingId());
+
+            String numeroSinistre = s.getNumeroSinistreLocal() != null
+                    ? s.getNumeroSinistreLocal()
+                    : (s.getNumeroSinistreManuel() != null
+                            ? s.getNumeroSinistreManuel()
+                            : s.getNumeroSinistreHomologue());
+
+            String numeroPolice = s.getAssure() != null ? s.getAssure().getNumeroPolice() : null;
+
+            java.time.LocalDate dateSinistre = s.getDateAccident() != null
+                    ? s.getDateAccident()
+                    : s.getDateDeclaration();
+
+            // Type d'expertise + date du rapport (depuis l'affectation et l'expertise correspondantes)
+            String typeExpertise = sinistreRepository.findTypeExpertiseForExpert(
+                    s.getHistoriqueId(), expert.getHistoriqueId());
+            java.time.LocalDate dateRapport = sinistreRepository.findDateRapportForExpert(
+                    s.getHistoriqueId(), expert.getHistoriqueId());
+
             return new SinistrePayableResponse(
                     s.getSinistreTrackingId(),
                     s.getLibelle(),
-                    null,   // numeroSinistre — getter absent sur Sinistre
-                    null,   // numeroPolice
-                    null,   // dateSinistre
-                    null,   // typeExpertise
-                    null,   // dateRapport
+                    numeroSinistre,
+                    numeroPolice,
+                    dateSinistre,
+                    typeExpertise,
+                    dateRapport,
                     expert.getMontExpertise(),
                     dejaPaye
             );
@@ -322,10 +341,12 @@ public class LotReglementServiceImpl implements LotReglementService {
     @Transactional(readOnly = true)
     public PaginatedResponse<LotReglementResponse> lister(
             UUID expertTrackingId, StatutLotReglement statut, int page, int size) {
-        Expert expert = expertTrackingId == null ? null
-                : expertRepository.findActiveByTrackingId(expertTrackingId).orElse(null);
+        Integer expertId = expertTrackingId == null ? null
+                : expertRepository.findActiveByTrackingId(expertTrackingId)
+                        .map(Expert::getHistoriqueId).orElse(null);
+        String statutStr = statut == null ? null : statut.name();
 
-        var pageData = lotRepository.findActiveFiltered(expert, statut, PageRequest.of(page, size))
+        var pageData = lotRepository.findActiveFiltered(expertId, statutStr, PageRequest.of(page, size))
                 .map(lot -> lotMapper.toResponse(lot, paiementRepository.findByLotReglement(lot)));
 
         return PaginatedResponse.fromPage(pageData, "Lots de règlements");

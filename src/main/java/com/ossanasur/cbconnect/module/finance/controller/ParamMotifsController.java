@@ -20,7 +20,7 @@ import com.ossanasur.cbconnect.module.finance.dto.response.ParamMotifResponse;
 import com.ossanasur.cbconnect.module.finance.service.impl.ParamMotifServiceImpl;
 import com.ossanasur.cbconnect.utils.DataResponse;
 
-import io.swagger.v3.oas.annotations.parameters.RequestBody;
+import org.springframework.web.bind.annotation.RequestBody;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 

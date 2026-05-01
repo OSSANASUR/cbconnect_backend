@@ -45,4 +45,19 @@ public interface LotReglementRepository extends JpaRepository<LotReglement, Inte
         WHERE EXTRACT(YEAR FROM created_at) = :annee
         """)
     long countByYear(@Param("annee") int annee);
+
+    /**
+     * Lots distincts contenant au moins un paiement actif sur le sinistre donné.
+     */
+    @Query(nativeQuery = true, value = """
+        SELECT DISTINCT lr.* FROM lot_reglement lr
+        JOIN paiement p ON p.lot_reglement_id = lr.historique_id
+        JOIN sinistre s ON s.historique_id = p.sinistre_id
+        WHERE s.sinistre_tracking_id = :sinistreTrackingId
+          AND lr.active_data = TRUE AND lr.deleted_data = FALSE
+          AND p.active_data = TRUE AND p.deleted_data = FALSE
+        ORDER BY lr.created_at DESC
+        """)
+    java.util.List<LotReglement> findBySinistreTrackingId(
+            @Param("sinistreTrackingId") UUID sinistreTrackingId);
 }

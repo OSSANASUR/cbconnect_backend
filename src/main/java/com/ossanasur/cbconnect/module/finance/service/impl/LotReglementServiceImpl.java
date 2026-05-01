@@ -401,6 +401,16 @@ public class LotReglementServiceImpl implements LotReglementService {
 
     @Override
     @Transactional(readOnly = true)
+    public DataResponse<List<LotReglementResponse>> listerBySinistre(UUID sinistreTrackingId) {
+        List<LotReglementResponse> list = lotRepository.findBySinistreTrackingId(sinistreTrackingId)
+                .stream()
+                .map(lot -> lotMapper.toResponse(lot, paiementRepository.findByLotReglement(lot)))
+                .toList();
+        return DataResponse.success(null, list);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public PaginatedResponse<LotReglementResponse> lister(
             UUID expertTrackingId, StatutLotReglement statut, int page, int size) {
         Integer expertId = expertTrackingId == null ? null

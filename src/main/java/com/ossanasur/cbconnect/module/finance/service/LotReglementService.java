@@ -26,6 +26,8 @@ public interface LotReglementService {
 
     DataResponse<LotReglementResponse> getByTrackingId(UUID lotTrackingId);
 
+    DataResponse<List<LotReglementResponse>> listerBySinistre(UUID sinistreTrackingId);
+
     PaginatedResponse<LotReglementResponse> lister(
             UUID expertTrackingId, StatutLotReglement statut, int page, int size);
 }

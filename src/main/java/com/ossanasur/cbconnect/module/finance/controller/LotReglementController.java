@@ -114,6 +114,18 @@ public class LotReglementController {
     }
 
     /**
+     * Liste les lots de règlement contenant au moins un paiement sur ce sinistre.
+     * Utilisé par OngletReglements (section "Règlements par lot").
+     */
+    @GetMapping("/by-sinistre/{sinistreTrackingId}")
+    @PreAuthorize("hasAnyRole('SE','CSS','REDACTEUR','COMPTABLE')")
+    @Operation(summary = "Lister les lots ayant un paiement sur ce sinistre")
+    public ResponseEntity<DataResponse<List<LotReglementResponse>>> listerBySinistre(
+            @PathVariable UUID sinistreTrackingId) {
+        return ResponseEntity.ok(service.listerBySinistre(sinistreTrackingId));
+    }
+
+    /**
      * Liste les lots de règlement avec filtres optionnels.
      * Rôles : SE, CSS, REDACTEUR, COMPTABLE
      */

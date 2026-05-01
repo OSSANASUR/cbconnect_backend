@@ -17,13 +17,33 @@ import com.ossanasur.cbconnect.module.finance.entity.ParamMotif;
 @Repository
 public interface ParamMotifRepository extends JpaRepository<ParamMotif, Integer> {
 
-    @Query("SELECT p FROM ParamMotif p WHERE p.paramMotifTrackingId = :id AND p.activeData = true AND p.deletedData = false")
+    @Query(nativeQuery = true, value = """
+        SELECT * FROM param_motifs
+        WHERE param_motif_tracking_id = :id
+          AND active_data = TRUE AND deleted_data = FALSE
+        """)
     Optional<ParamMotif> findActiveByTrackingId(@Param("id") UUID id);
 
-    @Query("SELECT p FROM ParamMotif p WHERE p.type = :type AND p.actif = true AND p.activeData = true AND p.deletedData = false ORDER BY p.libelleMotif ASC")
-    List<ParamMotif> findActiveByType(@Param("type") TypeMotif type);
+    @Query(nativeQuery = true, value = """
+        SELECT * FROM param_motifs
+        WHERE type = :type
+          AND actif = TRUE
+          AND active_data = TRUE
+          AND deleted_data = FALSE
+        ORDER BY libelle_motif ASC
+        """)
+    List<ParamMotif> findActiveByType(@Param("type") String type);
 
-    @Query("SELECT p FROM ParamMotif p WHERE p.activeData = true AND p.deletedData = false ORDER BY p.type ASC, p.libelleMotif ASC")
+    @Query(nativeQuery = true,
+        value = """
+            SELECT * FROM param_motifs
+            WHERE active_data = TRUE AND deleted_data = FALSE
+            ORDER BY type ASC, libelle_motif ASC
+            """,
+        countQuery = """
+            SELECT COUNT(*) FROM param_motifs
+            WHERE active_data = TRUE AND deleted_data = FALSE
+            """)
     Page<ParamMotif> findAllActive(Pageable pageable);
 
     boolean existsByLibelleMotifAndTypeAndActiveDataTrueAndDeletedDataFalseAndParamMotifTrackingIdNot(
@@ -33,15 +53,15 @@ public interface ParamMotifRepository extends JpaRepository<ParamMotif, Integer>
     boolean existsByLibelleMotifAndTypeAndActiveDataTrueAndDeletedDataFalse(
             String libelleMotif, TypeMotif type);
 
-    @Query("""
-        SELECT p FROM ParamMotif p
-        WHERE p.libelleMotif = :libelle
-          AND p.type = :type
-          AND p.actif = true
-          AND p.activeData = true
-          AND p.deletedData = false
+    @Query(nativeQuery = true, value = """
+        SELECT * FROM param_motifs
+        WHERE libelle_motif = :libelle
+          AND type = :type
+          AND actif = TRUE
+          AND active_data = TRUE
+          AND deleted_data = FALSE
         """)
     Optional<ParamMotif> findActiveByLibelleAndType(
             @Param("libelle") String libelle,
-            @Param("type") TypeMotif type);
+            @Param("type") String type);
 }

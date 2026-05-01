@@ -33,7 +33,7 @@ public class ParamMotifServiceImpl implements ParamMotifService {
     @Override
     @Transactional(readOnly = true)
     public List<ParamMotifResponse> listerParType(TypeMotif type) {
-        return repository.findActiveByType(type).stream().map(this::toResponse).toList();
+        return repository.findActiveByType(type == null ? null : type.name()).stream().map(this::toResponse).toList();
     }
 
     @Override
@@ -110,7 +110,7 @@ public class ParamMotifServiceImpl implements ParamMotifService {
      */
     @Transactional(readOnly = true)
     public String resolveLibelleByLibelleAndType(String libelle, TypeMotif type) {
-        return repository.findActiveByLibelleAndType(libelle, type)
+        return repository.findActiveByLibelleAndType(libelle, type.name())
                 .map(ParamMotif::getLibelleMotif)
                 .orElseThrow(() -> new RessourceNotFoundException(
                         "Motif paramétré introuvable : '" + libelle + "' (type=" + type + ")"));

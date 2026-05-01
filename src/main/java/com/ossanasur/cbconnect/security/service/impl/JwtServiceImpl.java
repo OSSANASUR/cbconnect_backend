@@ -53,6 +53,7 @@ public class JwtServiceImpl implements JwtService {
     }
 
     @Override
+    @CacheEvict(value = "tokens", allEntries = true)
     public Map<String, Object> generateTokens(Utilisateur user, boolean isMobile) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("trackingId", user.getUtilisateurTrackingId());
@@ -153,11 +154,13 @@ public class JwtServiceImpl implements JwtService {
     }
 
     @Override
+    @Cacheable(value = "tokens", key = "#token", unless = "#result")
     public boolean isTokenRevoked(String token) {
         return !tokenRepository.existsActiveToken(token);
     }
 
     @Override
+    @CacheEvict(value = "tokens", key = "#token")
     public Utilisateur revokeToken(String token) {
         Token oToken = tokenRepository
                 .findByAccessTokenOrRefreshToken(token, token)
@@ -182,8 +185,7 @@ public class JwtServiceImpl implements JwtService {
 
     @Override
     public boolean isTokenValid(String token, UserDetails userDetails) {
-        return extractUserEmail(token).equals(userDetails.getUsername()) && !isTokenExpired(token)
-                && !isTokenRevoked(token);
+        return extractUserEmail(token).equals(userDetails.getUsername()) && !isTokenExpired(token);
     }
 
     private <T> T extractClaims(String token, Function<Claims, T> resolver) {

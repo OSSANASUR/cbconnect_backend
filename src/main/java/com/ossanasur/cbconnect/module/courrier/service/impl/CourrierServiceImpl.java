@@ -50,8 +50,13 @@ public class CourrierServiceImpl implements CourrierService {
         // Numérotation auto si non fournie : <INITIALES>/AAAA/NNNNN (sortant) ou ENT/AAAA/NNNNN (entrant)
         // Les initiales sont celles du rédacteur connecté (ex: J. Dupont → JD).
         String ref = r.referenceCourrier();
-        if (ref == null || ref.isBlank()) {
-            long seq = courrierRepository.count() + 1;
+        if (ref != null && !ref.isBlank()) {
+            ref = ref.trim();
+            if (courrierRepository.existsByReferenceCourrier(ref)) {
+                throw new com.ossanasur.cbconnect.exception.BadRequestException(
+                    "La référence « " + ref + " » est déjà utilisée pour un autre courrier.");
+            }
+        } else {
             String sens;
             if (TypeCourrier.SORTANT.equals(r.typeCourrier())) {
                 sens = utilisateurRepository.findByEmailAndActiveDataTrueAndDeletedDataFalse(loginAuteur)
@@ -60,7 +65,15 @@ public class CourrierServiceImpl implements CourrierService {
             } else {
                 sens = "ENT";
             }
-            ref = sens + "/" + LocalDate.now().getYear() + "/" + String.format("%05d", seq);
+            int annee = LocalDate.now().getYear();
+            // Boucle de garde contre une éventuelle race-condition : on incrémente jusqu'à trouver une réf libre.
+            long seq = courrierRepository.findMaxSequenceByPrefixAndAnnee(sens, annee) + 1;
+            String candidat;
+            do {
+                candidat = sens + "/" + annee + "/" + String.format("%05d", seq);
+                seq++;
+            } while (courrierRepository.existsByReferenceCourrier(candidat));
+            ref = candidat;
         }
 
         Courrier c = Courrier.builder()

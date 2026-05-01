@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Alerte Délai CBConnect</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:32px 0;">
+  <tr><td align="center">
+    <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+
+      <!-- Header bande colorée selon niveau -->
+      <tr>
+        <td th:style="'background:' + ${niveauCouleur} + ';padding:20px 32px;'"
+            style="background:#1a6b3c;padding:20px 32px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td>
+                <span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;"
+                      th:text="${niveauLabel}">ALERTE URGENTE</span>
+              </td>
+              <td align="right">
+                <span style="color:rgba(255,255,255,.8);font-size:12px;">CBConnect — BNCB Togo</span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- Corps -->
+      <tr>
+        <td style="padding:32px 32px 24px;">
+          <p style="margin:0 0 8px;font-size:15px;color:#374151;">Bonjour,</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#374151;">
+            Le délai ci-dessous requiert votre attention sur le dossier sinistre
+            <strong th:text="${sinistreNumero}">#XXXX</strong>.
+          </p>
+
+          <!-- Carte délai -->
+          <table width="100%" cellpadding="0" cellspacing="0"
+                 th:style="'background:' + ${niveauBg} + ';border-left:4px solid ' + ${niveauCouleur} + ';border-radius:8px;'"
+                 style="background:#fef9c3;border-left:4px solid #d5c93b;border-radius:8px;">
+            <tr>
+              <td style="padding:20px 24px;">
+                <p style="margin:0 0 4px;font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;">Délai</p>
+                <p style="margin:0 0 16px;font-size:16px;font-weight:700;color:#111827;" th:text="${libelleDelai}">
+                  Offre d'indemnisation – victime blessée</p>
+
+                <table width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td width="50%" style="padding-bottom:12px;">
+                      <p style="margin:0 0 2px;font-size:12px;color:#9ca3af;">Échéance</p>
+                      <p style="margin:0;font-size:15px;font-weight:700;color:#111827;"
+                         th:text="${dateEcheance}">31/05/2026</p>
+                    </td>
+                    <td width="50%" style="padding-bottom:12px;">
+                      <p style="margin:0 0 2px;font-size:12px;color:#9ca3af;">Jours restants</p>
+                      <p th:style="'margin:0;font-size:15px;font-weight:700;color:' + ${niveauCouleur}"
+                         th:text="${joursRestants <= 0 ? 'EXPIRÉ' : joursRestants + ' jour(s)'}">12 jours</p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colspan="2">
+                      <p style="margin:0 0 2px;font-size:12px;color:#9ca3af;">Référence légale</p>
+                      <p style="margin:0;font-size:13px;color:#374151;" th:text="${referenceJuridique}">Conv. Harm. Art.32 §1</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+
+          <!-- Message selon le niveau -->
+          <p th:if="${niveauAlerte == 'ATTENTION'}"
+             style="margin:24px 0 0;font-size:14px;color:#374151;background:#fef3c7;border-radius:8px;padding:16px;">
+            🟡 <strong>50% du délai écoulé.</strong> Une relance préventive est recommandée pour avancer le dossier.
+          </p>
+          <p th:if="${niveauAlerte == 'URGENT'}"
+             style="margin:24px 0 0;font-size:14px;color:#374151;background:#ffedd5;border-radius:8px;padding:16px;">
+            🟠 <strong>75% du délai écoulé.</strong> Action urgente requise. Transmettez le dossier ou préparez l'offre sans délai.
+          </p>
+          <p th:if="${niveauAlerte == 'CRITIQUE'}"
+             style="margin:24px 0 0;font-size:14px;color:#374151;background:#fee2e2;border-radius:8px;padding:16px;">
+            🔴 <strong>Délai atteint ou dépassé.</strong> Risque de pénalités automatiques.
+            Informez immédiatement le Chef de Service et prenez les mesures conservatoires.
+          </p>
+
+          <!-- Bouton -->
+          <p style="margin:28px 0 0;text-align:center;">
+            <a th:href="${lienDossier}" href="#"
+               style="background:#1a6b3c;color:#ffffff;text-decoration:none;padding:12px 28px;
+                      border-radius:8px;font-size:14px;font-weight:600;display:inline-block;">
+              Ouvrir le dossier dans CBConnect
+            </a>
+          </p>
+        </td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td style="padding:16px 32px;border-top:1px solid #f3f4f6;background:#f9fafb;">
+          <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
+            Cet e-mail est généré automatiquement par CBConnect — BNCB Togo.<br/>
+            Recalcul quotidien des délais réglementaires CEDEAO à 07h00.
+          </p>
+        </td>
+      </tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>

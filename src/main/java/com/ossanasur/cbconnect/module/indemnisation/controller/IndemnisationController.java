@@ -26,16 +26,25 @@ import java.util.UUID;
 public class IndemnisationController {
     private final IndemnisationService indemnisationService;
 
+    /**
+     * POST /v1/indemnisation/calculer/{victimeId}
+     * Body JSON optionnel :
+     * { "fraisMedicaux": 250000, "fraisFuneraires": null, "tauxRcOverride": 75 }
+     * Si body absent ou champ null → valeur automatique (dossiers réclamation /
+     * CIMA / sinistre.tauxRc)
+     */
     @PostMapping("/calculer/{victimeId}")
     @PreAuthorize("hasAnyRole('SE','CSS','REDACTEUR')")
-    @Operation(summary = "Calculer l'offre d'indemnisation CIMA pour une victime blessée")
+    @Operation(summary = "Calculer ou recalculer l'offre CIMA (blessé ou décédé)")
     public ResponseEntity<DataResponse<OffreIndemnisationResponse>> calculer(
-            @PathVariable UUID victimeId, @AuthenticationPrincipal UserDetails u) {
-        return ResponseEntity.ok(indemnisationService.calculerOffreBlesse(victimeId, u.getUsername()));
+            @PathVariable UUID victimeId,
+            @Valid @RequestBody(required = false) CalculRequest params,
+            @AuthenticationPrincipal UserDetails u) {
+        return ResponseEntity.ok(indemnisationService.calculerOffre(victimeId, params, u.getUsername()));
     }
 
     @GetMapping("/offre/victime/{victimeId}")
-    @Operation(summary = "Obtenir la derniere offre calculee pour une victime")
+    @Operation(summary = "Obtenir la dernière offre calculée pour une victime")
     public ResponseEntity<DataResponse<OffreIndemnisationResponse>> getOffre(@PathVariable UUID victimeId) {
         return ResponseEntity.ok(indemnisationService.getOffreByVictime(victimeId));
     }
@@ -49,21 +58,30 @@ public class IndemnisationController {
     }
 
     @GetMapping("/penalites/{offreId}")
-    @Operation(summary = "Calculer les penalites de retard sur une offre (art.231 CIMA)")
+    @Operation(summary = "Calculer les pénalités de retard (art.231 CIMA)")
     public ResponseEntity<DataResponse<BigDecimal>> penalites(@PathVariable UUID offreId) {
         return ResponseEntity.ok(indemnisationService.calculerPenalites(offreId));
     }
 
     @PostMapping("/ayants-droit")
     @PreAuthorize("hasAnyRole('SE','CSS','REDACTEUR')")
-    @Operation(summary = "Ajouter un ayant droit a une victime decedee")
+    @Operation(summary = "Ajouter un ayant droit à une victime décédée")
     public ResponseEntity<DataResponse<AyantDroitResponse>> ajouterAyantDroit(
             @Valid @RequestBody AyantDroitRequest r, @AuthenticationPrincipal UserDetails u) {
         return ResponseEntity.ok(indemnisationService.ajouterAyantDroit(r, u.getUsername()));
     }
 
     @GetMapping("/ayants-droit/victime/{victimeId}")
+    @Operation(summary = "Lister les ayants droit d'une victime décédée")
     public ResponseEntity<DataResponse<List<AyantDroitResponse>>> getAyantsDroit(@PathVariable UUID victimeId) {
         return ResponseEntity.ok(indemnisationService.getAyantsDroitByVictime(victimeId));
+    }
+
+    @DeleteMapping("/ayants-droit/{ayantDroitId}")
+    @PreAuthorize("hasAnyRole('SE','CSS','REDACTEUR')")
+    @Operation(summary = "Supprimer un ayant droit")
+    public ResponseEntity<DataResponse<Void>> supprimerAyantDroit(
+            @PathVariable UUID ayantDroitId, @AuthenticationPrincipal UserDetails u) {
+        return ResponseEntity.ok(indemnisationService.supprimerAyantDroit(ayantDroitId, u.getUsername()));
     }
 }

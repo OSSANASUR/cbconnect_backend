@@ -1,6 +1,7 @@
 package com.ossanasur.cbconnect.module.reclamation.dto.response;
 
 import com.ossanasur.cbconnect.common.enums.StatutPiece;
+import com.ossanasur.cbconnect.common.enums.TypeDocumentOssanGed;
 import com.ossanasur.cbconnect.common.enums.TypeDommage;
 
 import java.time.LocalDate;
@@ -14,6 +15,7 @@ public record PieceDossierResponse(
                 TypeDommage typeDommage,
                 boolean obligatoire,
                 int ordre,
+                TypeDocumentOssanGed typeDocumentGed, // null = association manuelle uniquement
                 // Statut
                 StatutPiece statut,
                 LocalDate dateReception,
@@ -21,6 +23,6 @@ public record PieceDossierResponse(
                 // Document GED associé (null si ATTENDUE)
                 UUID ossanGedDocumentTrackingId,
                 String ossanGedDocumentTitre,
-                Integer ossanGedDocumentId // ID OssanGed pour prévisualisation
+                Integer ossanGedDocumentId
 ) {
 }

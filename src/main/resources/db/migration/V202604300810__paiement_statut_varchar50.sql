@@ -1,0 +1,1 @@
+ALTER TABLE paiement ALTER COLUMN statut TYPE VARCHAR(50);

@@ -1,6 +1,7 @@
 package com.ossanasur.cbconnect.module.reclamation.entity;
 
 import com.ossanasur.cbconnect.common.entity.InternalHistorique;
+import com.ossanasur.cbconnect.common.enums.TypeDocumentOssanGed;
 import com.ossanasur.cbconnect.common.enums.TypeDommage;
 import jakarta.persistence.*;
 import lombok.*;
@@ -62,4 +63,14 @@ public class TypePieceAdministrative extends InternalHistorique {
     @Column(nullable = false)
     @Builder.Default
     private boolean actif = true;
+
+    /**
+     * Type de document GED correspondant à cette pièce.
+     * Quand renseigné, l'upload d'un document GED de ce type vers le dossier
+     * déclenche l'auto-association : la pièce passe automatiquement à RECUE.
+     * NULL = aucune auto-association (association manuelle uniquement).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type_document_ged", length = 30)
+    private TypeDocumentOssanGed typeDocumentGed;
 }

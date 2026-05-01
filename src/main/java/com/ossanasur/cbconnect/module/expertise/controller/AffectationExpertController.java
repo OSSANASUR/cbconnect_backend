@@ -58,4 +58,13 @@ public class AffectationExpertController {
             @AuthenticationPrincipal UserDetails u) {
         return ResponseEntity.ok(service.mettreAJourStatut(id, statut, u.getUsername()));
     }
+
+    @PostMapping("/{id}/envoyer-mail-expert")
+    @PreAuthorize("hasAnyRole('SE','CSS','REDACTEUR')")
+    @Operation(summary = "Marquer le mail expert comme envoyé")
+    public ResponseEntity<DataResponse<AffectationExpertResponse>> envoyerMailExpert(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserDetails u) {
+        return ResponseEntity.ok(service.marquerMailExpertEnvoye(id, u.getUsername()));
+    }
 }

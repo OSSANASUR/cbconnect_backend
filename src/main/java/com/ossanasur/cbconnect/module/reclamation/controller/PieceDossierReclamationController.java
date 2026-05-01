@@ -35,6 +35,19 @@ public class PieceDossierReclamationController {
     }
 
     /**
+     * POST /v1/dossiers/{dossierTrackingId}/pieces/initialiser
+     * Réinitialise les pièces d'un dossier (utile pour les dossiers créés avant la correction du mapping victime→TypeDommage)
+     */
+    @PostMapping("/{dossierTrackingId}/pieces/initialiser")
+    @Operation(summary = "Réinitialiser les pièces administratives d'un dossier")
+    public ResponseEntity<DataResponse<Void>> initialiser(
+            @PathVariable UUID dossierTrackingId,
+            Authentication auth) {
+        piecesService.initialiserPiecesDossier(dossierTrackingId, auth.getName());
+        return ResponseEntity.ok(DataResponse.success("Pièces réinitialisées", null));
+    }
+
+    /**
      * POST /v1/dossiers/pieces/{pieceDossierTrackingId}/associer
      * Associe un document GED à la pièce → statut RECUE
      */

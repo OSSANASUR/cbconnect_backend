@@ -5,6 +5,7 @@ import com.ossanasur.cbconnect.common.enums.StatutCheque;
 import com.ossanasur.cbconnect.common.enums.StatutPaiement;
 import com.ossanasur.cbconnect.common.enums.StatutSinistre;
 import com.ossanasur.cbconnect.common.enums.TypeDommage;
+import com.ossanasur.cbconnect.common.enums.TypeOperationFinanciere;
 import com.ossanasur.cbconnect.common.enums.TypeOrganisme;
 import com.ossanasur.cbconnect.common.enums.TypeSinistre;
 import com.ossanasur.cbconnect.module.auth.entity.Organisme;
@@ -13,6 +14,7 @@ import com.ossanasur.cbconnect.module.finance.entity.Encaissement;
 import com.ossanasur.cbconnect.module.finance.entity.Paiement;
 import com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository;
 import com.ossanasur.cbconnect.module.finance.repository.PaiementRepository;
+import com.ossanasur.cbconnect.module.finance.service.NumeroOperationGenerator;
 import com.ossanasur.cbconnect.module.pays.entity.Pays;
 import com.ossanasur.cbconnect.module.pays.repository.PaysRepository;
 import com.ossanasur.cbconnect.module.reprise.dto.RapportReprise;
@@ -70,6 +72,7 @@ public class RepriseService {
     // Sinistre.assure est nullable=false → on doit persister un Assure avant le
     // sinistre.
     private final AssureRepository assureRepository;
+    private final NumeroOperationGenerator numeroOperationGenerator;
 
     // Self-injection via proxy Spring : nécessaire pour que les @Transactional
     // REQUIRES_NEW des méthodes par-élément soient réellement interceptées
@@ -750,6 +753,18 @@ public class RepriseService {
         BigDecimal principal = coalesce(dto.principalPaye());
         BigDecimal fg = coalesce(dto.fgPaye());
         BigDecimal montant = principal.add(fg);
+        // NUMERIC(15,2) → absolute value must be < 10^13
+        if (montant.abs().compareTo(new BigDecimal("9999999999999.99")) > 0) {
+            throw new IllegalArgumentException(
+                    "Montant hors plage NUMERIC(15,2) : " + montant + " (principal=" + principal + ", fg=" + fg + ")");
+        }
+
+        // ── 5b. Validation date obligatoire ─────────────────
+        LocalDate dateEmission = parseDate(dto.datePaiement());
+        if (dateEmission == null) {
+            throw new IllegalArgumentException(
+                    "Date de paiement absente ou invalide : '" + dto.datePaiement() + "'");
+        }
 
         // ── 6. Construction paiement ─────────────────────────
         Paiement paiement = Paiement.builder()
@@ -759,8 +774,8 @@ public class RepriseService {
                 .numeroChequeEmis(clean(dto.numeroChequeEmis()))
                 .montant(montant)
                 .banqueCheque("N/A")
-                .dateEmission(parseDate(dto.datePaiement()))
-                .datePaiement(parseDate(dto.datePaiement()))
+                .dateEmission(dateEmission)
+                .datePaiement(dateEmission)
                 .modePaiement(clean(dto.modePaiement()))
                 .statut(StatutPaiement.PAYE)
                 .encaissements(encaissementsLies)
@@ -771,6 +786,8 @@ public class RepriseService {
                 .deletedData(false)
                 .build();
 
+        paiement.setNumeroPaiement(
+                numeroOperationGenerator.genererNumero(TypeOperationFinanciere.REGLEMENT_TECHNIQUE, sinistre));
         paiementRepository.save(paiement);
         return ResultatImport.IMPORTE;
     }

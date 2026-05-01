@@ -200,6 +200,17 @@ public class ReclamationServiceImpl implements ReclamationService {
         FactureReclamation f = factureRepository.findActiveByTrackingId(id)
                 .orElseThrow(() -> new RessourceNotFoundException("Facture introuvable"));
 
+        // Met à jour le montant réclamé si la facture a été auto-créée via GED avec montant = 0
+        if (req.montantReclame() != null && req.montantReclame().signum() > 0
+                && f.getMontantReclame().compareTo(BigDecimal.ZERO) == 0) {
+            var dossierRef = f.getDossierReclamation();
+            dossierRef.setMontantTotalReclame(
+                    dossierRef.getMontantTotalReclame().add(req.montantReclame()));
+            dossierRef.setUpdatedBy(loginAuteur);
+            dossierRepository.save(dossierRef);
+            f.setMontantReclame(req.montantReclame());
+        }
+
         BigDecimal ancienRetenu = f.getMontantRetenu() != null ? f.getMontantRetenu() : BigDecimal.ZERO;
         BigDecimal nouveauRetenu;
         StatutTraitementFacture nouveauStatut = req.statutTraitement();

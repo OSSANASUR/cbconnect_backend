@@ -18,4 +18,6 @@ public interface EntiteConstatRepository extends JpaRepository<EntiteConstat, In
     List<EntiteConstat> findAllByType(@Param("type") TypeEntiteConstat type);
     @Query("SELECT COUNT(e) > 0 FROM EntiteConstat e WHERE LOWER(e.nom)=LOWER(:nom) AND e.activeData=true AND e.deletedData=false")
     boolean existsByNomActive(@Param("nom") String nom);
+    @Query("SELECT e.nom FROM EntiteConstat e WHERE e.activeData=true AND e.deletedData=false")
+    List<String> findAllActiveNames();
 }

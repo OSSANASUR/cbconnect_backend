@@ -3,6 +3,7 @@ package com.ossanasur.cbconnect.module.statistiques.controller;
 import com.ossanasur.cbconnect.module.statistiques.dto.CadenceDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatReclamationDto;
+import com.ossanasur.cbconnect.module.statistiques.dto.ReclamationTogoDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatSinistreDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.GraphiqueEncPaiDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.ReportingEncaissementDto;
@@ -177,6 +178,21 @@ public class StatistiquesController {
     public ResponseEntity<DataResponse<EtatReclamationDto>> etatReclamation() {
         return ResponseEntity.ok(DataResponse.success("État réclamations",
                 statsService.etatReclamation()));
+    }
+
+    /**
+     * R6 — Détail des réclamations Togo envers les homologues (sinistres ET = SURVENU_TOGO).
+     * Filtre optionnel par code pays émetteur (BF, CI, BJ, …).
+     *
+     * GET /v1/stats/reclamations-togo
+     * GET /v1/stats/reclamations-togo?codePays=BF
+     */
+    @GetMapping("/reclamations-togo")
+    @Operation(summary = "R6 — Réclamations Togo vs homologues (détail par compagnie)")
+    public ResponseEntity<DataResponse<ReclamationTogoDto>> reclamationsTogo(
+            @RequestParam(required = false) String codePays) {
+        return ResponseEntity.ok(DataResponse.success("Réclamations Togo vs homologues",
+                statsService.reclamationTogo(codePays)));
     }
 
     /**

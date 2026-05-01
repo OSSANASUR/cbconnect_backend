@@ -56,6 +56,12 @@ public class OrganismeController {
         return ResponseEntity.ok(organismeService.getAll());
     }
 
+    @GetMapping("/by-type")
+    public ResponseEntity<DataResponse<List<OrganismeResponse>>> list(
+            @RequestParam(required = false, name = "typeOrganisme") List<TypeOrganisme> types) {
+        return ResponseEntity.ok(organismeService.listerActifs(types));
+    }
+
     @GetMapping("/type/{type}")
     @Operation(summary = "Lister les organismes par type")
     public ResponseEntity<DataResponse<List<OrganismeResponse>>> getByType(@PathVariable TypeOrganisme type) {

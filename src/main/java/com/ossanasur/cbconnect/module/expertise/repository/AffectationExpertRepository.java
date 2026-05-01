@@ -23,4 +23,17 @@ public interface AffectationExpertRepository extends JpaRepository<AffectationEx
 
     @Query("SELECT a FROM AffectationExpert a WHERE a.statut='EN_ATTENTE' AND a.dateLimiteRapport < CURRENT_DATE AND a.activeData=true AND a.deletedData=false")
     List<AffectationExpert> findEnRetard();
+
+    @Query(nativeQuery = true, value = """
+        SELECT COUNT(*) > 0 FROM affectation_expert a
+        JOIN expert e ON e.historique_id = a.expert_id
+        JOIN sinistre s ON s.historique_id = a.sinistre_id
+        WHERE e.expert_tracking_id = :expertTrackingId
+          AND s.sinistre_tracking_id = :sinistreTrackingId
+          AND a.active_data = TRUE
+          AND a.deleted_data = FALSE
+        """)
+    boolean existsActiveByExpertAndSinistre(
+            @Param("expertTrackingId") UUID expertTrackingId,
+            @Param("sinistreTrackingId") UUID sinistreTrackingId);
 }

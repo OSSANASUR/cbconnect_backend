@@ -15,6 +15,6 @@ public interface CommandeAttestationRepository extends JpaRepository<CommandeAtt
     Page<CommandeAttestation> findByOrganisme(@Param("orgId") UUID orgId, Pageable pageable);
     @Query("SELECT c FROM CommandeAttestation c WHERE c.activeData=true AND c.deletedData=false ORDER BY c.dateCommande DESC")
     Page<CommandeAttestation> findAllActive(Pageable pageable);
-    @Query("SELECT COALESCE(MAX(CAST(SUBSTRING(c.numeroCommande, 9) AS int)),0) FROM CommandeAttestation c WHERE c.numeroCommande LIKE CONCAT('CMD-', :annee, '-%')")
+    @Query("SELECT COALESCE(MAX(CAST(SUBSTRING(c.numeroCommande, 10) AS int)),0) FROM CommandeAttestation c WHERE c.numeroCommande LIKE CONCAT('CMD-', :annee, '-%')")
     long findMaxSequenceByAnnee(@Param("annee") int annee);
 }

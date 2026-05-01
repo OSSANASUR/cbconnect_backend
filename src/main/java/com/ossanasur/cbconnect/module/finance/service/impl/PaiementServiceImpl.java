@@ -1,9 +1,13 @@
 package com.ossanasur.cbconnect.module.finance.service.impl;
 
 import com.ossanasur.cbconnect.common.enums.StatutEcritureComptable;
+import com.ossanasur.cbconnect.common.enums.StatutLotReglement;
 import com.ossanasur.cbconnect.common.enums.StatutPaiement;
+import com.ossanasur.cbconnect.common.enums.TypeOperationFinanciere;
 import com.ossanasur.cbconnect.common.enums.TypeTable;
 import com.ossanasur.cbconnect.common.enums.TypeTransactionComptable;
+import com.ossanasur.cbconnect.module.finance.entity.LotReglement;
+import com.ossanasur.cbconnect.module.finance.repository.LotReglementRepository;
 import com.ossanasur.cbconnect.exception.BadRequestException;
 import com.ossanasur.cbconnect.exception.RessourceNotFoundException;
 import com.ossanasur.cbconnect.module.auth.entity.Organisme;
@@ -13,6 +17,9 @@ import com.ossanasur.cbconnect.module.auth.repository.UtilisateurRepository;
 import com.ossanasur.cbconnect.module.comptabilite.entity.EcritureComptable;
 import com.ossanasur.cbconnect.module.comptabilite.repository.EcritureComptableRepository;
 import com.ossanasur.cbconnect.module.comptabilite.service.ComptabiliteService;
+import com.ossanasur.cbconnect.common.enums.TypeMotif;
+import com.ossanasur.cbconnect.module.expertise.entity.Expert;
+import com.ossanasur.cbconnect.module.expertise.repository.ExpertRepository;
 import com.ossanasur.cbconnect.module.finance.dto.request.AnnulerPaiementRequest;
 import com.ossanasur.cbconnect.module.finance.dto.request.PaiementCreateRequest;
 import com.ossanasur.cbconnect.module.finance.dto.request.ReglementComptableRequest;
@@ -24,6 +31,7 @@ import com.ossanasur.cbconnect.module.finance.mapper.PaiementMapper;
 import com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository;
 import com.ossanasur.cbconnect.module.finance.repository.PaiementRepository;
 import com.ossanasur.cbconnect.module.finance.service.EncaissementGuardService;
+import com.ossanasur.cbconnect.module.finance.service.NumeroOperationGenerator;
 import com.ossanasur.cbconnect.module.finance.service.PaiementService;
 import com.ossanasur.cbconnect.module.sinistre.entity.Sinistre;
 import com.ossanasur.cbconnect.module.sinistre.entity.Victime;
@@ -33,6 +41,7 @@ import com.ossanasur.cbconnect.utils.DataResponse;
 import com.ossanasur.cbconnect.utils.PaginatedResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,6 +66,13 @@ public class PaiementServiceImpl implements PaiementService {
         private final ComptabiliteService comptabiliteService;
         private final PaiementMapper mapper;
         private final EncaissementGuardService guardService;
+        private final NumeroOperationGenerator numeroOperationGenerator;
+
+        private final LotReglementRepository lotReglementRepository;
+
+        private final ParamMotifServiceImpl paramMotifService;
+        private final ExpertRepository expertRepository;
+        private final PaiementBeneficiaireValidator beneficiaireValidator;
 
         /**
          * Crée le règlement technique : bénéficiaire + montant uniquement.
@@ -83,9 +99,20 @@ public class PaiementServiceImpl implements PaiementService {
                                                 .orElseThrow(() -> new RessourceNotFoundException(
                                                                 "Organisme bénéficiaire introuvable"));
 
-                Paiement paiement = mapper.toNewEntity(request, sinistre, victime, organisme, loginAuteur);
+                Expert expert = request.beneficiaireExpertTrackingId() == null ? null
+                                : expertRepository.findActiveByTrackingId(request.beneficiaireExpertTrackingId())
+                                                .orElseThrow(() -> new RessourceNotFoundException(
+                                                                "Expert bénéficiaire introuvable"));
+
+                beneficiaireValidator.valider(request.categorie(), sinistre, victime, organisme, expert);
+
+                String motifLibelle = request.motif();
+
+                Paiement paiement = mapper.toNewEntity(request, sinistre, victime, organisme, expert, motifLibelle,
+                                loginAuteur);
                 // statut EMIS, numeroCheque null, ecritureComptable null
-                Paiement saved = paiementRepository.save(paiement);
+                Paiement saved = persisterPaiementAvecNumero(
+                                paiement, TypeOperationFinanciere.REGLEMENT_TECHNIQUE);
 
                 log.info("Règlement technique créé {} (sinistre={}, montant={}, bénéficiaire={})",
                                 saved.getPaiementTrackingId(), sinistre.getSinistreTrackingId(),
@@ -146,6 +173,15 @@ public class PaiementServiceImpl implements PaiementService {
                                                         + "(statut actuel : " + parent.getStatut() + ")");
                 }
 
+                // Garde-fou applicatif : un RT n'accepte qu'un seul RC actif
+                boolean hasActiveRc = paiementRepository.existsActiveRcForParent(
+                                parent.getPaiementTrackingId().toString());
+                if (hasActiveRc) {
+                        throw new BadRequestException(
+                                        "Un règlement comptable actif existe déjà pour ce règlement technique. "
+                                                        + "Annulez-le avant d'en saisir un nouveau.");
+                }
+
                 if (paiementRepository.existsByNumeroChequeEmisAndActiveDataTrueAndDeletedDataFalse(
                                 request.numeroChequeEmis())) {
                         throw new BadRequestException("Le chèque n° " + request.numeroChequeEmis()
@@ -171,6 +207,9 @@ public class PaiementServiceImpl implements PaiementService {
                                 .dateEmissionCheque(request.dateEmissionCheque())
                                 .modePaiement("CHEQUE")
                                 .statut(StatutPaiement.REGLEMENT_COMPTABLE_VALIDE)
+                                .categorie(parent.getCategorie())
+                                .motif(parent.getMotif())
+                                .beneficiaireExpert(parent.getBeneficiaireExpert())
                                 // lien vers le règlement technique parent
                                 .parentCodeId(parent.getPaiementTrackingId().toString())
                                 // audit
@@ -181,7 +220,8 @@ public class PaiementServiceImpl implements PaiementService {
                                 .fromTable(TypeTable.PAIEMENT)
                                 .build();
 
-                Paiement saved = paiementRepository.save(reglementComptable);
+                Paiement saved = persisterPaiementAvecNumero(
+                                reglementComptable, TypeOperationFinanciere.REGLEMENT_COMPTABLE);
 
                 log.info("Règlement comptable créé {} (parent={}, chèque={}, banque={})",
                                 saved.getPaiementTrackingId(), paiementTrackingId,
@@ -202,7 +242,8 @@ public class PaiementServiceImpl implements PaiementService {
 
                 Paiement paiement = findActiveOrThrow(paiementTrackingId);
 
-                // RÈGLE C — règlement legacy bypassé. montant=ZERO car déjà compté dans Σ engagé.
+                // RÈGLE C — règlement legacy bypassé. montant=ZERO car déjà compté dans Σ
+                // engagé.
                 if (!paiement.isRepriseHistorique()) {
                         guardService.verifierRegleC(
                                         paiement.getSinistre().getSinistreTrackingId(),
@@ -256,6 +297,14 @@ public class PaiementServiceImpl implements PaiementService {
 
                 Paiement parent = findActiveOrThrow(paiementTrackingId);
 
+                String motifLibelle = request.motif();
+
+                // Garde-fou : un règlement déjà annulé (ligne AN existante pointant vers lui)
+                // ne peut pas l'être à nouveau
+                if (paiementRepository.existsActiveAnnulationFor(parent.getPaiementTrackingId().toString())) {
+                        throw new BadRequestException("Ce règlement a déjà été annulé.");
+                }
+
                 if (parent.getStatut() == StatutPaiement.ANNULE) {
                         throw new BadRequestException("Ce règlement est déjà annulé");
                 }
@@ -296,8 +345,11 @@ public class PaiementServiceImpl implements PaiementService {
                                 .datePaiement(parent.getDatePaiement())
                                 .repriseHistorique(parent.isRepriseHistorique())
                                 // champs propres à l'annulation
+                                .categorie(parent.getCategorie())
+                                .motif(motifLibelle)
                                 .statut(StatutPaiement.ANNULE)
                                 .motifAnnulation(request.motifAnnulation())
+                                .beneficiaireExpert(parent.getBeneficiaireExpert())
                                 .annulePar(resolveUtilisateur(loginAuteur))
                                 // lien vers le règlement annulé
                                 .parentCodeId(parent.getPaiementTrackingId().toString())
@@ -309,11 +361,21 @@ public class PaiementServiceImpl implements PaiementService {
                                 .fromTable(TypeTable.PAIEMENT)
                                 .build();
 
-                Paiement saved = paiementRepository.save(annulation);
+                Paiement saved = persisterPaiementAvecNumero(
+                                annulation, TypeOperationFinanciere.ANNULATION_REGLEMENT);
 
                 log.info("Règlement {} annulé par {} (motif={}, nouvelle ligne={})",
                                 paiementTrackingId, loginAuteur, request.motifAnnulation(),
                                 saved.getPaiementTrackingId());
+
+                LotReglement lot = parent.getLotReglement();
+                if (lot != null && lot.getStatut() != StatutLotReglement.PARTIELLEMENT_ANNULE) {
+                        lot.setStatut(StatutLotReglement.PARTIELLEMENT_ANNULE);
+                        lot.setUpdatedBy(loginAuteur);
+                        lotReglementRepository.save(lot);
+                        log.info("Lot {} basculé en PARTIELLEMENT_ANNULE suite à annulation de {}",
+                                        lot.getLotTrackingId(), parent.getNumeroPaiement());
+                }
 
                 return DataResponse.success("Règlement annulé", mapper.toDetailResponse(saved));
         }
@@ -396,5 +458,35 @@ public class PaiementServiceImpl implements PaiementService {
 
         private Utilisateur resolveUtilisateur(String login) {
                 return utilisateurRepository.findByEmailOrUsername(login, login).orElse(null);
+        }
+
+        /**
+         * Persiste un Paiement après lui avoir affecté un numéro d'opération unique.
+         * Retry applicatif sur DataIntegrityViolationException (collision de l'index
+         * unique sur numero_operation) — max 5 tentatives.
+         *
+         * Doit être appelé dans un contexte transactionnel actif (le caller porte la
+         * 
+         * @Transactional). saveAndFlush force la violation à se déclencher dans la
+         *                  boucle de retry plutôt qu'au commit global.
+         */
+        Paiement persisterPaiementAvecNumero(Paiement paiement,
+                        TypeOperationFinanciere type) {
+                final int maxRetries = 5;
+                DataIntegrityViolationException last = null;
+                for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                        try {
+                                String numero = numeroOperationGenerator.genererNumero(
+                                                type, paiement.getSinistre());
+                                paiement.setNumeroPaiement(numero);
+                                return paiementRepository.saveAndFlush(paiement);
+                        } catch (DataIntegrityViolationException e) {
+                                last = e;
+                                log.warn("Collision numero_operation (tentative {}/{}) sinistre={} type={}",
+                                                attempt, maxRetries,
+                                                paiement.getSinistre().getHistoriqueId(), type);
+                        }
+                }
+                throw last;
         }
 }

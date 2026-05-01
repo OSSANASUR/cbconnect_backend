@@ -19,6 +19,7 @@ public interface AttestationService {
 
     // Lots
     DataResponse<LotResponse> creerLot(LotRequest r, String loginAuteur);
+    DataResponse<LotResponse> modifierLot(UUID lotId, LotRequest r, String loginAuteur);
     DataResponse<LotResponse> getLot(UUID lotId);
     PaginatedResponse<LotResponse> getAllLots(int page, int size);
     DataResponse<List<LotResponse>> getLotsDisponibles();

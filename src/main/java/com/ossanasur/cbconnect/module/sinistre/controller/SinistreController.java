@@ -18,7 +18,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @RestController
@@ -56,11 +58,15 @@ public class SinistreController {
     public ResponseEntity<PaginatedResponse<SinistreResponse>> getAll(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String search) {
-        if (search != null && !search.isBlank()) {
-            return ResponseEntity.ok(sinistreService.search(search, page, size));
-        }
-        return ResponseEntity.ok(sinistreService.getAll(page, size));
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String statut,
+            @RequestParam(required = false) String positionRc,
+            @RequestParam(required = false) String rcPct,
+            @RequestParam(required = false) String litige,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateDebut,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFin) {
+        return ResponseEntity.ok(sinistreService.getAllFiltered(
+                search, statut, positionRc, rcPct, litige, dateDebut, dateFin, page, size));
     }
 
     @PutMapping("/{id}")

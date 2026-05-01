@@ -29,6 +29,34 @@ public interface EncaissementRepository extends JpaRepository<Encaissement, Inte
     @Query("SELECT e FROM Encaissement e WHERE e.sinistre.sinistreTrackingId=:sid AND e.activeData=true AND e.deletedData=false ORDER BY e.dateReception DESC")
     List<Encaissement> findBySinistre(@Param("sid") UUID sinistreId);
 
+    @Query("SELECT e FROM Encaissement e " +
+           "WHERE e.sinistre.sinistreTrackingId = :sid " +
+           "AND e.statutCheque <> com.ossanasur.cbconnect.common.enums.StatutCheque.ANNULE " +
+           "AND e.activeData = true AND e.deletedData = false " +
+           "ORDER BY e.dateEncaissement ASC")
+    List<Encaissement> findActifsBySinistre(@Param("sid") UUID sinistreTrackingId);
+
+    @Query(nativeQuery = true, value = """
+        SELECT COALESCE(SUM(e.montant_cheque), 0) FROM encaissement e
+        JOIN sinistre s ON s.historique_id = e.sinistre_id
+        WHERE s.sinistre_tracking_id = :sid
+          AND e.statut_cheque <> 'ANNULE'
+          AND e.active_data = TRUE AND e.deleted_data = FALSE
+        """)
+    java.math.BigDecimal sumMontantActifBySinistre(@Param("sid") UUID sid);
+
+    @Query("SELECT CASE WHEN COUNT(e) > 0 THEN true ELSE false END FROM Encaissement e " +
+           "WHERE e.sinistre.sinistreTrackingId = :sid " +
+           "AND e.statutCheque <> com.ossanasur.cbconnect.common.enums.StatutCheque.ANNULE " +
+           "AND e.activeData = true AND e.deletedData = false")
+    boolean existsActifNonAnnuleBySinistre(@Param("sid") UUID sid);
+
+    @Query("SELECT CASE WHEN COUNT(e) > 0 THEN true ELSE false END FROM Encaissement e " +
+           "WHERE e.sinistre.sinistreTrackingId = :sid " +
+           "AND e.statutCheque = com.ossanasur.cbconnect.common.enums.StatutCheque.ENCAISSE " +
+           "AND e.activeData = true AND e.deletedData = false")
+    boolean existsEncaisseBySinistre(@Param("sid") UUID sid);
+
     /**
      * État II — Encaissements par pays émetteur du sinistre.
      * Colonnes : [0]=bureau, [1]=codePays,

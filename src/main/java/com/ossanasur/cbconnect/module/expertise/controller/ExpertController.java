@@ -22,6 +22,8 @@ public class ExpertController {
     @PostMapping @PreAuthorize("hasAnyRole('SE','CSS','ADMIN')")
     public ResponseEntity<DataResponse<ExpertResponse>> create(@Valid @RequestBody ExpertRequest r, @AuthenticationPrincipal UserDetails u) {
         return ResponseEntity.ok(expertService.create(r, u.getUsername())); }
+    @GetMapping public ResponseEntity<DataResponse<List<ExpertResponse>>> getAll() {
+        return ResponseEntity.ok(expertService.getAllActifs()); }
     @GetMapping("/{id}") public ResponseEntity<DataResponse<ExpertResponse>> getOne(@PathVariable UUID id) {
         return ResponseEntity.ok(expertService.getByTrackingId(id)); }
     @GetMapping("/type/{type}") public ResponseEntity<DataResponse<List<ExpertResponse>>> getByType(@PathVariable TypeExpert type) {

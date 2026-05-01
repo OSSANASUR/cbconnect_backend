@@ -190,6 +190,40 @@ public class AttestationServiceImpl implements AttestationService {
         return "LOT-" + annee + "-" + String.format("%03d", seq);
     }
 
+    @Override @Transactional
+    public DataResponse<LotResponse> modifierLot(UUID lotId, LotRequest r, String loginAuteur) {
+        var l = lotRepository.findActiveByTrackingId(lotId)
+            .orElseThrow(() -> new RessourceNotFoundException("Lot introuvable"));
+        long dejaDistribue = trancheRepository.sommeLivreParLot(lotId);
+
+        // Si le lot a déjà servi, on bloque la modification de la plage et de la quantité
+        boolean plageOuQuantiteChange =
+            !l.getNumeroDebutSerie().equals(r.numeroDebutSerie())
+            || !l.getNumeroFinSerie().equals(r.numeroFinSerie())
+            || !l.getQuantite().equals(r.quantite());
+        if (dejaDistribue > 0 && plageOuQuantiteChange) {
+            throw new BadRequestException("Ce lot a déjà servi à des livraisons (" + dejaDistribue
+                + " attestations distribuées). La plage de série et la quantité ne peuvent plus être modifiées.");
+        }
+        if (r.quantite() < dejaDistribue) {
+            throw new BadRequestException("La nouvelle quantité (" + r.quantite()
+                + ") ne peut pas être inférieure à ce qui a déjà été distribué (" + dejaDistribue + ").");
+        }
+
+        if (r.nomFournisseur() != null && !r.nomFournisseur().isBlank()) l.setNomFournisseur(r.nomFournisseur().trim());
+        else l.setNomFournisseur(null);
+        l.setNumeroBonCommande(r.numeroBonCommande());
+        l.setQuantite(r.quantite());
+        l.setNumeroDebutSerie(r.numeroDebutSerie());
+        l.setNumeroFinSerie(r.numeroFinSerie());
+        l.setPrixUnitaireAchat(r.prixUnitaireAchat());
+        l.setDateCommande(r.dateCommande());
+        l.setDateLivraisonFournisseur(r.dateLivraisonFournisseur());
+        l.setUpdatedBy(loginAuteur);
+        return DataResponse.success("Lot " + l.getReferenceLot() + " modifié",
+            mapper.toLotResponse(lotRepository.save(l), dejaDistribue));
+    }
+
     @Override @Transactional(readOnly=true)
     public DataResponse<LotResponse> getLot(UUID lotId) {
         var l = lotRepository.findActiveByTrackingId(lotId)

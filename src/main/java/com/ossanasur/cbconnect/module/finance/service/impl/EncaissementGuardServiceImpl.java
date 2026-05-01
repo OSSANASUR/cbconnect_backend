@@ -3,6 +3,7 @@ package com.ossanasur.cbconnect.module.finance.service.impl;
 import com.ossanasur.cbconnect.exception.BadRequestException;
 import com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository;
 import com.ossanasur.cbconnect.module.finance.repository.PaiementRepository;
+import com.ossanasur.cbconnect.module.finance.repository.PrefinancementRepository;
 import com.ossanasur.cbconnect.module.finance.service.EncaissementGuardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -17,13 +18,16 @@ public class EncaissementGuardServiceImpl implements EncaissementGuardService {
 
     private final EncaissementRepository encaissementRepository;
     private final PaiementRepository paiementRepository;
+    private final PrefinancementRepository prefinancementRepository;
 
     @Override
     @Transactional(readOnly = true)
     public void verifierRegleA(UUID sinistreTrackingId) {
-        if (!encaissementRepository.existsNonAnnuleBySinistre(sinistreTrackingId)) {
+        boolean hasEnc = encaissementRepository.existsActifNonAnnuleBySinistre(sinistreTrackingId);
+        boolean hasPref = prefinancementRepository.existsActifBySinistre(sinistreTrackingId);
+        if (!hasEnc && !hasPref) {
             throw new BadRequestException(
-                    "Impossible d'enregistrer un règlement : aucun encaissement n'a été déclaré pour ce sinistre.");
+                    "Règle A non satisfaite : aucun encaissement non-annulé ni préfinancement actif sur ce sinistre.");
         }
     }
 
@@ -41,8 +45,12 @@ public class EncaissementGuardServiceImpl implements EncaissementGuardService {
     @Transactional(readOnly = true)
     public void verifierRegleC(UUID sinistreTrackingId, BigDecimal montantNouveau) {
         BigDecimal nouveau = montantNouveau == null ? BigDecimal.ZERO : montantNouveau;
-        BigDecimal encaisse = nz(encaissementRepository.sumMontantEncaisseBySinistre(sinistreTrackingId));
-        BigDecimal engage = nz(paiementRepository.sumMontantActifBySinistre(sinistreTrackingId));
+        // On compte tous les encaissements non-annulés (RECU ou ENCAISSE) —
+        // l'encaissement
+        // existe dès qu'il est saisi, le statut ENCAISSE n'est qu'une étape
+        // postérieure.
+        BigDecimal encaisse = notZero(encaissementRepository.sumMontantActifBySinistre(sinistreTrackingId));
+        BigDecimal engage = notZero(paiementRepository.sumMontantActifBySinistre(sinistreTrackingId));
         BigDecimal besoin = engage.add(nouveau);
 
         if (encaisse.compareTo(besoin) < 0) {
@@ -53,7 +61,7 @@ public class EncaissementGuardServiceImpl implements EncaissementGuardService {
         }
     }
 
-    private static BigDecimal nz(BigDecimal v) {
+    private static BigDecimal notZero(BigDecimal v) {
         return v == null ? BigDecimal.ZERO : v;
     }
 }

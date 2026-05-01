@@ -84,6 +84,38 @@ public interface PaiementRepository extends JpaRepository<Paiement, Integer> {
     long countByRepriseHistoriqueAndActiveDataTrueAndDeletedDataFalse(boolean repriseHistorique);
 
     /**
+     * Vrai si au moins un RC actif (statut != ANNULE et sans annulation pointant
+     * vers lui) référence ce RT comme parent. Utilisé pour empêcher la double
+     * saisie de règlement comptable sur un même règlement technique.
+     */
+    @Query("SELECT CASE WHEN COUNT(rc) > 0 THEN true ELSE false END FROM Paiement rc " +
+           "WHERE rc.parentCodeId = :parentTrackingId " +
+           "AND rc.statut <> com.ossanasur.cbconnect.common.enums.StatutPaiement.ANNULE " +
+           "AND rc.activeData = true " +
+           "AND rc.deletedData = false " +
+           "AND NOT EXISTS (" +
+           "    SELECT 1 FROM Paiement annul " +
+           "    WHERE annul.parentCodeId = CAST(rc.paiementTrackingId AS string) " +
+           "    AND annul.statut = com.ossanasur.cbconnect.common.enums.StatutPaiement.ANNULE " +
+           "    AND annul.activeData = true " +
+           "    AND annul.deletedData = false" +
+           ")")
+    boolean existsActiveRcForParent(@Param("parentTrackingId") String parentTrackingId);
+
+    /**
+     * Vrai si une ligne d'annulation active référence ce paiement comme parent.
+     * Utilisé pour empêcher l'annulation multiple d'un même règlement (la ligne
+     * d'origine garde son statut d'origine, c'est l'existence d'une AN pointant
+     * vers elle qui marque conceptuellement l'annulation).
+     */
+    @Query("SELECT CASE WHEN COUNT(an) > 0 THEN true ELSE false END FROM Paiement an " +
+           "WHERE an.parentCodeId = :parentTrackingId " +
+           "AND an.statut = com.ossanasur.cbconnect.common.enums.StatutPaiement.ANNULE " +
+           "AND an.activeData = true " +
+           "AND an.deletedData = false")
+    boolean existsActiveAnnulationFor(@Param("parentTrackingId") String parentTrackingId);
+
+    /**
      * Reporting mensuel Paiements — Tableau I : PAR PAYS BÉNÉFICIAIRE.
      *
      * Groupe les paiements (non annulés) par pays émetteur du sinistre
@@ -520,5 +552,98 @@ public interface PaiementRepository extends JpaRepository<Paiement, Integer> {
             @Param("dateFin") LocalDate dateFin,
             @Param("sinistreTrackingId") UUID sinistreTrackingId,
             Pageable pageable);
+
+    /**
+     * Renvoie les règlements actifs (statut != ANNULE et sans ligne d'annulation
+     * pointant vers eux) rattachés à un encaissement donné. Utilisé comme guard
+     * avant annulation d'un Encaissement.
+     */
+    @Query("""
+        SELECT p FROM Paiement p
+        JOIN p.encaissements e
+        WHERE e.encaissementTrackingId = :encaissementTrackingId
+          AND p.statut <> com.ossanasur.cbconnect.common.enums.StatutPaiement.ANNULE
+          AND p.activeData = true
+          AND p.deletedData = false
+          AND NOT EXISTS (
+              SELECT 1 FROM Paiement annul
+              WHERE annul.parentCodeId = CAST(p.paiementTrackingId AS string)
+                AND annul.statut = com.ossanasur.cbconnect.common.enums.StatutPaiement.ANNULE
+                AND annul.activeData = true
+                AND annul.deletedData = false
+          )
+        """)
+    List<Paiement> findReglementsLiesNonAnnules(
+            @Param("encaissementTrackingId") UUID encaissementTrackingId);
+
+    /**
+     * Compteur global par préfixe de numero d'opération (TYPE-YYYY-NUMSIN-).
+     * NB: pas de filtre sur sinistre_id — la SEQ est partagée entre sinistres
+     * qui produisent le même num_sin sanitisé (cf. spec 2026-04-28 option A).
+     */
+    @Query("SELECT COUNT(p) FROM Paiement p " +
+           "WHERE p.numeroPaiement LIKE :prefixPattern")
+    long countSeqForTypeOnPaiement(@Param("prefixPattern") String prefixPattern);
+
+    /**
+     * Vrai si un paiement d'honoraires actif (statut != ANNULE) existe déjà
+     * pour ce couple (expert, sinistre). Utilisé comme guard avant création
+     * d'un règlement honoraires pour éviter le doublon.
+     */
+    @Query(nativeQuery = true, value = """
+        SELECT COUNT(*) > 0 FROM paiement p
+        JOIN sinistre s ON s.historique_id = p.sinistre_id
+        JOIN expert e ON e.historique_id = p.beneficiaire_expert_id
+        WHERE s.sinistre_tracking_id = :sinistreTrackingId
+          AND e.expert_tracking_id = :expertTrackingId
+          AND p.categorie = 'HONORAIRES'
+          AND p.statut <> 'ANNULE'
+          AND p.active_data = TRUE AND p.deleted_data = FALSE
+        """)
+    boolean existsHonorairesActifByExpertAndSinistre(
+            @Param("expertTrackingId") java.util.UUID expertTrackingId,
+            @Param("sinistreTrackingId") java.util.UUID sinistreTrackingId);
+
+    /**
+     * Total des paiements "leaf" (feuilles) actifs pour un sinistre donné.
+     * Une feuille = un Paiement non-annulé qui n'a aucun Paiement enfant actif
+     * (parent_code_id pointant vers lui). Cela évite de compter à la fois le RT
+     * et son RC issu, ou le RC dont une annulation existe.
+     *
+     * Cas couverts :
+     *   - RT seul (pas encore RC)  -> compté (engagé, pas encore décaissé)
+     *   - RT + RC validé           -> seul le RC est compté
+     *   - RT + RC + AN annulation  -> aucun n'est compté (AN exclu par statut,
+     *                                  RC exclu car AN est son enfant,
+     *                                  RT exclu car RC est son enfant)
+     */
+    @Query(nativeQuery = true, value = """
+        SELECT COALESCE(SUM(p.montant), 0) FROM paiement p
+        JOIN sinistre s ON s.historique_id = p.sinistre_id
+        WHERE s.sinistre_tracking_id = :sinistreTrackingId
+          AND p.statut <> 'ANNULE'
+          AND p.active_data = TRUE AND p.deleted_data = FALSE
+          AND NOT EXISTS (
+              SELECT 1 FROM paiement child
+              WHERE child.parent_code_id = p.paiement_tracking_id::text
+                AND child.active_data = TRUE AND child.deleted_data = FALSE
+          )
+        """)
+    java.math.BigDecimal sumPaiementsActifsBySinistre(
+            @Param("sinistreTrackingId") java.util.UUID sinistreTrackingId);
+
+    /**
+     * Renvoie tous les paiements actifs rattachés à un lot de règlement.
+     * Utilisé par LotReglementServiceImpl pour itérer sur les lignes d'un lot.
+     */
+    List<Paiement> findByLotReglement(com.ossanasur.cbconnect.module.finance.entity.LotReglement lot);
+
+    /**
+     * Renvoie les paiements d'un lot filtrés par statut.
+     * Utilisé lors de la validation comptable pour ne traiter que les RC.
+     */
+    List<Paiement> findByLotReglementAndStatut(
+            com.ossanasur.cbconnect.module.finance.entity.LotReglement lot,
+            com.ossanasur.cbconnect.common.enums.StatutPaiement statut);
 
 }

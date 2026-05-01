@@ -59,8 +59,7 @@ public class OrganismeServiceImpl implements OrganismeService {
             "image/png", "png",
             "image/jpeg", "jpg",
             "image/jpg", "jpg",
-            "image/webp", "webp"
-    );
+            "image/webp", "webp");
 
     @Override
     @Transactional
@@ -72,22 +71,38 @@ public class OrganismeServiceImpl implements OrganismeService {
 
         Organisme o = Organisme.builder()
                 .organismeTrackingId(UUID.randomUUID())
-                .typeOrganisme(r.typeOrganisme()).raisonSociale(r.raisonSociale())
-                .code(r.code()).email(r.email()).responsable(r.responsable())
-                .contacts(r.contacts()).codePays(r.codePays()).codePaysBCB(r.codePaysBCB())
-                .paysId(r.paysId()).dateCreation(r.dateCreation())
-                .numeroAgrement(r.numeroAgrement()).apiEndpointUrl(r.apiEndpointUrl())
-                .adresse(r.adresse()).boitePostale(r.boitePostale()).ville(r.ville())
-                .telephonePrincipal(r.telephonePrincipal()).fax(r.fax()).siteWeb(r.siteWeb())
+                .typeOrganisme(r.typeOrganisme())
+                .raisonSociale(r.raisonSociale())
+                .code(r.code())
+                .email(r.email())
+                .responsable(r.responsable())
+                .contacts(r.contacts())
+                .codePays(r.codePays())
+                .codePaysBCB(r.codePaysBCB())
+                .paysId(r.paysId())
+                .dateCreation(r.dateCreation())
+                .numeroAgrement(r.numeroAgrement())
+                .apiEndpointUrl(r.apiEndpointUrl())
+                .adresse(r.adresse())
+                .boitePostale(r.boitePostale())
+                .ville(r.ville())
+                .telephonePrincipal(r.telephonePrincipal())
+                .fax(r.fax()).siteWeb(r.siteWeb())
                 .logo(r.logo())
-                .headerImageUrl(r.headerImageUrl()).footerImageUrl(r.footerImageUrl())
+                .headerImageUrl(r.headerImageUrl())
+                .footerImageUrl(r.footerImageUrl())
                 .titreResponsable(r.titreResponsable())
                 .afficherDeuxSignatures(r.afficherDeuxSignatures())
-                .responsable2(r.responsable2()).titreResponsable2(r.titreResponsable2())
-                .active(r.active()).createdBy(loginAuteur).activeData(true).deletedData(false)
+                .responsable2(r.responsable2())
+                .titreResponsable2(r.titreResponsable2())
+                .active(r.active())
+                .createdBy(loginAuteur)
+                .activeData(true)
+                .deletedData(false)
                 .fromTable(com.ossanasur.cbconnect.common.enums.TypeTable.ORGANISME)
                 .build();
-        return DataResponse.created("Organisme cree avec succes", organismeMapper.toResponse(organismeRepository.save(o)));
+        return DataResponse.created("Organisme cree avec succes",
+                organismeMapper.toResponse(organismeRepository.save(o)));
     }
 
     @Override
@@ -160,7 +175,7 @@ public class OrganismeServiceImpl implements OrganismeService {
     @Override
     @Transactional
     public DataResponse<OrganismeResponse> uploadBrandingImage(UUID trackingId, BrandingImageType type,
-                                                                MultipartFile file, String loginAuteur) {
+            MultipartFile file, String loginAuteur) {
         if (file == null || file.isEmpty()) {
             throw new BadRequestException("Le fichier est vide");
         }
@@ -201,7 +216,8 @@ public class OrganismeServiceImpl implements OrganismeService {
 
     @Override
     @Transactional
-    public DataResponse<OrganismeResponse> deleteBrandingImage(UUID trackingId, BrandingImageType type, String loginAuteur) {
+    public DataResponse<OrganismeResponse> deleteBrandingImage(UUID trackingId, BrandingImageType type,
+            String loginAuteur) {
         Organisme o = versioningService.getActiveVersion(trackingId);
         Path dir = Paths.get(uploadBaseDir, "organismes", trackingId.toString());
         deleteExistingBrandingFiles(dir, type.getSlug());
@@ -234,8 +250,18 @@ public class OrganismeServiceImpl implements OrganismeService {
                 .body(res);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public DataResponse<List<OrganismeResponse>> listerActifs(List<TypeOrganisme> types) {
+        List<OrganismeResponse> list = organismeRepository
+                .findActifsByTypes(types == null || types.isEmpty() ? null : types)
+                .stream().map(organismeMapper::toResponse).toList();
+        return DataResponse.success(null, list);
+    }
+
     private void deleteExistingBrandingFiles(Path dir, String slug) {
-        if (!Files.isDirectory(dir)) return;
+        if (!Files.isDirectory(dir))
+            return;
         try (Stream<Path> entries = Files.list(dir)) {
             entries.filter(p -> {
                 String name = p.getFileName().toString();
@@ -243,13 +269,18 @@ public class OrganismeServiceImpl implements OrganismeService {
                 String base = dot > 0 ? name.substring(0, dot) : name;
                 return base.equalsIgnoreCase(slug);
             }).forEach(p -> {
-                try { Files.deleteIfExists(p); } catch (IOException ignored) {}
+                try {
+                    Files.deleteIfExists(p);
+                } catch (IOException ignored) {
+                }
             });
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
     }
 
     private Optional<Path> findBrandingFile(Path dir, String slug) {
-        if (!Files.isDirectory(dir)) return Optional.empty();
+        if (!Files.isDirectory(dir))
+            return Optional.empty();
         try (Stream<Path> entries = Files.list(dir)) {
             return entries.filter(p -> {
                 String name = p.getFileName().toString();
@@ -264,9 +295,12 @@ public class OrganismeServiceImpl implements OrganismeService {
 
     private String guessMimeFromFilename(String filename) {
         String lower = filename.toLowerCase(Locale.ROOT);
-        if (lower.endsWith(".png")) return "image/png";
-        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
-        if (lower.endsWith(".webp")) return "image/webp";
+        if (lower.endsWith(".png"))
+            return "image/png";
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg"))
+            return "image/jpeg";
+        if (lower.endsWith(".webp"))
+            return "image/webp";
         return MediaType.APPLICATION_OCTET_STREAM_VALUE;
     }
 }

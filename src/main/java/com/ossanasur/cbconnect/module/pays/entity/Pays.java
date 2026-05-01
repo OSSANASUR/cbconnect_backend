@@ -34,4 +34,7 @@ public class Pays extends InternalHistorique {
     private Integer ageRetraite = 60;
     @Builder.Default
     private boolean actif = true;
+    @Column(name = "taux_tva", nullable = false, precision = 5, scale = 4)
+    @Builder.Default
+    private BigDecimal tauxTva = new BigDecimal("0.18");
 }

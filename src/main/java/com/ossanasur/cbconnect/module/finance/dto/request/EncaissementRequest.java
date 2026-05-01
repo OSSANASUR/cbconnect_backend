@@ -7,8 +7,9 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 public record EncaissementRequest(
-        @NotBlank String numeroCheque, @NotNull BigDecimal montantCheque, @NotNull BigDecimal montantTheorique,
-        BigDecimal produitFraisGestion, @NotNull LocalDate dateEmission,
-        LocalDate dateReception, String banqueEmettrice,
-        @NotNull UUID organismeEmetteurTrackingId, @NotNull UUID sinistreTrackingId) {
+                @NotBlank String numeroCheque, @NotNull BigDecimal montantCheque, @NotNull BigDecimal montantTheorique,
+                BigDecimal produitFraisGestion, @NotNull LocalDate dateEmission,
+                LocalDate dateReception, String banqueEmettrice,
+                @NotNull UUID organismeEmetteurTrackingId, @NotNull UUID sinistreTrackingId,
+                @NotNull UUID chequeOrdreOrganismeTrackingId) {
 }

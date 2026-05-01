@@ -1,0 +1,8 @@
+-- V202604301006__pays_taux_tva.sql
+
+ALTER TABLE pays ADD COLUMN taux_tva NUMERIC(5,4);
+
+UPDATE pays SET taux_tva = 0.18 WHERE taux_tva IS NULL;
+
+ALTER TABLE pays ALTER COLUMN taux_tva SET NOT NULL;
+ALTER TABLE pays ALTER COLUMN taux_tva SET DEFAULT 0.18;

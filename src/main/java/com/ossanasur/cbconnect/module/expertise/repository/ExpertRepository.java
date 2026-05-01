@@ -12,4 +12,11 @@ public interface ExpertRepository extends JpaRepository<Expert, Integer> {
     Optional<Expert> findActiveByTrackingId(@Param("id") UUID id);
     @Query("SELECT e FROM Expert e WHERE e.activeData=true AND e.deletedData=false AND e.actif=true AND e.typeExpert=:type ORDER BY e.nomComplet")
     List<Expert> findAllActifsByType(@Param("type") TypeExpert type);
+
+    @Query(nativeQuery = true, value = """
+        SELECT * FROM expert
+        WHERE active_data = TRUE AND deleted_data = FALSE AND actif = TRUE
+        ORDER BY nom_complet
+        """)
+    List<Expert> findAllActifs();
 }

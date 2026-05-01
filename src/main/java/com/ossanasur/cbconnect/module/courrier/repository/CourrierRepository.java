@@ -23,6 +23,13 @@ public interface CourrierRepository extends JpaRepository<Courrier, Integer> {
     @Query("SELECT c FROM Courrier c WHERE c.activeData=true AND c.deletedData=false ORDER BY c.dateCourrier DESC")
     List<Courrier> findAllActive();
 
+    boolean existsByReferenceCourrier(String referenceCourrier);
+
+    /** Max séquence par préfixe (initiales) et année — format <PREFIX>/AAAA/NNNNN. */
+    @Query("SELECT COALESCE(MAX(CAST(SUBSTRING(c.referenceCourrier, LENGTH(:prefix)+7) AS int)),0) "
+        + "FROM Courrier c WHERE c.referenceCourrier LIKE CONCAT(:prefix, '/', :annee, '/%')")
+    long findMaxSequenceByPrefixAndAnnee(@Param("prefix") String prefix, @Param("annee") int annee);
+
     // Courriers sortants envoyés via messagerie CBConnect, triés par date d'envoi
     // desc
     @Query("SELECT c FROM Courrier c WHERE c.typeCourrier = 'SORTANT' AND c.envoyeParMail = true " +

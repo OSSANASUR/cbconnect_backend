@@ -137,11 +137,8 @@ public class LotReglementServiceImpl implements LotReglementService {
             throw new BadRequestException("Au moins un sinistre doit être sélectionné");
         }
 
-        // 2. Calculs et création du lot
-        BigDecimal tauxTva = expert.getPays() != null && expert.getPays().getTauxTva() != null
-                ? expert.getPays().getTauxTva()
-                : new BigDecimal("0.18");
-
+        // TVA non appliquée pour les règlements aux experts (décision métier 2026-05-02).
+        // La colonne montant_tva est conservée pour cohérence schéma mais toujours nulle.
         // 1. Pré-validation : RÈGLE A + pas de doublon HONORAIRES + fonds suffisants
         for (var ligne : req.lignes()) {
             Sinistre sinistre = sinistreRepository.findActiveByTrackingId(ligne.sinistreTrackingId())
@@ -158,8 +155,7 @@ public class LotReglementServiceImpl implements LotReglementService {
 
             // Contrôle solde : fonds_dispo = encaissements ENCAISSE - préfi décaissés - paiements actifs
             BigDecimal ht = ligne.montantHt();
-            BigDecimal tva = ht.multiply(tauxTva).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal ttcLigne = ht.add(tva);
+            BigDecimal ttcLigne = ht;  // TVA = 0 pour règlements experts
 
             BigDecimal totalEncaisse = encaissementRepository.sumMontantActifBySinistre(
                     ligne.sinistreTrackingId());
@@ -228,8 +224,8 @@ public class LotReglementServiceImpl implements LotReglementService {
                     .orElseThrow();
 
             BigDecimal ht = ligne.montantHt();
-            BigDecimal tva = ht.multiply(tauxTva).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal ttc = ht.add(tva);
+            BigDecimal tva = BigDecimal.ZERO;
+            BigDecimal ttc = ht;  // TVA = 0 pour règlements experts
             BigDecimal taxe = ttc.multiply(req.tauxRetenue().getValeur()).setScale(2, RoundingMode.HALF_UP);
 
             beneficiaireValidator.valider(CategorieReglement.HONORAIRES, sinistre, null, null, expert);

@@ -103,6 +103,7 @@ public class Paiement extends InternalHistorique {
      * du reste disponible par encaissement.
      */
     @OneToMany(mappedBy = "paiement", fetch = FetchType.LAZY)
+    @Builder.Default
     private java.util.List<PaiementImputation> imputations = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)

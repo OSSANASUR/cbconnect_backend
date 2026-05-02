@@ -32,3 +32,6 @@ Thumbs.db
 
 uploads/organismes/**
 uploads/pv/**
+
+application-local.properties
+application-local*.properties

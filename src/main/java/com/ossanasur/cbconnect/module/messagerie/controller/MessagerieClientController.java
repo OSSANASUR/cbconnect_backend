@@ -60,16 +60,21 @@ public class MessagerieClientController {
         return ResponseEntity.ok(clientService.getMessage(courrierTrackingId, auth.getName()));
     }
 
-    @PostMapping(value = "/envoyer", consumes = {
-            MediaType.MULTIPART_FORM_DATA_VALUE,
-            MediaType.APPLICATION_JSON_VALUE // fallback sans PJ
-    })
+    @PostMapping(value = "/envoyer", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Envoyer un mail (avec pièces jointes optionnelles)")
-    public ResponseEntity<DataResponse<UUID>> envoyer(
+    public ResponseEntity<DataResponse<UUID>> envoyerMultipart(
             @RequestPart("data") EnvoyerMailRequest req,
             @RequestPart(value = "fichiers", required = false) List<MultipartFile> fichiers,
             Authentication auth) {
         return ResponseEntity.ok(clientService.envoyer(req, fichiers, auth.getName()));
+    }
+
+    @PostMapping(value = "/envoyer", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Envoyer un mail sans pièce jointe")
+    public ResponseEntity<DataResponse<UUID>> envoyerJson(
+            @RequestBody EnvoyerMailRequest req,
+            Authentication auth) {
+        return ResponseEntity.ok(clientService.envoyer(req, null, auth.getName()));
     }
 
     @GetMapping("/templates")

@@ -21,4 +21,6 @@ public interface IndemnisationService {
     DataResponse<List<AyantDroitResponse>> getAyantsDroitByVictime(UUID victimeId);
 
     DataResponse<Void> supprimerAyantDroit(UUID ayantDroitId, String loginAuteur);
+
+    DataResponse<OffreIndemnisationResponse> patchOffre(UUID offreId, WorkflowOffreRequest r, String loginAuteur);
 }

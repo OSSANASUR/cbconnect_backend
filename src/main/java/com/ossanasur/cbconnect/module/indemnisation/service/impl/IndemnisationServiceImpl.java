@@ -105,4 +105,26 @@ public class IndemnisationServiceImpl implements IndemnisationService {
         ayantDroitRepository.save(a);
         return DataResponse.success("Ayant droit supprimé", null);
     }
+
+    @Override
+    @Transactional
+    public DataResponse<OffreIndemnisationResponse> patchOffre(UUID offreId,
+            com.ossanasur.cbconnect.module.indemnisation.dto.request.WorkflowOffreRequest r,
+            String loginAuteur) {
+        OffreIndemnisation o = offreRepository.findActiveByTrackingId(offreId)
+                .orElseThrow(() -> new RessourceNotFoundException("Offre introuvable"));
+        if (r.dateEnvoiHomologue()          != null) o.setDateEnvoiHomologue(r.dateEnvoiHomologue());
+        if (r.dateReponseHomologue()         != null) o.setDateReponseHomologue(r.dateReponseHomologue());
+        // montantContreOffre : on applique même si null (reset intentionnel)
+        if (r.dateReponseHomologue()         != null) o.setMontantContreOffre(r.montantContreOffre());
+        if (r.descriptionContreOffre()       != null) o.setDescriptionContreOffre(r.descriptionContreOffre());
+        if (r.ossanGedDocumentIdContreOffre()!= null) o.setOssanGedDocumentIdContreOffre(r.ossanGedDocumentIdContreOffre());
+        if (r.dateEnvoiVictime()             != null) o.setDateEnvoiVictime(r.dateEnvoiVictime());
+        if (r.dateAccordVictime()            != null) o.setDateAccordVictime(r.dateAccordVictime());
+        if (r.observationsAccord()           != null) o.setObservationsAccord(r.observationsAccord());
+        if (r.ossanGedDocumentIdAccord()     != null) o.setOssanGedDocumentIdAccord(r.ossanGedDocumentIdAccord());
+        if (r.dateRejetVictime()             != null) o.setDateRejetVictime(r.dateRejetVictime());
+        o.setUpdatedBy(loginAuteur);
+        return DataResponse.success("Offre mise à jour", mapper.toResponse(offreRepository.save(o)));
+    }
 }

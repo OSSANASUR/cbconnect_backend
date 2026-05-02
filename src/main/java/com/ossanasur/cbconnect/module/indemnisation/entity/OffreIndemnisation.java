@@ -9,6 +9,7 @@ import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -64,6 +65,19 @@ public class OffreIndemnisation extends InternalHistorique {
     @Column(name = "detail_calcul_json", columnDefinition = "jsonb")
     private String detailCalculJson;
     private LocalDateTime dateValidation;
+
+    // ── Workflow de transmission ──────────────────────────────────────────────
+    private LocalDate dateEnvoiHomologue;
+    private LocalDate dateReponseHomologue;
+    private BigDecimal montantContreOffre;
+    private String descriptionContreOffre;
+    private String ossanGedDocumentIdContreOffre;
+    private LocalDate dateEnvoiVictime;
+    private LocalDate dateAccordVictime;
+    private String observationsAccord;
+    private String ossanGedDocumentIdAccord;
+    private LocalDate dateRejetVictime;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "victime_id", nullable = false)
     private Victime victime;

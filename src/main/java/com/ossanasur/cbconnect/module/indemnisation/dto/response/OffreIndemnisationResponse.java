@@ -1,5 +1,5 @@
 package com.ossanasur.cbconnect.module.indemnisation.dto.response;
-import java.math.BigDecimal; import java.time.LocalDateTime; import java.util.UUID;
+import java.math.BigDecimal; import java.time.LocalDate; import java.time.LocalDateTime; import java.util.UUID;
 public record OffreIndemnisationResponse(
     UUID offreTrackingId, BigDecimal smigMensuelRetenu,
     BigDecimal montantFraisMedicaux, BigDecimal montantItt,
@@ -11,5 +11,12 @@ public record OffreIndemnisationResponse(
     BigDecimal totalBrut, BigDecimal tauxPartageRc, BigDecimal totalNet,
     BigDecimal fraisGestion, BigDecimal montantTotalOffre,
     LocalDateTime dateValidation, String victimeNomPrenom,
-    String validePar, LocalDateTime createdAt
+    String validePar, LocalDateTime createdAt,
+    // workflow
+    LocalDate dateEnvoiHomologue, LocalDate dateReponseHomologue,
+    BigDecimal montantContreOffre, String descriptionContreOffre,
+    String ossanGedDocumentIdContreOffre,
+    LocalDate dateEnvoiVictime,
+    LocalDate dateAccordVictime, String observationsAccord, String ossanGedDocumentIdAccord,
+    LocalDate dateRejetVictime
 ) {}

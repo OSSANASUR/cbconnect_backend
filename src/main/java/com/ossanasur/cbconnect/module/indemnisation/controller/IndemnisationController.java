@@ -84,4 +84,14 @@ public class IndemnisationController {
             @PathVariable UUID ayantDroitId, @AuthenticationPrincipal UserDetails u) {
         return ResponseEntity.ok(indemnisationService.supprimerAyantDroit(ayantDroitId, u.getUsername()));
     }
+
+    @PatchMapping("/offre/{offreId}")
+    @PreAuthorize("hasAnyRole('SE','CSS','REDACTEUR')")
+    @Operation(summary = "Mettre à jour les champs workflow d'une offre (envoi homologue, contre-offre, accord victime…)")
+    public ResponseEntity<DataResponse<OffreIndemnisationResponse>> patchOffre(
+            @PathVariable UUID offreId,
+            @RequestBody com.ossanasur.cbconnect.module.indemnisation.dto.request.WorkflowOffreRequest r,
+            @AuthenticationPrincipal UserDetails u) {
+        return ResponseEntity.ok(indemnisationService.patchOffre(offreId, r, u.getUsername()));
+    }
 }

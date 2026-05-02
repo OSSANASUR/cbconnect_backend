@@ -19,7 +19,13 @@ public class OffreIndemnisationMapper {
             o.getDateValidation(),
             o.getVictime()!=null?o.getVictime().getNom()+" "+o.getVictime().getPrenoms():null,
             o.getValidePar()!=null?o.getValidePar().getNom()+" "+o.getValidePar().getPrenoms():null,
-            o.getCreatedAt()
+            o.getCreatedAt(),
+            o.getDateEnvoiHomologue(), o.getDateReponseHomologue(),
+            o.getMontantContreOffre(), o.getDescriptionContreOffre(),
+            o.getOssanGedDocumentIdContreOffre(),
+            o.getDateEnvoiVictime(),
+            o.getDateAccordVictime(), o.getObservationsAccord(), o.getOssanGedDocumentIdAccord(),
+            o.getDateRejetVictime()
         );
     }
     public AyantDroitResponse toAyantDroitResponse(AyantDroit a) {

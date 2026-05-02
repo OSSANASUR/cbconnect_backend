@@ -5,6 +5,7 @@ import com.ossanasur.cbconnect.exception.RessourceNotFoundException;
 import com.ossanasur.cbconnect.module.finance.dto.request.ImputationRequest;
 import com.ossanasur.cbconnect.module.finance.dto.response.EncaissementResteResponse;
 import com.ossanasur.cbconnect.module.finance.dto.response.PaiementImputationResponse;
+import com.ossanasur.cbconnect.common.enums.StatutPaiement;
 import com.ossanasur.cbconnect.common.enums.TypeTable;
 import com.ossanasur.cbconnect.module.finance.entity.Encaissement;
 import com.ossanasur.cbconnect.module.finance.entity.Paiement;
@@ -161,8 +162,33 @@ public class PaiementImputationServiceImpl implements PaiementImputationService 
     @Override
     @Transactional
     public void contrePasserImputations(Paiement paiementOrigine, Paiement anPaiement, String createdBy) {
-        // À implémenter en Task B6
-        throw new UnsupportedOperationException("À implémenter en Task B6");
+        if (anPaiement.getStatut() != StatutPaiement.ANNULE) {
+            throw new IllegalStateException("L'AN doit avoir statut ANNULE pour contre-passer");
+        }
+
+        List<PaiementImputation> imputationsOrigine = imputationRepository
+                .findActiveByPaiement(paiementOrigine.getHistoriqueId())
+                .stream()
+                .filter(pi -> pi.getMontantImpute() != null && pi.getMontantImpute().signum() > 0)
+                .toList();
+
+        for (PaiementImputation origine : imputationsOrigine) {
+            PaiementImputation contrePassage = PaiementImputation.builder()
+                    .imputationTrackingId(UUID.randomUUID())
+                    .paiement(anPaiement)
+                    .encaissement(origine.getEncaissement())
+                    .montantImpute(origine.getMontantImpute().negate())
+                    .imputationOrigine(origine)
+                    .activeData(true)
+                    .deletedData(false)
+                    .createdAt(LocalDateTime.now())
+                    .createdBy(createdBy)
+                    .fromTable(TypeTable.PAIEMENT_IMPUTATION)
+                    .build();
+            imputationRepository.save(contrePassage);
+        }
+
+        // TODO(comptabilite): déclencher EcritureComptableEvent ici (contre-passation)
     }
 
     private static BigDecimal nz(BigDecimal v) {

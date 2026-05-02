@@ -11,7 +11,9 @@ import com.ossanasur.cbconnect.module.finance.entity.Paiement;
 import com.ossanasur.cbconnect.module.finance.exception.ReglementsLiesNonAnnulesException;
 import com.ossanasur.cbconnect.module.finance.mapper.EncaissementMapper;
 import com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository;
+import com.ossanasur.cbconnect.module.finance.repository.PaiementImputationRepository;
 import com.ossanasur.cbconnect.module.finance.repository.PaiementRepository;
+import com.ossanasur.cbconnect.module.finance.repository.PrefinancementRemboursementRepository;
 import com.ossanasur.cbconnect.module.finance.service.EncaissementService;
 import com.ossanasur.cbconnect.module.sinistre.entity.Sinistre;
 import com.ossanasur.cbconnect.module.sinistre.repository.SinistreRepository;
@@ -33,6 +35,8 @@ public class EncaissementServiceImpl implements EncaissementService {
         private final OrganismeRepository organismeRepository;
         private final EncaissementMapper mapper;
         private final PaiementRepository paiementRepository;
+        private final PaiementImputationRepository paiementImputationRepository;
+        private final PrefinancementRemboursementRepository prefiRemboursementRepository;
 
         @Override
         @Transactional
@@ -104,10 +108,26 @@ public class EncaissementServiceImpl implements EncaissementService {
                         throw new ReglementsLiesNonAnnulesException(bloquants);
                 }
 
+                // Garde imputation_encaissement (nouveau modèle) :
+                // somme algébrique des imputations actives doit être nulle pour autoriser l'annulation.
+                BigDecimal sumImputations = nz(paiementImputationRepository.sumImputationsByEncaissement(e.getHistoriqueId()));
+                BigDecimal sumPrefi = nz(prefiRemboursementRepository.sumMontantByEncaissement(e.getHistoriqueId()));
+                if (sumImputations.signum() != 0 || sumPrefi.signum() != 0) {
+                        throw new BadRequestException(String.format(
+                                        "Impossible d'annuler ce chèque : il finance encore des opérations actives "
+                                        + "(imputations règlements : %s FCFA, remboursements préfi : %s FCFA). "
+                                        + "Annulez d'abord les règlements/remboursements concernés.",
+                                        sumImputations.toPlainString(), sumPrefi.toPlainString()));
+                }
+
                 e.setStatutCheque(StatutCheque.ANNULE);
                 e.setMotifAnnulation(motif);
                 e.setUpdatedBy(loginAuteur);
                 encaissementRepository.save(e);
                 return DataResponse.success("Encaissement annulé", null);
+        }
+
+        private static BigDecimal nz(BigDecimal v) {
+                return v == null ? BigDecimal.ZERO : v;
         }
 }

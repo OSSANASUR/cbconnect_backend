@@ -1,6 +1,7 @@
 package com.ossanasur.cbconnect.module.finance.controller;
 
 import com.ossanasur.cbconnect.module.finance.dto.request.AdminReconciliationRequest;
+import com.ossanasur.cbconnect.module.finance.dto.response.LegacyPaiementInfo;
 import com.ossanasur.cbconnect.module.finance.service.PaiementImputationService;
 import com.ossanasur.cbconnect.utils.DataResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,6 +13,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -20,6 +22,16 @@ import java.util.UUID;
 public class AdminReconciliationController {
 
     private final PaiementImputationService imputationService;
+
+    @GetMapping("/sinistres/{sinistreTrackingId}/legacy-paiements")
+    @Operation(summary = "Liste les paiements legacy d'un sinistre (sans imputation_paiement) — admin/comptable")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPTABLE')")
+    public ResponseEntity<DataResponse<List<LegacyPaiementInfo>>> listLegacy(
+            @PathVariable UUID sinistreTrackingId) {
+        List<LegacyPaiementInfo> list = imputationService.getLegacyPaiements(sinistreTrackingId);
+        return ResponseEntity.ok(DataResponse.success(
+                list.size() + " paiements legacy trouvés", list));
+    }
 
     @PostMapping("/sinistres/{sinistreTrackingId}")
     @Operation(summary = "Backfill manuel des imputations historiques pour un sinistre (réservé COMPTABLE/ADMIN)")

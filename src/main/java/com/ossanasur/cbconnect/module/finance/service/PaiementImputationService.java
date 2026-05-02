@@ -3,6 +3,7 @@ package com.ossanasur.cbconnect.module.finance.service;
 import com.ossanasur.cbconnect.module.finance.dto.request.AdminReconciliationRequest;
 import com.ossanasur.cbconnect.module.finance.dto.request.ImputationRequest;
 import com.ossanasur.cbconnect.module.finance.dto.response.EncaissementResteResponse;
+import com.ossanasur.cbconnect.module.finance.dto.response.LegacyPaiementInfo;
 import com.ossanasur.cbconnect.module.finance.dto.response.PaiementImputationResponse;
 import com.ossanasur.cbconnect.module.finance.entity.Paiement;
 
@@ -43,4 +44,10 @@ public interface PaiementImputationService {
     int backfillImputations(UUID sinistreTrackingId,
                             List<AdminReconciliationRequest.PaiementImputations> requests,
                             String createdBy);
+
+    /**
+     * Liste des paiements actifs (RT racines) d'un sinistre qui n'ont aucune
+     * ligne paiement_imputation — candidats pour la page admin de réconciliation.
+     */
+    List<LegacyPaiementInfo> getLegacyPaiements(UUID sinistreTrackingId);
 }

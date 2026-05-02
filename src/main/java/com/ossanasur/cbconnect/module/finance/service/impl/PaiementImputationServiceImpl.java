@@ -5,6 +5,7 @@ import com.ossanasur.cbconnect.exception.RessourceNotFoundException;
 import com.ossanasur.cbconnect.module.finance.dto.request.AdminReconciliationRequest;
 import com.ossanasur.cbconnect.module.finance.dto.request.ImputationRequest;
 import com.ossanasur.cbconnect.module.finance.dto.response.EncaissementResteResponse;
+import com.ossanasur.cbconnect.module.finance.dto.response.LegacyPaiementInfo;
 import com.ossanasur.cbconnect.module.finance.dto.response.PaiementImputationResponse;
 import com.ossanasur.cbconnect.common.enums.StatutPaiement;
 import com.ossanasur.cbconnect.common.enums.TypeTable;
@@ -218,6 +219,21 @@ public class PaiementImputationServiceImpl implements PaiementImputationService 
             total += req.imputations().size();
         }
         return total;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<LegacyPaiementInfo> getLegacyPaiements(UUID sinistreTrackingId) {
+        return paiementRepository.findLegacyNonReconciliesBySinistre(sinistreTrackingId)
+                .stream()
+                .map(p -> new LegacyPaiementInfo(
+                        p.getPaiementTrackingId(),
+                        p.getNumeroPaiement(),
+                        p.getBeneficiaire(),
+                        p.getMontant(),
+                        p.getDateEmission(),
+                        p.getStatut() != null ? p.getStatut().name() : null))
+                .toList();
     }
 
     private static BigDecimal nz(BigDecimal v) {

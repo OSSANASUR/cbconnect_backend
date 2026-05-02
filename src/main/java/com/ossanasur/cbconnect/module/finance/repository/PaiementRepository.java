@@ -646,4 +646,24 @@ public interface PaiementRepository extends JpaRepository<Paiement, Integer> {
             com.ossanasur.cbconnect.module.finance.entity.LotReglement lot,
             com.ossanasur.cbconnect.common.enums.StatutPaiement statut);
 
+    /**
+     * Paiements RT actifs d'un sinistre qui n'ont aucune ligne paiement_imputation —
+     * candidats pour la page admin de réconciliation legacy.
+     */
+    @Query(nativeQuery = true, value = """
+        SELECT p.* FROM paiement p
+        JOIN sinistre s ON s.historique_id = p.sinistre_id
+        WHERE s.sinistre_tracking_id = :sid
+          AND p.parent_code_id IS NULL
+          AND p.statut <> 'ANNULE'
+          AND p.active_data = TRUE AND p.deleted_data = FALSE
+          AND NOT EXISTS (
+              SELECT 1 FROM paiement_imputation pi
+              WHERE pi.paiement_id = p.historique_id
+                AND pi.active_data = TRUE AND pi.deleted_data = FALSE
+          )
+        ORDER BY p.date_emission ASC, p.created_at ASC
+        """)
+    List<Paiement> findLegacyNonReconciliesBySinistre(@Param("sid") UUID sinistreTrackingId);
+
 }

@@ -17,8 +17,10 @@ import com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository;
 import com.ossanasur.cbconnect.module.finance.repository.PaiementImputationRepository;
 import com.ossanasur.cbconnect.module.finance.repository.PaiementRepository;
 import com.ossanasur.cbconnect.module.finance.repository.PrefinancementRemboursementRepository;
+import com.ossanasur.cbconnect.module.comptabilite.event.EcritureComptableEvent;
 import com.ossanasur.cbconnect.module.finance.service.PaiementImputationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +38,7 @@ public class PaiementImputationServiceImpl implements PaiementImputationService 
     private final PaiementRepository paiementRepository;
     private final PrefinancementRemboursementRepository prefiRemboursementRepository;
     private final PaiementImputationMapper mapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional(readOnly = true)
@@ -156,9 +159,15 @@ public class PaiementImputationServiceImpl implements PaiementImputationService 
                     .build();
 
             imputationRepository.save(pi);
-        }
 
-        // TODO(comptabilite): déclencher EcritureComptableEvent ici (engagement)
+            eventPublisher.publishEvent(new EcritureComptableEvent(
+                    EcritureComptableEvent.Type.ENGAGEMENT,
+                    paiement.getPaiementTrackingId(),
+                    enc.getEncaissementTrackingId(),
+                    req.montant(),
+                    "Engagement règlement " + paiement.getNumeroPaiement(),
+                    createdBy));
+        }
     }
 
     @Override
@@ -188,9 +197,15 @@ public class PaiementImputationServiceImpl implements PaiementImputationService 
                     .fromTable(TypeTable.PAIEMENT_IMPUTATION)
                     .build();
             imputationRepository.save(contrePassage);
-        }
 
-        // TODO(comptabilite): déclencher EcritureComptableEvent ici (contre-passation)
+            eventPublisher.publishEvent(new EcritureComptableEvent(
+                    EcritureComptableEvent.Type.CONTRE_PASSATION,
+                    anPaiement.getPaiementTrackingId(),
+                    origine.getEncaissement().getEncaissementTrackingId(),
+                    contrePassage.getMontantImpute(),
+                    "Contre-passation suite annulation " + anPaiement.getNumeroPaiement(),
+                    createdBy));
+        }
     }
 
     @Override

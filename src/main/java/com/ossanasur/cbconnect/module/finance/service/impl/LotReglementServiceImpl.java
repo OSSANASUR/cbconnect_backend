@@ -14,6 +14,7 @@ import com.ossanasur.cbconnect.module.finance.entity.Paiement;
 import com.ossanasur.cbconnect.module.finance.mapper.LotReglementMapper;
 import com.ossanasur.cbconnect.module.finance.repository.LotReglementRepository;
 import com.ossanasur.cbconnect.module.finance.repository.PaiementRepository;
+import com.ossanasur.cbconnect.module.finance.repository.PrefinancementRepository;
 import com.ossanasur.cbconnect.module.finance.service.EncaissementGuardService;
 import com.ossanasur.cbconnect.module.finance.service.LotReglementService;
 import com.ossanasur.cbconnect.module.sinistre.entity.Sinistre;
@@ -44,6 +45,7 @@ public class LotReglementServiceImpl implements LotReglementService {
     private final SinistreRepository sinistreRepository;
     private final PaiementRepository paiementRepository;
     private final com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository encaissementRepository;
+    private final PrefinancementRepository prefinancementRepository;
     private final LotReglementMapper lotMapper;
     private final EncaissementGuardService guardService;
     private final ParamMotifServiceImpl paramMotifService;
@@ -98,10 +100,13 @@ public class LotReglementServiceImpl implements LotReglementService {
                     s.getHistoriqueId(), expert.getHistoriqueId());
 
             BigDecimal totalEnc = encaissementRepository.sumMontantActifBySinistre(s.getSinistreTrackingId());
+            BigDecimal totalPref = prefinancementRepository.sumMontantActifBySinistre(s.getSinistreTrackingId());
             BigDecimal totalPay = paiementRepository.sumPaiementsActifsBySinistre(s.getSinistreTrackingId());
             if (totalEnc == null) totalEnc = BigDecimal.ZERO;
+            if (totalPref == null) totalPref = BigDecimal.ZERO;
             if (totalPay == null) totalPay = BigDecimal.ZERO;
-            BigDecimal fondsDispo = totalEnc.subtract(totalPay);
+            // Cash-flow : encaissé − préfi décaissés − paiements engagés
+            BigDecimal fondsDispo = totalEnc.subtract(totalPref).subtract(totalPay);
 
             return new SinistrePayableResponse(
                     s.getSinistreTrackingId(),
@@ -151,18 +156,22 @@ public class LotReglementServiceImpl implements LotReglementService {
                         "Un règlement HONORAIRES actif existe déjà sur le sinistre " + sinistre.getLibelle());
             }
 
-            // Contrôle solde : fonds_dispo = encaissements ENCAISSE - paiements actifs
+            // Contrôle solde : fonds_dispo = encaissements ENCAISSE - préfi décaissés - paiements actifs
             BigDecimal ht = ligne.montantHt();
             BigDecimal tva = ht.multiply(tauxTva).setScale(2, RoundingMode.HALF_UP);
             BigDecimal ttcLigne = ht.add(tva);
 
             BigDecimal totalEncaisse = encaissementRepository.sumMontantActifBySinistre(
                     ligne.sinistreTrackingId());
+            BigDecimal totalPref = prefinancementRepository.sumMontantActifBySinistre(
+                    ligne.sinistreTrackingId());
             BigDecimal totalDejaPaye = paiementRepository.sumPaiementsActifsBySinistre(
                     ligne.sinistreTrackingId());
             if (totalEncaisse == null) totalEncaisse = BigDecimal.ZERO;
+            if (totalPref == null) totalPref = BigDecimal.ZERO;
             if (totalDejaPaye == null) totalDejaPaye = BigDecimal.ZERO;
-            BigDecimal fondsDispo = totalEncaisse.subtract(totalDejaPaye);
+            // Cash-flow : encaissé − préfi décaissés − paiements engagés
+            BigDecimal fondsDispo = totalEncaisse.subtract(totalPref).subtract(totalDejaPaye);
 
             if (fondsDispo.compareTo(ttcLigne) < 0) {
                 String numSin = sinistre.getNumeroSinistreLocal() != null
@@ -175,9 +184,9 @@ public class LotReglementServiceImpl implements LotReglementService {
                 BigDecimal manque = ttcLigne.subtract(fondsDispo);
                 throw new BadRequestException(String.format(
                         "Fonds insuffisants sur le sinistre %s. Solde disponible : %s FCFA " +
-                                "(encaissé : %s FCFA, déjà réglé : %s FCFA). Règlement demandé : %s FCFA. " +
-                                "Manque : %s FCFA.",
-                        numSin, fondsDispo, totalEncaisse, totalDejaPaye, ttcLigne, manque));
+                                "(encaissé : %s FCFA, préfi décaissés : %s FCFA, déjà réglé : %s FCFA). " +
+                                "Règlement demandé : %s FCFA. Manque : %s FCFA.",
+                        numSin, fondsDispo, totalEncaisse, totalPref, totalDejaPaye, ttcLigne, manque));
             }
         }
 

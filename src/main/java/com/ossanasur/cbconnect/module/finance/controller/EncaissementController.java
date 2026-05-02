@@ -2,7 +2,9 @@ package com.ossanasur.cbconnect.module.finance.controller;
 
 import com.ossanasur.cbconnect.module.finance.dto.request.EncaissementRequest;
 import com.ossanasur.cbconnect.module.finance.dto.response.EncaissementResponse;
+import com.ossanasur.cbconnect.module.finance.dto.response.EncaissementResteResponse;
 import com.ossanasur.cbconnect.module.finance.service.EncaissementService;
+import com.ossanasur.cbconnect.module.finance.service.PaiementImputationService;
 import com.ossanasur.cbconnect.utils.DataResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -26,6 +28,7 @@ import java.util.UUID;
 @SecurityRequirement(name = "bearerAuth")
 public class EncaissementController {
     private final EncaissementService encaissementService;
+    private final PaiementImputationService paiementImputationService;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('SE','COMPTABLE')")
@@ -38,6 +41,14 @@ public class EncaissementController {
     @GetMapping("/{id}")
     public ResponseEntity<DataResponse<EncaissementResponse>> getOne(@PathVariable UUID id) {
         return ResponseEntity.ok(encaissementService.getByTrackingId(id));
+    }
+
+    @GetMapping("/{trackingId}/reste-disponible")
+    @Operation(summary = "Reste disponible algébrique d'un encaissement après imputations actives")
+    public ResponseEntity<DataResponse<EncaissementResteResponse>> getResteDisponible(
+            @PathVariable UUID trackingId) {
+        EncaissementResteResponse resp = paiementImputationService.getResteDetailEncaissement(trackingId);
+        return ResponseEntity.ok(DataResponse.success("Reste disponible calculé", resp));
     }
 
     @GetMapping("/sinistre/{sinistreId}")

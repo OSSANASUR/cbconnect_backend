@@ -2,6 +2,7 @@ package com.ossanasur.cbconnect.module.finance.service.impl;
 
 import com.ossanasur.cbconnect.exception.BadRequestException;
 import com.ossanasur.cbconnect.exception.RessourceNotFoundException;
+import com.ossanasur.cbconnect.module.finance.dto.request.AdminReconciliationRequest;
 import com.ossanasur.cbconnect.module.finance.dto.request.ImputationRequest;
 import com.ossanasur.cbconnect.module.finance.dto.response.EncaissementResteResponse;
 import com.ossanasur.cbconnect.module.finance.dto.response.PaiementImputationResponse;
@@ -189,6 +190,34 @@ public class PaiementImputationServiceImpl implements PaiementImputationService 
         }
 
         // TODO(comptabilite): déclencher EcritureComptableEvent ici (contre-passation)
+    }
+
+    @Override
+    @Transactional
+    public int backfillImputations(UUID sinistreTrackingId,
+                                   List<AdminReconciliationRequest.PaiementImputations> requests,
+                                   String createdBy) {
+        if (requests == null || requests.isEmpty()) {
+            throw new BadRequestException("Aucune imputation à réconcilier");
+        }
+        int total = 0;
+        for (AdminReconciliationRequest.PaiementImputations req : requests) {
+            Paiement p = paiementRepository.findActiveByTrackingId(req.paiementTrackingId())
+                    .orElseThrow(() -> new RessourceNotFoundException(
+                            "Paiement " + req.paiementTrackingId() + " introuvable"));
+
+            // Vérifier que le paiement appartient bien au sinistre demandé
+            if (p.getSinistre() == null
+                    || !sinistreTrackingId.equals(p.getSinistre().getSinistreTrackingId())) {
+                throw new BadRequestException(
+                        "Paiement " + req.paiementTrackingId() + " n'appartient pas au sinistre " + sinistreTrackingId);
+            }
+
+            // Réutilise la logique de validation et de création standard
+            creerImputations(p, req.imputations(), createdBy);
+            total += req.imputations().size();
+        }
+        return total;
     }
 
     private static BigDecimal nz(BigDecimal v) {

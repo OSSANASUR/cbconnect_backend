@@ -1,5 +1,6 @@
 package com.ossanasur.cbconnect.module.finance.service;
 
+import com.ossanasur.cbconnect.module.finance.dto.request.AdminReconciliationRequest;
 import com.ossanasur.cbconnect.module.finance.dto.request.ImputationRequest;
 import com.ossanasur.cbconnect.module.finance.dto.response.EncaissementResteResponse;
 import com.ossanasur.cbconnect.module.finance.dto.response.PaiementImputationResponse;
@@ -33,4 +34,13 @@ public interface PaiementImputationService {
      * rattachée à anPaiement.
      */
     void contrePasserImputations(Paiement paiementOrigine, Paiement anPaiement, String createdBy);
+
+    /**
+     * Backfill manuel des imputations pour des paiements legacy d'un sinistre.
+     * Réservé à la page admin de réconciliation.
+     * @return nombre total d'imputations créées
+     */
+    int backfillImputations(UUID sinistreTrackingId,
+                            List<AdminReconciliationRequest.PaiementImputations> requests,
+                            String createdBy);
 }

@@ -2,8 +2,10 @@ package com.ossanasur.cbconnect.module.finance.dto.request;
 
 import com.ossanasur.cbconnect.common.enums.CategorieReglement;
 import com.ossanasur.cbconnect.common.enums.TypePrejudice;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 public record PaiementCreateRequest(
@@ -25,7 +27,9 @@ public record PaiementCreateRequest(
 
         @NotNull CategorieReglement categorie,
 
-        @NotBlank @Size(max = 150) String motif
+        @NotBlank @Size(max = 150) String motif,
+
+        @Valid List<ImputationRequest> imputations
 
 ) {
     @AssertTrue(message = "Exactement un bénéficiaire doit être renseigné : Victime, Organisme ou Expert")

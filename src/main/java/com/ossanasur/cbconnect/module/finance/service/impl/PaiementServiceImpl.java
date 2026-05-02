@@ -32,6 +32,7 @@ import com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository;
 import com.ossanasur.cbconnect.module.finance.repository.PaiementRepository;
 import com.ossanasur.cbconnect.module.finance.service.EncaissementGuardService;
 import com.ossanasur.cbconnect.module.finance.service.NumeroOperationGenerator;
+import com.ossanasur.cbconnect.module.finance.service.PaiementImputationService;
 import com.ossanasur.cbconnect.module.finance.service.PaiementService;
 import com.ossanasur.cbconnect.module.sinistre.entity.Sinistre;
 import com.ossanasur.cbconnect.module.sinistre.entity.Victime;
@@ -73,6 +74,7 @@ public class PaiementServiceImpl implements PaiementService {
         private final ParamMotifServiceImpl paramMotifService;
         private final ExpertRepository expertRepository;
         private final PaiementBeneficiaireValidator beneficiaireValidator;
+        private final PaiementImputationService paiementImputationService;
 
         /**
          * Crée le règlement technique : bénéficiaire + montant uniquement.
@@ -113,6 +115,10 @@ public class PaiementServiceImpl implements PaiementService {
                 // statut EMIS, numeroCheque null, ecritureComptable null
                 Paiement saved = persisterPaiementAvecNumero(
                                 paiement, TypeOperationFinanciere.REGLEMENT_TECHNIQUE);
+
+                if (request.imputations() != null && !request.imputations().isEmpty()) {
+                        paiementImputationService.creerImputations(saved, request.imputations(), loginAuteur);
+                }
 
                 log.info("Règlement technique créé {} (sinistre={}, montant={}, bénéficiaire={})",
                                 saved.getPaiementTrackingId(), sinistre.getSinistreTrackingId(),

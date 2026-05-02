@@ -13,6 +13,7 @@ import com.ossanasur.cbconnect.module.finance.mapper.PaiementMapper;
 import com.ossanasur.cbconnect.module.finance.repository.EncaissementRepository;
 import com.ossanasur.cbconnect.module.finance.repository.PaiementRepository;
 import com.ossanasur.cbconnect.module.finance.service.EncaissementGuardService;
+import com.ossanasur.cbconnect.module.finance.service.PaiementImputationService;
 import com.ossanasur.cbconnect.module.sinistre.entity.Sinistre;
 import com.ossanasur.cbconnect.module.sinistre.repository.SinistreRepository;
 import com.ossanasur.cbconnect.module.sinistre.repository.VictimeRepository;
@@ -49,6 +50,7 @@ class PaiementServiceImplGuardIntegrationTest {
     @Mock private ComptabiliteService comptabiliteService;
     @Mock private PaiementMapper mapper;
     @Mock private EncaissementGuardService guardService;
+    @Mock private PaiementImputationService paiementImputationService;
 
     @InjectMocks private PaiementServiceImpl service;
 
@@ -68,7 +70,8 @@ class PaiementServiceImplGuardIntegrationTest {
                 null, null,
                 null,
                 com.ossanasur.cbconnect.common.enums.CategorieReglement.PRINCIPAL,
-                "Motif test");
+                "Motif test",
+                null);
 
         assertThatThrownBy(() -> service.creer(req, "user1"))
                 .isInstanceOf(BadRequestException.class)

@@ -53,6 +53,12 @@ public class SinistreServiceImpl implements SinistreService {
     @Override
     @Transactional
     public DataResponse<SinistreResponse> create(SinistreRequest r, String loginAuteur) {
+        if (r.numeroSinistreManuel() != null && !r.numeroSinistreManuel().isBlank()
+                && sinistreRepository.existsByNumeroSinistreManuel(r.numeroSinistreManuel())) {
+            throw new AlreadyExistException("Un sinistre avec le numéro manuel «"
+                    + r.numeroSinistreManuel() + "» existe déjà");
+        }
+
         Pays paysG = paysRepository.findActiveByTrackingId(r.paysGestionnaireTrackingId())
                 .orElseThrow(() -> new RessourceNotFoundException("Pays gestionnaire introuvable"));
         Assure assure = assureRepository.findActiveByTrackingId(r.assureTrackingId())

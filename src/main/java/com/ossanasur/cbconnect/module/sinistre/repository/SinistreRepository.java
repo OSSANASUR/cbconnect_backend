@@ -376,6 +376,64 @@ public interface SinistreRepository extends JpaRepository<Sinistre, Integer> {
    * la jointure passe par la table victime (em.victime_id → v.historique_id,
    * v.sinistre_id = s.historique_id).
    */
+  /**
+   * État litiges — Récapitulatif par pays partenaire.
+   * annee=0 → tous les exercices ; sinon filtre sur EXTRACT(YEAR FROM date_declaration).
+   * Colonnes : [0]=bureau, [1]=code_pays, [2]=nb_contentieux, [3]=nb_arbitrage, [4]=nb_total
+   */
+  @Query(value = """
+      SELECT
+          p.libelle              AS bureau,
+          p.code_carte_brune    AS code_pays,
+          COUNT(s.historique_id) FILTER (WHERE s.statut = 'CONTENTIEUX') AS nb_contentieux,
+          COUNT(s.historique_id) FILTER (WHERE s.statut = 'ARBITRAGE')   AS nb_arbitrage,
+          COUNT(s.historique_id)                                          AS nb_total
+      FROM sinistre s
+      JOIN pays p ON p.historique_id = CASE
+          WHEN s.type_sinistre = 'SURVENU_TOGO'     THEN s.pays_emetteur_id
+          WHEN s.type_sinistre = 'SURVENU_ETRANGER' THEN s.pays_gestionnaire_id
+          ELSE s.pays_emetteur_id
+      END
+      WHERE s.deleted_data = FALSE
+        AND s.active_data  = TRUE
+        AND s.statut IN ('CONTENTIEUX', 'ARBITRAGE')
+        AND (:annee = 0 OR EXTRACT(YEAR FROM s.date_declaration) = :annee)
+      GROUP BY p.libelle, p.code_carte_brune
+      ORDER BY nb_total DESC
+      """, nativeQuery = true)
+  List<Object[]> litigeParPays(@Param("annee") int annee);
+
+  /**
+   * État litiges — Liste détaillée des dossiers en contentieux ou arbitrage.
+   * Colonnes : [0]=numero, [1]=date_declaration, [2]=assure, [3]=type_sinistre,
+   *            [4]=pays_partenaire, [5]=statut, [6]=niveau_juridiction, [7]=date_prochaine_audience
+   */
+  @Query(value = """
+      SELECT
+          s.numero_sinistre_local                                                              AS numero,
+          TO_CHAR(s.date_declaration, 'DD/MM/YYYY')                                          AS date_declaration,
+          COALESCE(a.nom_complet, CONCAT(a.nom_assure, ' ', COALESCE(a.prenom_assure, ''))) AS assure,
+          s.type_sinistre,
+          p.libelle                                                                            AS pays_partenaire,
+          s.statut,
+          s.niveau_juridiction,
+          TO_CHAR(s.date_prochaine_audience, 'DD/MM/YYYY')                                  AS date_prochaine_audience
+      FROM sinistre s
+      LEFT JOIN assure a ON a.historique_id = s.assure_id
+          AND a.active_data = TRUE AND a.deleted_data = FALSE
+      JOIN pays p ON p.historique_id = CASE
+          WHEN s.type_sinistre = 'SURVENU_TOGO'     THEN s.pays_emetteur_id
+          WHEN s.type_sinistre = 'SURVENU_ETRANGER' THEN s.pays_gestionnaire_id
+          ELSE s.pays_emetteur_id
+      END
+      WHERE s.deleted_data = FALSE
+        AND s.active_data  = TRUE
+        AND s.statut IN ('CONTENTIEUX', 'ARBITRAGE')
+        AND (:annee = 0 OR EXTRACT(YEAR FROM s.date_declaration) = :annee)
+      ORDER BY s.statut, s.date_prochaine_audience ASC NULLS LAST, s.date_declaration DESC
+      """, nativeQuery = true)
+  List<Object[]> dossiersEnLitige(@Param("annee") int annee);
+
   @Query(nativeQuery = true, value = """
       SELECT s.* FROM sinistre s
       WHERE EXISTS (

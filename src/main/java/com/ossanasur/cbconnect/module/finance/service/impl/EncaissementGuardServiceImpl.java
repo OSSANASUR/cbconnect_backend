@@ -45,19 +45,20 @@ public class EncaissementGuardServiceImpl implements EncaissementGuardService {
     @Transactional(readOnly = true)
     public void verifierRegleC(UUID sinistreTrackingId, BigDecimal montantNouveau) {
         BigDecimal nouveau = montantNouveau == null ? BigDecimal.ZERO : montantNouveau;
-        // On compte tous les encaissements non-annulés (RECU ou ENCAISSE) —
-        // l'encaissement
-        // existe dès qu'il est saisi, le statut ENCAISSE n'est qu'une étape
-        // postérieure.
         BigDecimal encaisse = notZero(encaissementRepository.sumMontantActifBySinistre(sinistreTrackingId));
+        BigDecimal prefiActif = notZero(prefinancementRepository.sumMontantActifBySinistre(sinistreTrackingId));
         BigDecimal engage = notZero(paiementRepository.sumMontantActifBySinistre(sinistreTrackingId));
-        BigDecimal besoin = engage.add(nouveau);
 
-        if (encaisse.compareTo(besoin) < 0) {
-            BigDecimal manque = besoin.subtract(encaisse);
+        // Solde réel = encaissé − préfi (déjà décaissés) − engagements actuels
+        BigDecimal soldeAvantNouveau = encaisse.subtract(prefiActif).subtract(engage);
+
+        if (soldeAvantNouveau.compareTo(nouveau) < 0) {
+            BigDecimal manque = nouveau.subtract(soldeAvantNouveau);
             throw new BadRequestException(String.format(
-                    "Couverture financière insuffisante : encaissé %s FCFA, déjà engagé %s FCFA, ce règlement %s FCFA (manque %s FCFA).",
-                    encaisse.toPlainString(), engage.toPlainString(), nouveau.toPlainString(), manque.toPlainString()));
+                    "Couverture financière insuffisante : encaissé %s − préfinancements %s − engagés %s = %s FCFA, "
+                    + "ce règlement %s FCFA (manque %s FCFA).",
+                    encaisse.toPlainString(), prefiActif.toPlainString(), engage.toPlainString(),
+                    soldeAvantNouveau.toPlainString(), nouveau.toPlainString(), manque.toPlainString()));
         }
     }
 

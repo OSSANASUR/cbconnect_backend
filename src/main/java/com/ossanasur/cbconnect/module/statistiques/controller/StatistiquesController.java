@@ -1,6 +1,7 @@
 package com.ossanasur.cbconnect.module.statistiques.controller;
 
 import com.ossanasur.cbconnect.module.statistiques.dto.CadenceDto;
+import com.ossanasur.cbconnect.module.statistiques.dto.EtatLitigeDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatReclamationDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.ReclamationTogoDto;
@@ -193,6 +194,19 @@ public class StatistiquesController {
             @RequestParam(required = false) String codePays) {
         return ResponseEntity.ok(DataResponse.success("Réclamations Togo vs homologues",
                 statsService.reclamationTogo(codePays)));
+    }
+
+    /**
+     * État des litiges — Contentieux et Arbitrage en cours.
+     * annee=0 → tous les exercices confondus.
+     *
+     * GET /v1/stats/litiges?annee=2026
+     */
+    @GetMapping("/litiges")
+    @Operation(summary = "État des sinistres en litige (contentieux et arbitrage)")
+    public ResponseEntity<DataResponse<EtatLitigeDto>> etatLitiges(
+            @RequestParam(defaultValue = "0") int annee) {
+        return ResponseEntity.ok(DataResponse.success("État litiges", statsService.etatLitiges(annee)));
     }
 
     /**

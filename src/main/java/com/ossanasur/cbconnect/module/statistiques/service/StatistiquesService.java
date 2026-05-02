@@ -5,6 +5,7 @@ import com.ossanasur.cbconnect.module.finance.repository.PaiementRepository;
 import com.ossanasur.cbconnect.module.reclamation.repository.DossierReclamationRepository;
 import com.ossanasur.cbconnect.module.sinistre.repository.SinistreRepository;
 import com.ossanasur.cbconnect.module.statistiques.dto.CadenceDto;
+import com.ossanasur.cbconnect.module.statistiques.dto.EtatLitigeDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatSinistreDto;
 import com.ossanasur.cbconnect.module.statistiques.dto.EtatFinancierDto.LigneCompagnie;
@@ -792,5 +793,38 @@ public class StatistiquesService {
         if (o instanceof Number n)
             return BigDecimal.valueOf(n.doubleValue());
         return BigDecimal.ZERO;
+    }
+
+    // ─── État litiges : Contentieux et Arbitrage ─────────────────────────
+
+    public EtatLitigeDto etatLitiges(int annee) {
+        List<Object[]> rows = sinistreRepository.litigeParPays(annee);
+
+        List<EtatLitigeDto.LigneLitige> lignes = rows.stream().map(r -> {
+            String bureau = (String) r[0];
+            String codePays = (String) r[1];
+            long nbContentieux = toLong(r[2]);
+            long nbArbitrage = toLong(r[3]);
+            return new EtatLitigeDto.LigneLitige(bureau, codePays, nbContentieux, nbArbitrage);
+        }).toList();
+
+        long grandTotal = lignes.stream().mapToLong(EtatLitigeDto.LigneLitige::getNbTotal).sum();
+        lignes.forEach(l -> l.setPourcentage(grandTotal));
+
+        List<Object[]> dossierRows = sinistreRepository.dossiersEnLitige(annee);
+        List<EtatLitigeDto.DossierLitige> dossiers = dossierRows.stream().map(r ->
+            new EtatLitigeDto.DossierLitige(
+                (String) r[0],
+                (String) r[1],
+                (String) r[2],
+                (String) r[3],
+                (String) r[4],
+                (String) r[5],
+                (String) r[6],
+                (String) r[7]
+            )
+        ).toList();
+
+        return new EtatLitigeDto(annee, lignes, dossiers);
     }
 }

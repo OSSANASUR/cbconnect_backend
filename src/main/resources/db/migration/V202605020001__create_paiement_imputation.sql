@@ -1,6 +1,6 @@
 -- Imputation explicite paiement → encaissement avec montant alloué
 -- Pattern contre-passation : montant_impute signé (+création / −annulation)
-CREATE TABLE paiement_imputation (
+CREATE TABLE IF NOT EXISTS paiement_imputation (
     historique_id            BIGSERIAL PRIMARY KEY,
     imputation_tracking_id   UUID NOT NULL UNIQUE,
     paiement_id              BIGINT NOT NULL REFERENCES paiement(historique_id),
@@ -15,13 +15,16 @@ CREATE TABLE paiement_imputation (
     updated_by               VARCHAR(100),
     deleted_at               TIMESTAMP,
     deleted_by               VARCHAR(100),
-    from_table               VARCHAR(50) DEFAULT 'PAIEMENT_IMPUTATION'
+    from_table               VARCHAR(50) DEFAULT 'PAIEMENT_IMPUTATION',
+    CONSTRAINT chk_montant_impute_non_zero CHECK (montant_impute <> 0),
+    CONSTRAINT chk_contre_passage_negatif
+        CHECK (imputation_origine_id IS NULL OR montant_impute < 0)
 );
 
-CREATE INDEX idx_pi_enc_actif ON paiement_imputation(encaissement_id)
+CREATE INDEX IF NOT EXISTS idx_pi_enc_actif ON paiement_imputation(encaissement_id)
   WHERE active_data = TRUE AND deleted_data = FALSE;
 
-CREATE INDEX idx_pi_paiement_actif ON paiement_imputation(paiement_id)
+CREATE INDEX IF NOT EXISTS idx_pi_paiement_actif ON paiement_imputation(paiement_id)
   WHERE active_data = TRUE AND deleted_data = FALSE;
 
 COMMENT ON COLUMN paiement_imputation.montant_impute IS

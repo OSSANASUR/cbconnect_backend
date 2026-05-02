@@ -371,8 +371,11 @@ public class PrefinancementServiceImpl implements PrefinancementService {
                 BigDecimal totalEnc = encaissementRepository.sumMontantActifBySinistre(sid);
                 BigDecimal totalPref = prefinancementRepository.sumMontantActifBySinistre(sid);
                 BigDecimal totalEngageReglements = paiementRepository.sumMontantActifBySinistre(sid);
-                BigDecimal totalDispo = totalEnc.add(totalPref);
-                BigDecimal soldeNet = totalDispo.subtract(totalEngageReglements);
+                // Cash-flow : encaissements (entrées) − préfinancements (sorties anticipées)
+                // − paiements (engagements actuels). Pas d'addition prefi+enc.
+                BigDecimal soldeNet = totalEnc.subtract(totalPref).subtract(totalEngageReglements);
+                // totalDispo = total des entrées de trésorerie réelles (encaissements seuls)
+                BigDecimal totalDispo = totalEnc;
 
                 boolean hasEnc = encaissementRepository.existsActifNonAnnuleBySinistre(sid);
                 boolean hasPref = prefinancementRepository.existsActifBySinistre(sid);

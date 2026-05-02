@@ -11,10 +11,12 @@ import com.ossanasur.cbconnect.module.finance.dto.request.AnnulerPrefinancementR
 import com.ossanasur.cbconnect.module.finance.dto.request.PrefinancementCreateRequest;
 import com.ossanasur.cbconnect.module.finance.dto.request.RembourserPrefinancementRequest;
 import com.ossanasur.cbconnect.module.finance.dto.response.CouvertureFinanciereResponse;
+import com.ossanasur.cbconnect.module.finance.dto.response.CouvertureSinistreResponse;
 import com.ossanasur.cbconnect.module.finance.dto.response.PrefinancementDetailResponse;
 import com.ossanasur.cbconnect.module.finance.dto.response.PrefinancementResponse;
 import com.ossanasur.cbconnect.module.finance.dto.response.RemboursementSuggestionResponse;
 import com.ossanasur.cbconnect.module.finance.dto.response.RemboursementSuggestionResponse.EncaissementCandidat;
+import com.ossanasur.cbconnect.module.finance.service.PaiementImputationService;
 import com.ossanasur.cbconnect.module.finance.entity.Encaissement;
 import com.ossanasur.cbconnect.module.finance.entity.Prefinancement;
 import com.ossanasur.cbconnect.module.finance.entity.PrefinancementRemboursement;
@@ -52,6 +54,7 @@ public class PrefinancementServiceImpl implements PrefinancementService {
         private final NumeroOperationGenerator numeroOperationGenerator;
         private final PrefinancementMapper mapper;
         private final PaiementRepository paiementRepository;
+        private final PaiementImputationService paiementImputationService;
 
         /**
          * Crée un préfinancement en statut DEMANDE.
@@ -357,6 +360,70 @@ public class PrefinancementServiceImpl implements PrefinancementService {
                                 enc.getNumeroCheque(), saved.getStatut());
 
                 return DataResponse.success("Remboursement enregistré", mapper.toDetailResponse(saved));
+        }
+
+        /**
+         * Vue financière enrichie d'un sinistre avec détails par encaissement et par
+         * préfinancement. Consommée par EncaissementImputationPicker côté frontend.
+         */
+        @Override
+        @Transactional(readOnly = true)
+        public DataResponse<CouvertureSinistreResponse> getCouvertureSinistre(UUID sinistreTrackingId) {
+                BigDecimal totalEnc = encaissementRepository.sumMontantActifBySinistre(sinistreTrackingId);
+                BigDecimal totalPref = prefinancementRepository.sumMontantActifBySinistre(sinistreTrackingId);
+                BigDecimal totalPay = paiementRepository.sumMontantActifBySinistre(sinistreTrackingId);
+                BigDecimal soldeNet = totalEnc.subtract(totalPref).subtract(totalPay);
+
+                boolean hasEnc = encaissementRepository.existsActifNonAnnuleBySinistre(sinistreTrackingId);
+                boolean hasPref = prefinancementRepository.existsActifBySinistre(sinistreTrackingId);
+                boolean regleAOk = hasEnc || hasPref;
+                boolean regleBOk = encaissementRepository.existsEncaisseBySinistre(sinistreTrackingId) || hasPref;
+                boolean regleCOk = soldeNet.compareTo(BigDecimal.ZERO) >= 0;
+
+                String message = null;
+                if (!regleAOk)
+                        message = "Aucun encaissement ni préfinancement actif sur ce sinistre.";
+                else if (!regleBOk)
+                        message = "Aucun chèque crédité en banque (et pas de préfinancement validé).";
+                else if (!regleCOk)
+                        message = "Couverture insuffisante : reste à couvrir " + soldeNet.abs() + " FCFA.";
+
+                List<CouvertureSinistreResponse.EncaissementResumeInfo> encaissementsInfo =
+                        encaissementRepository.findActifsBySinistre(sinistreTrackingId).stream()
+                                .map(e -> new CouvertureSinistreResponse.EncaissementResumeInfo(
+                                        e.getEncaissementTrackingId(),
+                                        e.getNumeroCheque(),
+                                        e.getMontantCheque(),
+                                        paiementImputationService.getResteDisponible(e.getEncaissementTrackingId())))
+                                .toList();
+
+                List<CouvertureSinistreResponse.PrefiResumeInfo> prefisInfo =
+                        prefinancementRepository.findActiveBySinistre(sinistreTrackingId).stream()
+                                .map(p -> {
+                                        BigDecimal rembourse = remboursementRepository
+                                                .sumMontantByPrefinancement(p.getHistoriqueId());
+                                        BigDecimal resteARembourser = p.getMontantPrefinance()
+                                                .subtract(rembourse);
+                                        return new CouvertureSinistreResponse.PrefiResumeInfo(
+                                                p.getPrefinancementTrackingId(),
+                                                p.getNumeroPrefinancement(),
+                                                p.getMontantPrefinance(),
+                                                resteARembourser);
+                                })
+                                .toList();
+
+                CouvertureSinistreResponse response = new CouvertureSinistreResponse(
+                        sinistreTrackingId,
+                        totalEnc,
+                        totalPref,
+                        totalPay,
+                        soldeNet,
+                        regleAOk, regleBOk, regleCOk,
+                        message,
+                        encaissementsInfo,
+                        prefisInfo);
+
+                return DataResponse.success("Couverture financière calculée", response);
         }
 
         /**

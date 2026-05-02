@@ -1,5 +1,7 @@
 package com.ossanasur.cbconnect.module.sinistre.controller;
 
+import com.ossanasur.cbconnect.module.finance.dto.response.CouvertureSinistreResponse;
+import com.ossanasur.cbconnect.module.finance.service.PrefinancementService;
 import com.ossanasur.cbconnect.module.sinistre.dto.request.ConfirmationGarantieRequest;
 import com.ossanasur.cbconnect.module.sinistre.dto.request.MiseEnArbitrageRequest;
 import com.ossanasur.cbconnect.module.sinistre.dto.request.MiseEnContentieuxRequest;
@@ -30,6 +32,7 @@ import java.util.UUID;
 @SecurityRequirement(name = "bearerAuth")
 public class SinistreController {
     private final SinistreService sinistreService;
+    private final PrefinancementService prefinancementService;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('SE','CSS','REDACTEUR','SECRETAIRE')")
@@ -142,5 +145,13 @@ public class SinistreController {
             @PathVariable UUID id,
             @AuthenticationPrincipal UserDetails u) {
         return ResponseEntity.ok(sinistreService.sortirDuLitige(id, u.getUsername()));
+    }
+
+    @GetMapping("/{trackingId}/couverture")
+    @io.swagger.v3.oas.annotations.Operation(
+            summary = "Couverture financière complète du sinistre (encaissements, préfis, soldes par règles)")
+    public ResponseEntity<DataResponse<CouvertureSinistreResponse>> getCouverture(
+            @PathVariable UUID trackingId) {
+        return ResponseEntity.ok(prefinancementService.getCouvertureSinistre(trackingId));
     }
 }

@@ -4,6 +4,7 @@ import com.ossanasur.cbconnect.module.finance.dto.request.AnnulerPrefinancementR
 import com.ossanasur.cbconnect.module.finance.dto.request.PrefinancementCreateRequest;
 import com.ossanasur.cbconnect.module.finance.dto.request.RembourserPrefinancementRequest;
 import com.ossanasur.cbconnect.module.finance.dto.response.CouvertureFinanciereResponse;
+import com.ossanasur.cbconnect.module.finance.dto.response.CouvertureSinistreResponse;
 import com.ossanasur.cbconnect.module.finance.dto.response.PrefinancementDetailResponse;
 import com.ossanasur.cbconnect.module.finance.dto.response.PrefinancementResponse;
 import com.ossanasur.cbconnect.module.finance.dto.response.RemboursementSuggestionResponse;
@@ -38,4 +39,6 @@ public interface PrefinancementService {
     DataResponse<List<PrefinancementResponse>> getBySinistre(UUID sinistreTrackingId);
 
     DataResponse<CouvertureFinanciereResponse> getCouvertureFinanciere(UUID sinistreTrackingId);
+
+    DataResponse<CouvertureSinistreResponse> getCouvertureSinistre(UUID sinistreTrackingId);
 }

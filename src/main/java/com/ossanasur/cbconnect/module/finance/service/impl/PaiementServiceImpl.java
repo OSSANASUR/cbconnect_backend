@@ -370,6 +370,10 @@ public class PaiementServiceImpl implements PaiementService {
                 Paiement saved = persisterPaiementAvecNumero(
                                 annulation, TypeOperationFinanciere.ANNULATION_REGLEMENT);
 
+                // Contre-passage des imputations du RT parent — libère les fonds
+                // alloués sur les encaissements (cf. plan imputation-encaissement Task C6).
+                paiementImputationService.contrePasserImputations(parent, saved, loginAuteur);
+
                 log.info("Règlement {} annulé par {} (motif={}, nouvelle ligne={})",
                                 paiementTrackingId, loginAuteur, request.motifAnnulation(),
                                 saved.getPaiementTrackingId());

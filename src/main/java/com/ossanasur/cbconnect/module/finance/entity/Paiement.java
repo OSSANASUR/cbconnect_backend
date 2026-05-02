@@ -85,10 +85,25 @@ public class Paiement extends InternalHistorique {
     @JoinColumn(name = "sinistre_id", nullable = false)
     private Sinistre sinistre;
 
+    /**
+     * @deprecated Lien M:N legacy sans montant — remplacé par PaiementImputation
+     *             (avec montant_impute). Conservé pour le fallback de calcul tant
+     *             que le mode strict n'est pas activé (cf. flag
+     *             cbconnect.imputation.fallback-legacy). À supprimer une fois la
+     *             réconciliation admin terminée et le flag basculé.
+     */
+    @Deprecated
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "paiement_encaissement", joinColumns = @JoinColumn(name = "paiement_id"), inverseJoinColumns = @JoinColumn(name = "encaissement_id"))
     @Builder.Default
     private java.util.List<Encaissement> encaissements = new ArrayList<>();
+
+    /**
+     * Imputations explicites avec montant alloué — source de vérité pour le calcul
+     * du reste disponible par encaissement.
+     */
+    @OneToMany(mappedBy = "paiement", fetch = FetchType.LAZY)
+    private java.util.List<PaiementImputation> imputations = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "annule_par_id")
